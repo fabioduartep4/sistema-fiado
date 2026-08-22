@@ -1,0 +1,54 @@
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fiado
+          POSTGRES_PASSWORD: fiado
+          POSTGRES_DB: fiado_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fiado"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: fiado_ci
+      DB_USER: fiado
+      DB_PASSWORD: fiado
+      RODAR_TESTES_INTEGRACAO: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      - name: Instalar cliente PostgreSQL (pg_dump/psql, usados pelo backup_service)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Aplicar migrações no banco de testes
+        run: alembic upgrade head
+
+      - name: Rodar testes (puros + integração contra o Postgres do job)
+        run: pytest -v

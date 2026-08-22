@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe11111111111111111111111111111111111111111111" versao="4.00">
+      <ide>
+        <natOp>Venda a prazo</natOp>
+        <dhEmi>2026-01-15T10:30:00-03:00</dhEmi>
+      </ide>
+      <dest>
+        <xNome>CLIENTE DE TESTE</xNome>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <xProd>Produto de Teste A</xProd>
+          <qCom>2.0000</qCom>
+          <vProd>20.00</vProd>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <xProd>Produto de Teste B</xProd>
+          <qCom>1.0000</qCom>
+          <vProd>15.50</vProd>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>35.50</vNF>
+        </ICMSTot>
+      </total>
+      <pag>
+        <detPag>
+          <tPag>05</tPag>
+          <vPag>35.50</vPag>
+        </detPag>
+      </pag>
+    </infNFe>
+  </NFe>
+</nfeProc>
