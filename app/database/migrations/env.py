@@ -8,6 +8,7 @@ mudanças nos modelos.
 
 from __future__ import annotations
 
+import logging.config
 from logging.config import fileConfig
 
 from alembic import context

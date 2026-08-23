@@ -83,7 +83,7 @@ def definir_modo_data_padrao(usuario_logado: UsuarioAutenticado, modo: ModoDataP
         raise PermissaoNegadaError("Apenas administradores podem alterar configurações do sistema.")
 
     with session_scope() as session:
-        configuracao_repository.definir(session, CHAVE_MODO_DATA_PADRAO, modo.value)
+        configuracao_repository.definir(session, CHAVE_MODO_DATA_PADRAO, modo)
 
 
 @tratar_erros
@@ -124,7 +124,7 @@ def definir_tema(usuario_logado: UsuarioAutenticado, tema: ModoTema) -> None:
         raise PermissaoNegadaError("Apenas administradores podem alterar configurações do sistema.")
 
     with session_scope() as session:
-        configuracao_repository.definir(session, CHAVE_TEMA, tema.value)
+        configuracao_repository.definir(session, CHAVE_TEMA, tema)
 
 
 @tratar_erros

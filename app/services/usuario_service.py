@@ -124,7 +124,7 @@ def criar_usuario(
             entidade_id=novo_usuario.id,
             usuario_id=uuid.UUID(usuario_logado.id),
             acao="criacao",
-            valor_novo=f"login={login}, perfil={perfil.value}",
+            valor_novo=f"login={login}, perfil={perfil}",
         )
         return _para_resumo(novo_usuario)
 

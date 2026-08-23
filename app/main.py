@@ -8,6 +8,7 @@ abre a janela principal (PySide6).
 
 from __future__ import annotations
 
+
 import sys
 
 from PySide6.QtWidgets import QApplication, QMessageBox
