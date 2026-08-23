@@ -36,6 +36,12 @@ block_cipher = None
 # SQLAlchemy e psycopg carregam alguns módulos dinamicamente (dialeto do
 # PostgreSQL, driver psycopg), o que o PyInstaller não detecta sozinho
 # apenas seguindo os imports — por isso listamos explicitamente aqui.
+#
+# "logging.config" entra por um motivo à parte: é usado só dentro de
+# app/database/migrations/env.py, que o Alembic carrega dinamicamente em
+# tempo de execução (não é um "import" que o PyInstaller consiga seguir
+# estaticamente a partir de app/main.py) — sem isso aqui, a criação das
+# tabelas falha com ModuleNotFoundError assim que roda no .exe.
 hidden_imports = (
     collect_submodules("sqlalchemy.dialects.postgresql")
     + collect_submodules("psycopg")
@@ -44,6 +50,7 @@ hidden_imports = (
         "argon2_cffi_bindings",
         "PySide6.QtSvg",
         "lxml.etree",
+        "logging.config",
     ]
 )
 
