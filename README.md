@@ -1,5 +1,35 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Correção: erro "Multiple rows were found" ao trocar a pasta de XMLs (novidade)
+
+- **Causa raiz**: o índice permanente de XMLs (`xml_indexados`) identifica
+  cada arquivo pelo **caminho completo**, não pela chave da nota fiscal —
+  proposital, para rastrear até arquivos inválidos (sem chave). Só que,
+  quando a pasta de XMLs configurada muda de um caminho local para um
+  caminho de rede/servidor que aponta para os **mesmos arquivos**, cada
+  arquivo passa a ser enxergado com um caminho novo e o sistema o trata
+  como se fosse um arquivo totalmente diferente — criando uma segunda
+  linha no índice para a mesma nota fiscal (mesma chave, dois caminhos).
+  Isso causava dois sintomas: a varredura reprocessava a pasta inteira de
+  novo (parecendo travada, já que nenhum arquivo "batia" com o caminho
+  novo) e a tela "Ver Produtos" quebrava com `Multiple rows were found
+  when one or none are required.` ao encontrar duas linhas para a mesma
+  chave.
+- **Correção**: `xml_indexado_repository.inserir_lote` agora detecta,
+  antes de gravar, quando uma chave já indexada aparece sob um caminho
+  diferente — nesse caso, **atualiza a linha existente** com o novo
+  caminho em vez de criar uma segunda. `buscar_por_chave` também ficou
+  mais defensivo: mesmo que uma duplicata já exista (de antes desta
+  correção), ele nunca mais quebra — sempre devolve a entrada mais
+  recentemente atualizada, em vez de exigir exatamente uma linha.
+- Nada disso lê, grava ou de qualquer forma altera os arquivos XML em
+  si — a correção mexe só no índice interno (tabela `xml_indexados`) que
+  o sistema usa para não precisar reabrir a pasta inteira a cada operação.
+- Reprocessar a pasta inteira uma vez, na primeira varredura depois de
+  trocar o caminho configurado, continua acontecendo (não tem como saber
+  que é o "mesmo arquivo" sem reabri-lo pelo menos uma vez) — mas agora
+  isso é seguro e não deixa duplicatas nem quebra nada depois.
+
 ## Plano B para criar o admin quando o Windows bloqueia o .exe (novidade)
 
 - **Causa raiz**: executáveis do PyInstaller sem assinatura digital (como
