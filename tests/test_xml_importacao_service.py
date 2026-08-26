@@ -20,7 +20,11 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from sqlalchemy import func, select
 
+from app.database.connection import session_scope
+from app.models.xml_indexado import XmlIndexado
+from app.repositories import xml_indexado_repository
 from app.services import cliente_service, configuracao_service, xml_importacao_service
 from app.services.xml_importacao_service import EscolhaImportacao
 
@@ -321,6 +325,45 @@ def test_obter_produtos_usa_cache_e_se_recupera_de_arquivo_removido(
     caminho.unlink()
     with pytest.raises(ValueError):
         xml_importacao_service.obter_produtos(chave)
+
+
+def test_obter_produtos_apos_mudanca_de_caminho_nao_duplica_nem_quebra(
+    usuario_admin_teste, _pasta_xml_configurada
+) -> None:
+    """Regressão: quando a pasta de XMLs é reconfigurada (ex.: de um caminho
+    local para um caminho de rede/servidor) e passa a enxergar o mesmo
+    arquivo por um caminho diferente, o índice não pode criar uma segunda
+    linha para a mesma chave — isso fazia ``obter_produtos`` (Ver Produtos)
+    quebrar com "Multiple rows were found when one or none are required"."""
+    chave = _gerar_chave()
+    nome_cliente = f"Teste Automatizado XML {uuid.uuid4().hex[:8]}"
+    caminho_antigo = _escrever_xml_teste(_pasta_xml_configurada, "nota_caminho_antigo.xml", chave, nome_cliente)
+
+    # Indexa o arquivo no caminho "antigo" (simula o caminho local original).
+    produtos = xml_importacao_service.obter_produtos(chave)
+    assert len(produtos) == 2
+
+    # "Move" o arquivo para um caminho novo dentro da mesma pasta (simula a
+    # pasta configurada trocando de um caminho local para um de rede, que
+    # aponta para o mesmo arquivo físico) — mesma chave, caminho diferente.
+    texto = caminho_antigo.read_text(encoding="utf-8")
+    caminho_antigo.unlink()
+    caminho_novo = _pasta_xml_configurada / "nota_caminho_novo.xml"
+    caminho_novo.write_text(texto, encoding="utf-8")
+
+    # Não deve levantar "Multiple rows were found..." nem nenhum outro erro.
+    produtos = xml_importacao_service.obter_produtos(chave)
+    assert len(produtos) == 2
+
+    with session_scope() as session:
+        entrada = xml_indexado_repository.buscar_por_chave(session, chave)
+        assert entrada is not None
+        assert entrada.caminho_arquivo == str(caminho_novo)
+
+        total = session.execute(
+            select(func.count()).select_from(XmlIndexado).where(XmlIndexado.chave == chave)
+        ).scalar_one()
+        assert total == 1
 
 
 def test_obter_produtos_chave_inexistente_levanta_erro(
