@@ -21,13 +21,13 @@ from app.services.cliente_service import CompraResumo
 from app.services.pagamento_service import PagamentoResumo
 
 _ESTILO_BASE = """
-body { font-family: 'Courier New', Consolas, monospace; color: #000000; font-size: 11px; }
-h2 { font-size: 13px; text-align: center; margin: 2px 0 6px 0; }
-h3 { font-size: 11px; margin: 8px 0 2px 0; }
+body { font-family: 'Courier New', Consolas, monospace; color: #000000; font-size: 10pt; }
+h2 { font-size: 14pt; text-align: center; margin: 2px 0 6px 0; }
+h3 { font-size: 11pt; margin: 8px 0 2px 0; }
 p { margin: 2px 0; }
 hr { border: none; border-top: 1px dashed #000000; margin: 6px 0; }
 .item { margin: 4px 0; }
-.rodape { font-size: 9px; text-align: center; margin-top: 10px; }
+.rodape { font-size: 8pt; text-align: center; margin-top: 10px; }
 """
 
 
