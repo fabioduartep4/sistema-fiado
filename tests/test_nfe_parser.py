@@ -79,6 +79,20 @@ def test_ler_nfe_venda_a_vista_nunca_e_fiado_mesmo_com_pagamento_credito_loja() 
     assert nota.eh_fiado is False
 
 
+def test_ler_nfe_sem_cliente_identificado_nao_e_invalido() -> None:
+    """Regressão: uma NFC-e de venda no balcão sem cliente identificado (sem
+    <dest>) é um XML completo e válido — não deve levantar
+    NfeXmlInvalidoError. Confirmado com dados reais: era o motivo de 121 mil
+    dos ~123 mil arquivos de uma pasta real ficarem marcados como
+    "inválidos" e serem relidos em toda varredura, para sempre (retry
+    infinito de arquivo inválido)."""
+    nota = ler_nfe(_PASTA_FIXTURES / "nfe_exemplo_sem_cliente.xml")
+    assert nota.chave == "44444444444444444444444444444444444444444444"
+    assert nota.nome_cliente == ""
+    assert nota.eh_venda_a_prazo is True
+    assert nota.eh_fiado is False  # tPag=03 (cartão de crédito), não é fiado
+
+
 def test_ler_nfe_extrai_produtos_com_quantidade_e_valor() -> None:
     nota = ler_nfe(_PASTA_FIXTURES / "nfe_exemplo.xml")
 
