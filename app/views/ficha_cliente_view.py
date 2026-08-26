@@ -129,7 +129,7 @@ class FichaClienteView(QDialog):
         layout.addWidget(self._label_alternativos)
         layout.addWidget(self._label_telefones)
         layout.addWidget(self._label_compradores)
-        layout.addWidget(QLabel("Compras:"))
+        layout.addWidget(QLabel("Compras em aberto:"))
         layout.addWidget(self._lista_compras)
         layout.addWidget(self._botao_ver_produtos)
         layout.addWidget(self._label_total)
@@ -163,15 +163,20 @@ class FichaClienteView(QDialog):
         self._label_telefones.setText("Telefones: " + (", ".join(ficha.telefones) or "-"))
         self._label_compradores.setText("Compradores: " + (", ".join(ficha.compradores) or "-"))
 
+        # Só as compras em aberto aparecem aqui — as já quitadas ficam no
+        # Histórico de Pagamentos, junto do pagamento que as quitou (menos
+        # poluição visual e bate com o "Total em aberto" logo abaixo).
+        compras_abertas = [compra for compra in ficha.compras if compra.status == "aberta"]
+
         self._lista_compras.clear()
-        if not ficha.compras:
-            self._lista_compras.addItem("Nenhuma compra registrada.")
-        for compra in ficha.compras:
+        if not compras_abertas:
+            self._lista_compras.addItem("Nenhuma compra em aberto.")
+        for compra in compras_abertas:
             rotulo_resto = " [Resto]" if compra.eh_resto else ""
             rotulo_xml = " 📄" if compra.origem_nfe_xml else ""
             data_formatada = compra.data.strftime("%d/%m")
             item = QListWidgetItem(
-                f"R$ {compra.valor:.2f} — {data_formatada}{rotulo_resto} ({compra.status}){rotulo_xml}"
+                f"R$ {compra.valor:.2f} — {data_formatada}{rotulo_resto}{rotulo_xml}"
             )
             item.setData(Qt.ItemDataRole.UserRole, compra.origem_nfe_xml)
             self._lista_compras.addItem(item)
@@ -229,7 +234,9 @@ class FichaClienteView(QDialog):
             id_visivel=self._ficha.id_visivel,
             telefones=self._ficha.telefones,
             total_em_aberto=self._ficha.total_em_aberto,
-            compras=self._ficha.compras,
+            # Só as em aberto — as já quitadas ficam no Histórico de
+            # Pagamentos, junto do pagamento que as quitou.
+            compras=[c for c in self._ficha.compras if c.status == "aberta"],
             pagamentos=pagamentos,
         )
         exibir_pre_visualizacao_impressao(self, f"Extrato — {self._ficha.nome_principal}", html)

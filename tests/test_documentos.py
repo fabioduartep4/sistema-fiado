@@ -62,6 +62,7 @@ def test_montar_html_extrato_cliente_lista_compras_e_pagamentos() -> None:
         PagamentoResumo(
             id="p1", valor_pago=Decimal("10.00"), data_pagamento=date(2026, 1, 12),
             recebido_por_nome="Administrador", observacoes=None, ativo=True,
+            compras_quitadas=[],
         ),
     ]
 

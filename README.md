@@ -1,5 +1,30 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Compras quitadas saem da Ficha do Cliente, vão pro Histórico (novidade)
+
+- **Causa raiz**: a Ficha do Cliente listava todas as compras do cliente
+  juntas — abertas e já quitadas — diferenciadas só por um texto no final
+  de cada linha. Como compra nunca é apagada do banco (só muda de status),
+  um cliente antigo acumulava uma lista cada vez maior, quase toda já
+  paga, misturada com o que realmente importa no dia a dia: o que ainda
+  está em aberto.
+- **Correção**: a lista "Compras em aberto" da Ficha do Cliente agora
+  mostra só isso — compras em aberto. As já quitadas passaram a aparecer
+  no **Histórico de Pagamentos**, junto do pagamento que as quitou (usando
+  a ligação pagamento↔compra que o sistema já guardava internamente, até
+  então usada só para o estorno saber o que reverter) — ao selecionar um
+  pagamento na tabela, a lista abaixo mostra quais compras ele quitou e
+  quanto foi aplicado em cada uma.
+- O botão **"Ver Produtos"** (para compras vindas de XML importado) foi
+  junto para o Histórico — antes só dava pra conferir os produtos de uma
+  compra ainda em aberto na Ficha; agora também dá pra conferir os
+  produtos de uma compra já quitada, a partir do pagamento que a fechou.
+- O **Extrato** (impressão) também passou a listar só as compras em
+  aberto — a pedido, para ficar consistente com a Ficha. O histórico de
+  pagamentos impresso continua completo (inclusive estornados).
+- Nada disso apaga ou esconde dado nenhum do banco — é só uma reorganização
+  de onde cada informação aparece na tela.
+
 ## Correção: quase toda a pasta de XMLs sendo relida em toda varredura (novidade)
 
 - **Causa raiz**: o leitor de XML (`nfe_parser.ler_nfe`) exigia um nome de

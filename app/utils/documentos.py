@@ -96,7 +96,9 @@ def montar_html_extrato_cliente(
         id_visivel: Código sequencial exibido do cliente.
         telefones: Telefones de contato cadastrados.
         total_em_aberto: Total atualmente em aberto na conta.
-        compras: Todas as compras do cliente (``ClienteFicha.compras``).
+        compras: Compras do cliente a listar no extrato — em uso, só as
+            em aberto (compras já quitadas ficam no Histórico de
+            Pagamentos, junto do pagamento que as quitou).
         pagamentos: Todos os pagamentos do cliente, inclusive estornados.
 
     Returns:

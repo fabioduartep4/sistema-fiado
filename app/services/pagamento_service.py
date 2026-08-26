@@ -156,6 +156,23 @@ class EstornoNaoPermitidoError(ErroDeNegocio):
 
 
 @dataclass(frozen=True)
+class CompraQuitadaResumo:
+    """Uma compra quitada (total ou parcialmente) por um pagamento específico.
+
+    Exibida no Histórico de Pagamentos, junto do pagamento que a quitou —
+    é para lá que uma compra "sai de vista" quando deixa de aparecer na
+    lista de compras em aberto da Ficha do Cliente.
+    """
+
+    compra_id: str
+    valor: Decimal
+    data: date
+    valor_aplicado: Decimal
+    eh_resto: bool
+    origem_nfe_xml: Optional[str]
+
+
+@dataclass(frozen=True)
 class PagamentoResumo:
     """Dados de um pagamento, para exibição no histórico do cliente."""
 
@@ -165,6 +182,7 @@ class PagamentoResumo:
     recebido_por_nome: str
     observacoes: Optional[str]
     ativo: bool
+    compras_quitadas: list[CompraQuitadaResumo]
 
 
 @tratar_erros
@@ -178,7 +196,10 @@ def listar_pagamentos_por_cliente(cliente_id: str) -> list[PagamentoResumo]:
         cliente_id: UUID (como texto) do cliente.
 
     Returns:
-        Lista de :class:`PagamentoResumo`, mais recente primeiro.
+        Lista de :class:`PagamentoResumo`, mais recente primeiro. Cada um
+        traz também as compras que ele quitou (``compras_quitadas``) — um
+        pagamento estornado não tem nenhuma, já que o estorno desfaz essas
+        aplicações e reabre as compras.
     """
     with session_scope() as session:
         pagamentos = pagamento_repository.listar_por_cliente(session, uuid.UUID(cliente_id))
@@ -190,6 +211,17 @@ def listar_pagamentos_por_cliente(cliente_id: str) -> list[PagamentoResumo]:
                 recebido_por_nome=p.recebido_por.nome,
                 observacoes=p.observacoes,
                 ativo=p.ativo,
+                compras_quitadas=[
+                    CompraQuitadaResumo(
+                        compra_id=str(aplicacao.compra.id),
+                        valor=aplicacao.compra.valor,
+                        data=aplicacao.compra.data,
+                        valor_aplicado=aplicacao.valor_aplicado,
+                        eh_resto=aplicacao.compra.eh_resto,
+                        origem_nfe_xml=aplicacao.compra.origem_nfe_xml,
+                    )
+                    for aplicacao in pagamento_repository.listar_aplicacoes(session, p.id)
+                ],
             )
             for p in pagamentos
         ]

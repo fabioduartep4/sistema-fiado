@@ -131,6 +131,53 @@ def test_estorno_de_pagamento_ja_estornado_levanta_erro(usuario_admin_teste) -> 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
 
 
+def test_pagamento_lista_as_compras_que_quitou(usuario_admin_teste) -> None:
+    """As compras quitadas por um pagamento (compras_quitadas) é o que
+    alimenta o Histórico de Pagamentos — é para lá que uma compra vai
+    quando some da lista de compras em aberto da Ficha do Cliente."""
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Compras Quitadas", [], [], []
+    )
+    hoje = obter_data_padrao()
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("20.00"), hoje, None)
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("30.00"), hoje, None)
+
+    # Paga 40: quita a compra de 20 inteira e parte da de 30 (gera Resto de 10).
+    pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("40.00"), hoje, None)
+
+    pagamentos = pagamento_service.listar_pagamentos_por_cliente(cliente.id)
+    assert len(pagamentos) == 1
+    compras_quitadas = pagamentos[0].compras_quitadas
+    assert len(compras_quitadas) == 2
+
+    valores_aplicados = sorted(c.valor_aplicado for c in compras_quitadas)
+    assert valores_aplicados == [Decimal("20.00"), Decimal("20.00")]
+    # A compra de 30 foi só parcialmente aplicada (20 dela, sobrando 10 num Resto).
+    compra_parcial = next(c for c in compras_quitadas if c.valor == Decimal("30.00"))
+    assert compra_parcial.valor_aplicado == Decimal("20.00")
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_pagamento_estornado_nao_lista_mais_compras_quitadas(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Compras Quitadas Estorno", [], [], []
+    )
+    hoje = obter_data_padrao()
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("15.00"), hoje, None)
+    pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("15.00"), hoje, None)
+
+    pagamentos = pagamento_service.listar_pagamentos_por_cliente(cliente.id)
+    assert len(pagamentos[0].compras_quitadas) == 1
+
+    pagamento_service.estornar_pagamento(usuario_admin_teste, pagamentos[0].id)
+
+    pagamentos_apos = pagamento_service.listar_pagamentos_por_cliente(cliente.id)
+    assert pagamentos_apos[0].compras_quitadas == []
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
 def test_estorno_bloqueado_quando_resto_ja_foi_pago(usuario_admin_teste) -> None:
     """Se o 'Resto' gerado por um pagamento já foi quitado, não dá pra estornar o original."""
     cliente = cliente_service.cadastrar_cliente(
