@@ -1,5 +1,30 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Correção: quase toda a pasta de XMLs sendo relida em toda varredura (novidade)
+
+- **Causa raiz**: o leitor de XML (`nfe_parser.ler_nfe`) exigia um nome de
+  cliente (`<dest><xNome>`) para considerar um arquivo "válido" — mas uma
+  NFC-e de venda no balcão sem cliente identificado (o caso normal da
+  imensa maioria das vendas de uma loja) não tem essa tag de jeito nenhum,
+  mesmo sendo um XML completo e correto. Isso fazia esses arquivos caírem
+  como "inválidos" e, pelo mecanismo de retry infinito (pensado para
+  arquivo sendo gravado no meio da varredura, um caso transitório), serem
+  reabertos e reprocessados em **toda** varredura futura, para sempre.
+  Confirmado com dados reais de uma pasta com ~123 mil arquivos: **121.601
+  deles** (98,9%) caíam nesse caso — cada clique em "Importar XMLs"
+  reprocessava quase a pasta inteira.
+- **Correção**: nome de cliente deixou de ser exigido para um XML ser
+  considerado válido — continua sendo exigido só o que é realmente
+  essencial e sempre presente em qualquer NF-e (chave de acesso e data de
+  emissão). Um arquivo sem cliente agora é indexado normalmente como
+  "válido, mas não-fiado" (mesmo tratamento que uma venda no cartão já
+  recebia) e nunca mais reprocessado.
+- **Custo único**: a primeira varredura depois desta correção ainda
+  precisa abrir esses arquivos mais uma vez, para trocar o status deles no
+  índice de "inválido" para "válido" — depois disso, ficam resolvidos de
+  vez. Validado contra a pasta real de ~123 mil arquivos: 122.740 passaram
+  a ser lidos com sucesso (só sobrou 1 com erro de sintaxe genuíno).
+
 ## Correção: erro "Multiple rows were found" ao trocar a pasta de XMLs (novidade)
 
 - **Causa raiz**: o índice permanente de XMLs (`xml_indexados`) identifica

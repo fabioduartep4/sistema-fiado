@@ -137,8 +137,13 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
 
     Raises:
         NfeXmlInvalidoError: Se o arquivo não puder ser lido como XML, não
-            for uma NF-e, ou faltar algum dado essencial (chave, nome do
-            cliente ou data de emissão).
+            for uma NF-e, ou faltar algum dado essencial (chave ou data de
+            emissão). O nome do cliente **não** é exigido aqui — uma NFC-e
+            de venda no balcão sem cliente identificado (sem ``<dest>``) é
+            um XML completo e válido, só não é candidata a fiado (ver
+            ``NotaFiscalXml.eh_fiado``); tratá-la como inválida fazia a
+            imensa maioria das vendas de uma loja ficar marcada para
+            releitura eterna (ver ``xml_indexado_repository``).
     """
     chave = ""
     natureza_operacao = ""
@@ -225,7 +230,7 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
         except ValueError:
             data_emissao = None
 
-    if not chave or not nome_cliente or data_emissao is None:
+    if not chave or data_emissao is None:
         raise NfeXmlInvalidoError(
             f"XML incompleto (faltam dados essenciais): {caminho_arquivo.name}"
         )
