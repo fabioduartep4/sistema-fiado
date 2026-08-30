@@ -1,5 +1,25 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Correção: valor de nota fora da faixa travava a indexação em lote (novidade)
+
+- **Causa raiz**: alguma nota tem um valor total (`<vNF>`) fora da faixa que
+  as colunas de valor do banco aceitam (`Numeric(12,2)` — até
+  9.999.999.999,99) — dado corrompido/errado no próprio arquivo, não algo
+  causado pelo sistema (o XML nunca é alterado, só lido). Isso só passou a
+  aparecer depois da correção anterior (NFC-e sem cliente não é mais
+  "inválida") — antes, esse arquivo específico provavelmente já era
+  rejeitado mais cedo por falta de cliente identificado, então o sistema
+  nunca chegava a ler o valor dele. Como a indexação grava em lotes de 200
+  arquivos numa única transação, um valor assim fora da faixa fazia o
+  banco rejeitar **o lote inteiro** — e como nada daquele lote ficava
+  marcado como resolvido, a próxima varredura tentava o mesmo lote de
+  novo, do mesmo jeito, travando sempre no mesmo lugar.
+- **Correção**: `nfe_parser.ler_nfe` agora valida o valor total contra a
+  faixa que o banco aceita — um valor fora da faixa faz o arquivo ser
+  tratado como inválido (mesma categoria já usada para XML corrompido),
+  em vez de tentar gravar e quebrar o lote inteiro. O resto do lote
+  continua sendo processado normalmente.
+
 ## Compras quitadas saem da Ficha do Cliente, vão pro Histórico (novidade)
 
 - **Causa raiz**: a Ficha do Cliente listava todas as compras do cliente

@@ -56,6 +56,13 @@ class ProdutoXml:
 
 _CODIGO_TPAG_CREDITO_LOJA = "05"
 
+# Maior valor absoluto que as colunas de valor do banco aceitam (Numeric(12,2)
+# — 10 dígitos antes da vírgula, 2 depois). Um <vNF> fora dessa faixa é dado
+# corrompido/errado no próprio XML (nenhuma venda de loja chega perto disso),
+# não algo que o sistema deva tentar gravar — travaria a indexação/importação
+# em lote (INSERT falha para o arquivo inteiro em vez de só recusar essa nota).
+_LIMITE_VALOR_TOTAL = Decimal("10000000000")
+
 
 @dataclass(frozen=True)
 class NotaFiscalXml:
@@ -137,13 +144,18 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
 
     Raises:
         NfeXmlInvalidoError: Se o arquivo não puder ser lido como XML, não
-            for uma NF-e, ou faltar algum dado essencial (chave ou data de
-            emissão). O nome do cliente **não** é exigido aqui — uma NFC-e
-            de venda no balcão sem cliente identificado (sem ``<dest>``) é
-            um XML completo e válido, só não é candidata a fiado (ver
-            ``NotaFiscalXml.eh_fiado``); tratá-la como inválida fazia a
-            imensa maioria das vendas de uma loja ficar marcada para
-            releitura eterna (ver ``xml_indexado_repository``).
+            for uma NF-e, faltar algum dado essencial (chave ou data de
+            emissão), ou o valor total vier fora da faixa que as colunas
+            de valor do banco aceitam (``_LIMITE_VALOR_TOTAL``) — dado
+            corrompido no próprio XML; deixar passar quebraria a
+            indexação/importação em lote (o banco rejeitaria o lote
+            inteiro, não só essa nota). O nome do cliente **não** é
+            exigido aqui — uma NFC-e de venda no balcão sem cliente
+            identificado (sem ``<dest>``) é um XML completo e válido, só
+            não é candidata a fiado (ver ``NotaFiscalXml.eh_fiado``);
+            tratá-la como inválida fazia a imensa maioria das vendas de
+            uma loja ficar marcada para releitura eterna (ver
+            ``xml_indexado_repository``).
     """
     chave = ""
     natureza_operacao = ""
@@ -235,13 +247,19 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
             f"XML incompleto (faltam dados essenciais): {caminho_arquivo.name}"
         )
 
+    valor_total = _decimal(valor_total_texto)
+    if abs(valor_total) >= _LIMITE_VALOR_TOTAL:
+        raise NfeXmlInvalidoError(
+            f"Valor total fora da faixa esperada ({valor_total}): {caminho_arquivo.name}"
+        )
+
     return NotaFiscalXml(
         caminho_arquivo=str(caminho_arquivo),
         chave=chave,
         natureza_operacao=natureza_operacao,
         nome_cliente=nome_cliente,
         data_emissao=data_emissao,
-        valor_total=_decimal(valor_total_texto),
+        valor_total=valor_total,
         produtos=produtos,
         formas_pagamento=formas_pagamento,
     )

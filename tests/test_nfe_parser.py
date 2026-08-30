@@ -79,6 +79,15 @@ def test_ler_nfe_venda_a_vista_nunca_e_fiado_mesmo_com_pagamento_credito_loja() 
     assert nota.eh_fiado is False
 
 
+def test_ler_nfe_valor_total_fora_da_faixa_e_invalido() -> None:
+    """Regressão: um <vNF> maior do que as colunas Numeric(12,2) do banco
+    aceitam precisa ser tratado como XML inválido, não repassado adiante —
+    senão o INSERT falha para o lote inteiro (200 arquivos), travando a
+    indexação/importação sempre no mesmo lugar até alguém corrigir na mão."""
+    with pytest.raises(NfeXmlInvalidoError):
+        ler_nfe(_PASTA_FIXTURES / "nfe_exemplo_valor_absurdo.xml")
+
+
 def test_ler_nfe_sem_cliente_identificado_nao_e_invalido() -> None:
     """Regressão: uma NFC-e de venda no balcão sem cliente identificado (sem
     <dest>) é um XML completo e válido — não deve levantar
