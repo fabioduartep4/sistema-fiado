@@ -66,7 +66,20 @@ _LIMITE_VALOR_TOTAL = Decimal("10000000000")
 
 @dataclass(frozen=True)
 class NotaFiscalXml:
-    """Dados extraídos de um arquivo de NF-e, relevantes para o sistema."""
+    """Dados extraídos de um arquivo de NF-e, relevantes para o sistema.
+
+    Attributes:
+        valor_total: Valor total da nota (``<vNF>``) — soma de **todas** as
+            formas de pagamento, não só a fiado. Não usar para lançar a
+            compra (ver :attr:`valor_fiado`).
+        valor_fiado: Soma só da(s) forma(s) de pagamento "Crédito Loja"
+            (``tPag=05``) — é esse o valor que deve virar uma compra fiado.
+            Confirmado com dado real: é comum o cliente pagar parte da
+            compra na hora (dinheiro/cartão) e só o restante ficar na
+            conta — nesse caso ``valor_fiado`` é menor que ``valor_total``.
+            ``0`` quando a nota não tem nenhuma forma de pagamento
+            "Crédito Loja" (ver :attr:`eh_fiado`).
+    """
 
     caminho_arquivo: str
     chave: str
@@ -74,6 +87,7 @@ class NotaFiscalXml:
     nome_cliente: str
     data_emissao: date
     valor_total: Decimal
+    valor_fiado: Decimal
     produtos: list[ProdutoXml]
     formas_pagamento: list[str]
 
@@ -164,10 +178,13 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
     valor_total_texto = ""
     produtos: list[ProdutoXml] = []
     formas_pagamento: list[str] = []
+    valor_fiado = Decimal("0")
 
     dentro_dest = False
     dentro_prod = False
     produto_atual: dict[str, str] = {}
+    dentro_det_pag = False
+    det_pag_atual: dict[str, str] = {}
 
     try:
         contexto = ET.iterparse(str(caminho_arquivo), events=("start", "end"))
@@ -183,6 +200,9 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
                 elif tag == "prod":
                     dentro_prod = True
                     produto_atual = {}
+                elif tag == "detPag":
+                    dentro_det_pag = True
+                    det_pag_atual = {}
                 continue
 
             # evento == "end": os dados de texto já estão disponíveis; extrai
@@ -196,7 +216,22 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
             elif tag == "vNF":
                 valor_total_texto = _texto(elemento)
             elif tag == "tPag":
-                formas_pagamento.append(_texto(elemento))
+                texto_tpag = _texto(elemento)
+                formas_pagamento.append(texto_tpag)
+                if dentro_det_pag:
+                    det_pag_atual["tPag"] = texto_tpag
+            elif dentro_det_pag and tag == "vPag":
+                det_pag_atual["vPag"] = _texto(elemento)
+            elif tag == "detPag":
+                # Cada <detPag> é um par forma de pagamento + valor daquela
+                # forma — uma nota pode ter mais de um (ex.: parte em
+                # dinheiro, parte marcada na conta). Só a parte com
+                # tPag=05 (Crédito Loja) deve virar valor de fiado; o
+                # resto já foi pago na hora, não é dívida do cliente.
+                if det_pag_atual.get("tPag") == _CODIGO_TPAG_CREDITO_LOJA:
+                    valor_fiado += _decimal(det_pag_atual.get("vPag", ""))
+                dentro_det_pag = False
+                det_pag_atual = {}
             elif dentro_prod and tag == "xProd":
                 produto_atual["nome"] = _texto(elemento)
             elif dentro_prod and tag == "qCom":
@@ -260,6 +295,7 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
         nome_cliente=nome_cliente,
         data_emissao=data_emissao,
         valor_total=valor_total,
+        valor_fiado=valor_fiado,
         produtos=produtos,
         formas_pagamento=formas_pagamento,
     )

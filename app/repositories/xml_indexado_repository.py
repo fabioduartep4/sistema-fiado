@@ -82,6 +82,7 @@ _COLUNAS_ATUALIZAVEIS = (
     "eh_fiado",
     "nome_cliente_xml",
     "valor_total",
+    "valor_fiado",
     "data_emissao",
     "xml_invalido",
 )

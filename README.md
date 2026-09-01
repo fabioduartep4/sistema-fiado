@@ -1,5 +1,31 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Correção: nota com pagamento misto lançava o valor errado (novidade)
+
+- **Causa raiz**: é comum o cliente pagar parte da compra na hora
+  (dinheiro/cartão) e só o restante ficar marcado na conta — a nota fiscal
+  tem, nesse caso, mais de um `<detPag>` (um par forma de pagamento +
+  valor por forma). O sistema só olhava se existia **algum** `tPag=05`
+  (Crédito Loja) na nota pra decidir "é fiado", mas usava o **valor total
+  da nota inteira** (`<vNF>`) como valor da compra — mesmo quando só uma
+  parte era fiado de verdade. Confirmado com nota real: cliente pagou R$
+  50,00 em dinheiro e R$ 16,84 ficou na conta (nota de R$ 66,84 no total)
+  — o sistema lançaria os R$ 66,84 inteiros, cobrando R$ 50,00 a mais do
+  que devido.
+- **Correção**: `nfe_parser.ler_nfe` agora lê cada `<detPag>` como um par
+  (forma de pagamento + valor daquela forma), soma só os valores com
+  `tPag=05` (`NotaFiscalXml.valor_fiado`) e é esse valor — não o total da
+  nota — que vira o valor da compra, tanto na lista de candidatos a
+  importação quanto na compra criada de fato.
+- **Nota rodada de novo**: as notas fiado já indexadas antes desta
+  correção (ainda não importadas) são reprocessadas automaticamente na
+  próxima varredura, pra recalcular o valor certo — não precisa fazer
+  nada manualmente.
+- Compras que **já foram importadas** antes desta correção, a partir de
+  uma nota com pagamento misto, podem ter ficado com o valor maior que o
+  devido — isso não é corrigido automaticamente (exigiria revisar cada
+  caso manualmente); avise se quiser ajuda para identificar quais.
+
 ## Correção: valor de nota fora da faixa travava a indexação em lote (novidade)
 
 - **Causa raiz**: alguma nota tem um valor total (`<vNF>`) fora da faixa que

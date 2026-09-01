@@ -49,6 +49,26 @@ def test_ler_nfe_venda_a_prazo_com_pagamento_credito_loja_e_fiado() -> None:
     assert nota.eh_fiado is True
 
 
+def test_ler_nfe_totalmente_fiado_valor_fiado_igual_ao_total() -> None:
+    """Quando a nota inteira é fiado (uma única forma de pagamento, tPag=05),
+    valor_fiado deve bater com valor_total."""
+    nota = ler_nfe(_PASTA_FIXTURES / "nfe_exemplo.xml")
+    assert nota.valor_fiado == nota.valor_total == Decimal("35.50")
+
+
+def test_ler_nfe_pagamento_misto_usa_so_a_parte_marcada_na_conta() -> None:
+    """Regressão com caso real: cliente paga parte da compra na hora
+    (dinheiro/cartão) e só o restante fica marcado na conta — a nota tem
+    dois <detPag>, um tPag=01 (dinheiro) e outro tPag=05 (fiado). O valor
+    lançado como fiado tem que ser só a parte do tPag=05 (R$ 16,84), não o
+    total da nota (R$ 66,84) — senão o cliente é cobrado a mais pelo valor
+    que já pagou na hora."""
+    nota = ler_nfe(_PASTA_FIXTURES / "nfe_exemplo_pagamento_misto.xml")
+    assert nota.valor_total == Decimal("66.84")
+    assert nota.valor_fiado == Decimal("16.84")
+    assert nota.eh_fiado is True
+
+
 def test_ler_nfe_venda_a_prazo_paga_no_cartao_nao_e_fiado() -> None:
     """Regressão: uma nota com natOp="Venda a prazo" mas paga no cartão
     (tPag=04, com bloco <card>) não é fiado, mesmo com a mesma natureza de
@@ -73,6 +93,7 @@ def test_ler_nfe_venda_a_vista_nunca_e_fiado_mesmo_com_pagamento_credito_loja() 
         nome_cliente="Cliente Hipotetico",
         data_emissao=ler_nfe(_PASTA_FIXTURES / "nfe_exemplo.xml").data_emissao,
         valor_total=Decimal("10.00"),
+        valor_fiado=Decimal("10.00"),
         produtos=[],
         formas_pagamento=["05"],
     )
