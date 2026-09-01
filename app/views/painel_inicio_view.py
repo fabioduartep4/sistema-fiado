@@ -59,6 +59,14 @@ from app.utils.icons import icone
 from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.relatorio_view import LembreteWhatsAppDialog
 
+# Altura mínima das tabelas de "Clientes com Maior Atraso" e "Clientes
+# Acima do Limite de Fiado", calculada para caber pelo menos 10 linhas
+# visíveis sem precisar rolar dentro da própria tabela (~32px por linha +
+# ~34px do cabeçalho) — a caixa toda já está dentro da área de rolagem da
+# tela, então crescer aqui não atrapalha, só evita ficar pequena demais
+# com poucos clientes visíveis de cada vez.
+_ALTURA_TABELA_10_LINHAS = 10 * 32 + 34
+
 
 def _construir_grafico_barras(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
     """Monta um gráfico de barras verticais simples (uma série)."""
@@ -215,7 +223,7 @@ class PainelInicioView(QWidget):
             ["Cliente", "Telefone", "Em atraso há", "Total em Atraso", ""]
         )
         self._tabela_atrasos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela_atrasos.setMaximumHeight(220)
+        self._tabela_atrasos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
 
         layout_caixa = QVBoxLayout(caixa)
         layout_caixa.addLayout(layout_filtro)
@@ -290,7 +298,7 @@ class PainelInicioView(QWidget):
             ["Cliente", "Telefone", "Limite", "Total em Aberto", "Excesso", ""]
         )
         self._tabela_acima_do_limite.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela_acima_do_limite.setMaximumHeight(220)
+        self._tabela_acima_do_limite.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
 
         layout_caixa = QVBoxLayout(caixa)
         layout_caixa.addLayout(layout_topo)
