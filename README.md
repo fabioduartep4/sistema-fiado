@@ -1,5 +1,23 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## "Lembretes" movido pra tela de Início, mais visível (novidade)
+
+- **Causa raiz**: a lista de clientes com maior atraso (e o botão de
+  enviar lembrete por WhatsApp) ficava numa sub-aba "Lembretes", dentro de
+  "Histórico e Relatórios" — dois níveis de aba escondida, um lugar que
+  ninguém pensaria em procurar pra mandar cobrança.
+- **Correção**: essa funcionalidade foi movida pra tela de **Início**
+  (primeira aba do sistema), como uma seção "Clientes com Maior Atraso" —
+  visível assim que o sistema abre, sem precisar navegar em lugar nenhum.
+  Mesmo filtro de dias em atraso e mesmo botão "Enviar Lembrete" de antes,
+  só que agora em destaque. A sub-aba "Lembretes" foi removida de
+  "Histórico e Relatórios" (que ficou só com Histórico de Alterações, Log
+  de Erros e Saldo em Aberto) — não é mais preciso ir lá.
+- Essa seção é independente do filtro de período do resto da tela de
+  Início (é sobre a situação atual das contas, não um histórico de
+  intervalo) — tem seu próprio filtro de "dias em atraso" e não é
+  recarregada quando o período do resto do painel muda.
+
 ## Correção: nota com pagamento misto lançava o valor errado (novidade)
 
 - **Causa raiz**: é comum o cliente pagar parte da compra na hora

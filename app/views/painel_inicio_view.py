@@ -5,6 +5,14 @@ mais gastaram (maior valor total em compras), os que mais lançaram contas
 (mais vezes foram ao mercado), a evolução de vendas dos últimos 6 meses,
 o total geral em aberto do negócio e os clientes com maior saldo em
 aberto.
+
+Também traz "Clientes com Maior Atraso" (com o botão de enviar lembrete
+por WhatsApp) — antes era uma sub-aba pouco visível dentro de "Histórico e
+Relatórios"; trazida pra cá para ficar visível assim que o sistema abre.
+Diferente do resto do painel, essa seção não depende do período
+selecionado (é sobre a situação atual das contas, não histórico de um
+intervalo) — por isso fica fora da área que é recarregada ao trocar o
+período, com seu próprio filtro e atualização independentes.
 """
 
 from __future__ import annotations
@@ -30,15 +38,21 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from app.config.logging_config import logger
 from app.controllers.painel_controller import PainelController
+from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
+from app.services.relatorio_service import SaldoAtrasoResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
+from app.views.relatorio_view import LembreteWhatsAppDialog
 
 
 def _construir_grafico_barras(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
@@ -100,6 +114,7 @@ class PainelInicioView(QWidget):
     def __init__(self, usuario_logado: UsuarioAutenticado) -> None:
         super().__init__()
         self._controller = PainelController(usuario_logado)
+        self._controller_relatorio = RelatorioController(usuario_logado)
 
         titulo = QLabel("Início")
         titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
@@ -125,6 +140,8 @@ class PainelInicioView(QWidget):
         layout_periodo.addWidget(botao_atualizar)
         layout_periodo.addStretch()
 
+        caixa_maior_atraso = self._construir_caixa_maior_atraso()
+
         self._area_scroll = QScrollArea()
         self._area_scroll.setWidgetResizable(True)
         self._container = QWidget()
@@ -134,10 +151,12 @@ class PainelInicioView(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(titulo)
         layout.addLayout(layout_periodo)
+        layout.addWidget(caixa_maior_atraso)
         layout.addWidget(self._area_scroll)
         self.setLayout(layout)
 
         self._carregar()
+        self._carregar_maiores_atrasos()
 
     def _limpar_conteudo(self) -> None:
         while self._layout_conteudo.count():
@@ -145,6 +164,81 @@ class PainelInicioView(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    # -- Clientes com Maior Atraso (ex-aba "Lembretes") ----------------------
+    #
+    # Fora do ciclo de recarregamento por período (_carregar/_limpar_conteudo)
+    # de propósito: tem seu próprio filtro (dias em atraso) e não deve ser
+    # reconstruída/perder o valor do filtro sempre que o período do resto do
+    # painel for atualizado.
+
+    def _construir_caixa_maior_atraso(self) -> QGroupBox:
+        caixa = QGroupBox("Clientes com Maior Atraso")
+
+        self._campo_dias_atraso = QSpinBox()
+        self._campo_dias_atraso.setRange(1, 365)
+        self._campo_dias_atraso.setValue(30)
+        self._campo_dias_atraso.setSuffix(" dias")
+
+        botao_atualizar_atraso = QPushButton("Atualizar")
+        botao_atualizar_atraso.setIcon(icone("REFRESH"))
+        botao_atualizar_atraso.clicked.connect(self._carregar_maiores_atrasos)
+
+        layout_filtro = QHBoxLayout()
+        layout_filtro.addWidget(QLabel("Considerar em atraso compras com mais de:"))
+        layout_filtro.addWidget(self._campo_dias_atraso)
+        layout_filtro.addStretch()
+        layout_filtro.addWidget(botao_atualizar_atraso)
+
+        self._tabela_atrasos = QTableWidget(0, 5)
+        self._tabela_atrasos.setHorizontalHeaderLabels(
+            ["Cliente", "Telefone", "Em atraso há", "Total em Atraso", ""]
+        )
+        self._tabela_atrasos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._tabela_atrasos.setMaximumHeight(220)
+
+        layout_caixa = QVBoxLayout(caixa)
+        layout_caixa.addLayout(layout_filtro)
+        layout_caixa.addWidget(QLabel(
+            "Sem data de vencimento própria no fiado, a data da compra é usada como "
+            "referência: quanto mais antiga uma compra ainda em aberto, mais atrasada conta."
+        ))
+        layout_caixa.addWidget(self._tabela_atrasos)
+        return caixa
+
+    def _carregar_maiores_atrasos(self) -> None:
+        try:
+            saldos = self._controller_relatorio.listar_saldos_em_atraso(self._campo_dias_atraso.value())
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao carregar a lista de clientes com maior atraso.")
+            QMessageBox.critical(
+                self, "Erro inesperado", "Não foi possível carregar os clientes com maior atraso."
+            )
+            return
+
+        self._tabela_atrasos.setRowCount(len(saldos))
+        for linha, saldo in enumerate(saldos):
+            self._tabela_atrasos.setItem(linha, 0, QTableWidgetItem(saldo.nome_principal))
+            self._tabela_atrasos.setItem(linha, 1, QTableWidgetItem(saldo.telefone or "-"))
+            self._tabela_atrasos.setItem(
+                linha, 2, QTableWidgetItem(f"{saldo.dias_desde_a_compra_mais_antiga} dias")
+            )
+            self._tabela_atrasos.setItem(
+                linha, 3, QTableWidgetItem(f"R$ {saldo.total_em_atraso:.2f}")
+            )
+
+            botao_lembrete = QPushButton("Enviar Lembrete")
+            botao_lembrete.setIcon(icone("BRAND_WHATSAPP"))
+            botao_lembrete.setEnabled(bool(saldo.telefone))
+            botao_lembrete.clicked.connect(lambda _checked=False, s=saldo: self._abrir_lembrete(s))
+            self._tabela_atrasos.setCellWidget(linha, 4, botao_lembrete)
+
+    def _abrir_lembrete(self, saldo: SaldoAtrasoResumo) -> None:
+        dialogo = LembreteWhatsAppDialog(saldo, self)
+        dialogo.exec()
 
     def _carregar(self) -> None:
         self._limpar_conteudo()

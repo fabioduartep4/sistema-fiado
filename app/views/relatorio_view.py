@@ -1,8 +1,13 @@
 """Tela de Histórico e Relatórios (PySide6).
 
-Visível apenas para Administrador. Reúne quatro sub-abas: Histórico de
-Alterações (auditoria), Log de Erros, Saldo em Aberto (com exportação para
-CSV/Excel) e Lembretes (envio de lembrete de saldo em aberto via WhatsApp).
+Visível apenas para Administrador. Reúne três sub-abas: Histórico de
+Alterações (auditoria), Log de Erros e Saldo em Aberto (com exportação
+para CSV/Excel).
+
+``LembreteWhatsAppDialog`` continua definido aqui (usado também pela tela
+de Início, que reaproveita esta classe) mesmo com a antiga sub-aba
+"Lembretes" tendo sido movida para lá — ver ``app.views.painel_inicio_view``,
+seção "Clientes com Maior Atraso".
 """
 
 from __future__ import annotations
@@ -17,7 +22,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -100,7 +104,6 @@ class RelatorioView(QWidget):
         abas.addTab(self._construir_aba_historico(), "Histórico de Alterações")
         abas.addTab(self._construir_aba_log_erros(), "Log de Erros")
         abas.addTab(self._construir_aba_saldo_em_aberto(), "Saldo em Aberto")
-        abas.addTab(self._construir_aba_lembretes(), "Lembretes")
 
         titulo = QLabel("Histórico e Relatórios")
         titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
@@ -292,75 +295,6 @@ class RelatorioView(QWidget):
             return
 
         QMessageBox.information(self, "Exportado", f"Relatório exportado para:\n{caminho_arquivo}")
-
-    # -- Sub-aba: Lembretes ---------------------------------------------------
-
-    def _construir_aba_lembretes(self) -> QWidget:
-        pagina = QWidget()
-
-        self._campo_dias_atraso = QSpinBox()
-        self._campo_dias_atraso.setRange(1, 365)
-        self._campo_dias_atraso.setValue(30)
-        self._campo_dias_atraso.setSuffix(" dias")
-
-        botao_atualizar = QPushButton("Atualizar")
-        botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_lembretes)
-
-        self._tabela_lembretes = QTableWidget(0, 5)
-        self._tabela_lembretes.setHorizontalHeaderLabels(
-            ["Cliente", "Telefone", "Em atraso há", "Total em Atraso", ""]
-        )
-        self._tabela_lembretes.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-
-        layout_filtro = QHBoxLayout()
-        layout_filtro.addWidget(QLabel("Considerar em atraso compras com mais de:"))
-        layout_filtro.addWidget(self._campo_dias_atraso)
-        layout_filtro.addStretch()
-        layout_filtro.addWidget(botao_atualizar)
-
-        layout = QVBoxLayout(pagina)
-        layout.addLayout(layout_filtro)
-        layout.addWidget(QLabel(
-            "Sem data de vencimento própria no fiado, a data da compra é usada como "
-            "referência: quanto mais antiga uma compra ainda em aberto, mais atrasada conta."
-        ))
-        layout.addWidget(self._tabela_lembretes)
-
-        self._carregar_lembretes()
-        return pagina
-
-    def _carregar_lembretes(self) -> None:
-        try:
-            saldos = self._controller.listar_saldos_em_atraso(self._campo_dias_atraso.value())
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar os lembretes", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao carregar a lista de saldos em atraso.")
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar os lembretes.")
-            return
-
-        self._tabela_lembretes.setRowCount(len(saldos))
-        for linha, saldo in enumerate(saldos):
-            self._tabela_lembretes.setItem(linha, 0, QTableWidgetItem(saldo.nome_principal))
-            self._tabela_lembretes.setItem(linha, 1, QTableWidgetItem(saldo.telefone or "-"))
-            self._tabela_lembretes.setItem(
-                linha, 2, QTableWidgetItem(f"{saldo.dias_desde_a_compra_mais_antiga} dias")
-            )
-            self._tabela_lembretes.setItem(
-                linha, 3, QTableWidgetItem(f"R$ {saldo.total_em_atraso:.2f}")
-            )
-
-            botao_lembrete = QPushButton("Enviar Lembrete")
-            botao_lembrete.setIcon(icone("BRAND_WHATSAPP"))
-            botao_lembrete.setEnabled(bool(saldo.telefone))
-            botao_lembrete.clicked.connect(lambda _checked=False, s=saldo: self._abrir_lembrete(s))
-            self._tabela_lembretes.setCellWidget(linha, 4, botao_lembrete)
-
-    def _abrir_lembrete(self, saldo: SaldoAtrasoResumo) -> None:
-        dialogo = LembreteWhatsAppDialog(saldo, self)
-        dialogo.exec()
 
     def _exportar_xlsx(self) -> None:
         caminho_arquivo, _ = QFileDialog.getSaveFileName(
