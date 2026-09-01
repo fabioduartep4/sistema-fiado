@@ -64,3 +64,24 @@ def montar_mensagem_lembrete_saldo(
         "atrás. Assim que possível, pedimos que regularize. Qualquer dúvida, "
         "estamos à disposição!"
     )
+
+
+def montar_mensagem_lembrete_limite(nome_cliente: str, total_em_aberto: str, limite_fiado: str) -> str:
+    """Monta o texto padrão do lembrete de limite de fiado excedido.
+
+    Args:
+        nome_cliente: Nome principal do cliente.
+        total_em_aberto: Saldo total em aberto do cliente, já formatado
+            (ex.: "R$ 123,45").
+        limite_fiado: Limite de fiado combinado com o cliente, já
+            formatado (ex.: "R$ 100,00").
+
+    Returns:
+        Mensagem pronta, editável pelo usuário antes do envio.
+    """
+    return (
+        f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Seu saldo em aberto está em "
+        f"{total_em_aberto}, passando do limite combinado de {limite_fiado}. Pedimos que "
+        "regularize assim que possível para continuar comprando fiado. Qualquer dúvida, "
+        "estamos à disposição!"
+    )

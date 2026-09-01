@@ -8,9 +8,10 @@ compradores associados.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from decimal import Decimal
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, Identity, Index, Integer, String
+from sqlalchemy import Boolean, Identity, Index, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,6 +44,11 @@ class Cliente(Base, ColunasComunsMixin):
             humana do nome); True para clientes cadastrados manualmente
             ou já confirmados. Usado para destacar visualmente (cor
             vermelha) os cadastros pendentes de revisão.
+        limite_fiado: Limite de compra no fiado, opcional (None = sem
+            limite definido para este cliente). Clientes com saldo em
+            aberto acima do limite aparecem na tela de Início, já com o
+            botão de enviar lembrete — ver
+            ``app.services.relatorio_service.listar_clientes_acima_do_limite``.
     """
 
     __tablename__ = "clientes"
@@ -53,6 +59,7 @@ class Cliente(Base, ColunasComunsMixin):
     nome_principal: Mapped[str] = mapped_column(String(150), nullable=False)
     nome_principal_normalizado: Mapped[str] = mapped_column(String(150), nullable=False)
     confirmado: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    limite_fiado: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
 
     nomes_alternativos: Mapped[list["NomeAlternativo"]] = relationship(
         back_populates="cliente", cascade="all, delete-orphan"

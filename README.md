@@ -1,5 +1,24 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Limite de fiado por cliente, com aviso na tela de Início (novidade)
+
+- **O que é**: cada cliente agora pode ter um limite de compra no fiado
+  (opcional — sem limite definido, funciona exatamente como antes).
+  Definido em "Cadastrar Cliente" ou "Editar Cliente" (Ficha do Cliente),
+  em branco = sem limite.
+- **Onde aparece**: clientes cujo saldo em aberto passou do limite
+  combinado aparecem numa nova seção **"Clientes Acima do Limite de
+  Fiado"** direto na tela de Início — mesmo formato da seção "Clientes
+  com Maior Atraso" já existente (cliente, telefone, limite, total em
+  aberto, quanto passou do limite, e o botão "Enviar Lembrete" por
+  WhatsApp). Quem não tem limite definido nunca aparece aqui, não importa
+  o quanto deva.
+- Também mostrado na própria Ficha do Cliente, junto do "Total em
+  aberto" (com um aviso ⚠️ quando o saldo já passou do limite).
+- Puramente informativo: definir um limite **não bloqueia** novas
+  compras nem o "Receber Conta" — só avisa. Se quiser que ultrapassar o
+  limite impeça novas compras no fiado, é uma etapa separada, me avise.
+
 ## "Lembretes" movido pra tela de Início, mais visível (novidade)
 
 - **Causa raiz**: a lista de clientes com maior atraso (e o botão de

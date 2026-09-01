@@ -8,6 +8,8 @@ regra de negócio (validação de campos obrigatórios, etc. ficam em
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,6 +26,7 @@ def criar_cliente(
     nomes_alternativos: list[str],
     telefones: list[str],
     compradores: list[str],
+    limite_fiado: Optional[Decimal] = None,
 ) -> Cliente:
     """Cria um novo cliente, com seus dados relacionados (opcionais).
 
@@ -41,12 +44,15 @@ def criar_cliente(
         telefones: Lista de telefones de contato (pode ser vazia).
         compradores: Lista de nomes de compradores autorizados na conta
             (pode ser vazia).
+        limite_fiado: Limite de compra no fiado (opcional; None = sem limite).
 
     Returns:
         O :class:`Cliente` recém-criado (já com ``id`` e ``id_visivel``
         preenchidos, após o flush).
     """
-    cliente = Cliente(nome_principal=nome_principal, nome_principal_normalizado="")
+    cliente = Cliente(
+        nome_principal=nome_principal, nome_principal_normalizado="", limite_fiado=limite_fiado
+    )
 
     for nome in nomes_alternativos:
         cliente.nomes_alternativos.append(NomeAlternativo(nome=nome, nome_normalizado=""))
@@ -131,6 +137,7 @@ def atualizar_cliente(
     nomes_alternativos: list[str],
     telefones: list[str],
     compradores: list[str],
+    limite_fiado: Optional[Decimal] = None,
 ) -> None:
     """Atualiza os dados de um cliente existente.
 
@@ -148,8 +155,11 @@ def atualizar_cliente(
         nomes_alternativos: Nova lista completa de nomes alternativos.
         telefones: Nova lista completa de telefones.
         compradores: Nova lista completa de nomes de compradores ativos.
+        limite_fiado: Novo limite de compra no fiado (None = sem limite —
+            também usado para remover um limite definido antes).
     """
     cliente.nome_principal = nome_principal
+    cliente.limite_fiado = limite_fiado
 
     cliente.nomes_alternativos.clear()
     for nome in nomes_alternativos:

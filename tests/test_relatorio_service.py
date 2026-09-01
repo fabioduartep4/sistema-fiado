@@ -107,6 +107,64 @@ def test_listar_saldos_em_atraso_inclui_compra_antiga_e_exclui_recente(usuario_a
     cliente_service.excluir_cliente(usuario_admin_teste, cliente_recente.id)
 
 
+def test_listar_clientes_acima_do_limite_funcionario_e_rejeitado(usuario_admin_teste) -> None:
+    funcionario, usuario_funcionario = _criar_funcionario_teste(usuario_admin_teste)
+
+    with pytest.raises(PermissaoNegadaError):
+        relatorio_service.listar_clientes_acima_do_limite(usuario_funcionario)
+
+    usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_listar_clientes_acima_do_limite_encontra_quem_ultrapassou(usuario_admin_teste) -> None:
+    hoje = obter_data_padrao()
+
+    cliente_acima = cliente_service.cadastrar_cliente(
+        usuario_admin_teste,
+        "Teste Automatizado Relatorio Limite Acima",
+        [],
+        ["(35) 99999-5678"],
+        [],
+        limite_fiado=Decimal("50.00"),
+    )
+    compra_service.registrar_compra(usuario_admin_teste, cliente_acima.id, Decimal("80.00"), hoje, None)
+
+    cliente_dentro = cliente_service.cadastrar_cliente(
+        usuario_admin_teste,
+        "Teste Automatizado Relatorio Limite Dentro",
+        [],
+        [],
+        [],
+        limite_fiado=Decimal("100.00"),
+    )
+    compra_service.registrar_compra(usuario_admin_teste, cliente_dentro.id, Decimal("50.00"), hoje, None)
+
+    cliente_sem_limite = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Relatorio Sem Limite", [], [], []
+    )
+    compra_service.registrar_compra(
+        usuario_admin_teste, cliente_sem_limite.id, Decimal("999.00"), hoje, None
+    )
+
+    acima_do_limite = relatorio_service.listar_clientes_acima_do_limite(usuario_admin_teste)
+    nomes = [c.nome_principal for c in acima_do_limite]
+
+    assert cliente_acima.nome_principal in nomes
+    assert cliente_dentro.nome_principal not in nomes
+    assert cliente_sem_limite.nome_principal not in nomes  # sem limite definido, nunca aparece
+
+    item = next(c for c in acima_do_limite if c.nome_principal == cliente_acima.nome_principal)
+    assert item.limite_fiado == Decimal("50.00")
+    assert item.total_em_aberto == Decimal("80.00")
+    assert item.excesso == Decimal("30.00")
+    assert item.telefone is not None
+    assert "99999" in item.telefone
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente_acima.id)
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente_dentro.id)
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente_sem_limite.id)
+
+
 def test_listar_saldos_em_aberto_reflete_compra_em_aberto(usuario_admin_teste) -> None:
     cliente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Relatorio Saldo", [], [], []

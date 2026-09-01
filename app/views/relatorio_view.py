@@ -33,11 +33,10 @@ from PySide6.QtWidgets import (
 from app.config.logging_config import logger
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
-from app.services.relatorio_service import SaldoAtrasoResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.text_normalizer import normalizar_telefone
-from app.utils.whatsapp import montar_link_whatsapp, montar_mensagem_lembrete_saldo
+from app.utils.whatsapp import montar_link_whatsapp
 
 _ENTIDADES_FILTRO = ["Todas", "Cliente", "Compra", "Pagamento", "Usuario"]
 
@@ -45,26 +44,29 @@ _ENTIDADES_FILTRO = ["Todas", "Cliente", "Compra", "Pagamento", "Usuario"]
 class LembreteWhatsAppDialog(QDialog):
     """Diálogo de revisão da mensagem de lembrete antes de abrir no WhatsApp.
 
-    Não envia nada sozinho: monta a mensagem padrão, deixa o usuário editar
-    e, ao confirmar, abre o WhatsApp (app ou web) com a conversa já
-    preenchida — o envio em si continua sendo uma ação manual do usuário
-    dentro do WhatsApp.
+    Não envia nada sozinho: mostra a mensagem já pronta (montada pelo
+    chamador — ver ``app.utils.whatsapp``), deixa o usuário editar e, ao
+    confirmar, abre o WhatsApp (app ou web) com a conversa já preenchida —
+    o envio em si continua sendo uma ação manual do usuário dentro do
+    WhatsApp. Não depende de nenhum tipo de "resumo" específico (saldo em
+    atraso, limite excedido, etc.) — cada tela que o abre monta a mensagem
+    do jeito que fizer sentido para o motivo do lembrete.
     """
 
-    def __init__(self, saldo: SaldoAtrasoResumo, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        nome_cliente: str,
+        telefone: str | None,
+        mensagem_inicial: str,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Lembrete — {saldo.nome_principal}")
+        self.setWindowTitle(f"Lembrete — {nome_cliente}")
         self.setMinimumSize(420, 280)
-        self._telefone_normalizado = normalizar_telefone(saldo.telefone or "")
+        self._telefone_normalizado = normalizar_telefone(telefone or "")
 
         self._campo_mensagem = QTextEdit()
-        self._campo_mensagem.setPlainText(
-            montar_mensagem_lembrete_saldo(
-                saldo.nome_principal,
-                f"R$ {saldo.total_em_atraso:.2f}",
-                saldo.dias_desde_a_compra_mais_antiga,
-            )
-        )
+        self._campo_mensagem.setPlainText(mensagem_inicial)
 
         botao_abrir = QPushButton("Abrir no WhatsApp")
         botao_abrir.setIcon(icone("BRAND_WHATSAPP"))
@@ -75,7 +77,7 @@ class LembreteWhatsAppDialog(QDialog):
         botao_cancelar.clicked.connect(self.reject)
 
         layout = QVBoxLayout()
-        layout.addWidget(QLabel(f"Telefone: {saldo.telefone or 'não cadastrado'}"))
+        layout.addWidget(QLabel(f"Telefone: {telefone or 'não cadastrado'}"))
         layout.addWidget(QLabel("Mensagem (edite se quiser antes de abrir o WhatsApp):"))
         layout.addWidget(self._campo_mensagem)
         layout.addWidget(botao_abrir)

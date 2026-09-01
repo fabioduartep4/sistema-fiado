@@ -9,6 +9,8 @@ Busca de Cliente.
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
+
 from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
@@ -47,6 +49,12 @@ class CadastrarClienteView(QWidget):
             "Compradores (opcional)", "Digite o nome de um comprador e clique em Adicionar"
         )
 
+        self._campo_limite_fiado = QLineEdit()
+        self._campo_limite_fiado.setPlaceholderText(
+            "Limite de fiado (opcional, ex.: 200,00) — deixe em branco para não ter limite"
+        )
+        self._campo_limite_fiado.setMinimumHeight(38)
+
         botao_salvar = QPushButton("Salvar Cliente")
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(44)
@@ -67,18 +75,40 @@ class CadastrarClienteView(QWidget):
         layout.addWidget(self._lista_nomes_alternativos)
         layout.addWidget(self._lista_telefones)
         layout.addWidget(self._lista_compradores)
+        layout.addWidget(QLabel("Limite de fiado:"))
+        layout.addWidget(self._campo_limite_fiado)
         layout.addWidget(botao_salvar)
         layout.addWidget(botao_limpar)
         layout.addStretch()
         self.setLayout(layout)
 
+    def _limite_fiado(self) -> Decimal | None:
+        """Faz o parse do campo de limite, ou None se estiver em branco.
+
+        Raises:
+            ValueError: Se o texto não for um valor numérico válido.
+        """
+        texto = self._campo_limite_fiado.text().strip()
+        if not texto:
+            return None
+        return Decimal(texto.replace("R$", "").replace(",", ".").strip())
+
     def _salvar(self) -> None:
+        try:
+            limite_fiado = self._limite_fiado()
+        except (InvalidOperation, ValueError):
+            QMessageBox.warning(
+                self, "Limite inválido", "Informe um valor numérico válido (ex.: 200,00) ou deixe em branco."
+            )
+            return
+
         try:
             cliente = self._controller.cadastrar(
                 nome_principal=self._campo_nome_principal.text(),
                 nomes_alternativos=self._lista_nomes_alternativos.itens(),
                 telefones=self._lista_telefones.itens(),
                 compradores=self._lista_compradores.itens(),
+                limite_fiado=limite_fiado,
             )
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível cadastrar o cliente", str(exc))
@@ -106,4 +136,5 @@ class CadastrarClienteView(QWidget):
         self._lista_nomes_alternativos.limpar()
         self._lista_telefones.limpar()
         self._lista_compradores.limpar()
+        self._campo_limite_fiado.clear()
         self._campo_nome_principal.setFocus()

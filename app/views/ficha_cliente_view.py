@@ -181,7 +181,12 @@ class FichaClienteView(QDialog):
             item.setData(Qt.ItemDataRole.UserRole, compra.origem_nfe_xml)
             self._lista_compras.addItem(item)
 
-        self._label_total.setText(f"Total em aberto: R$ {ficha.total_em_aberto:.2f}")
+        texto_total = f"Total em aberto: R$ {ficha.total_em_aberto:.2f}"
+        if ficha.limite_fiado is not None:
+            texto_total += f"  (limite: R$ {ficha.limite_fiado:.2f})"
+            if ficha.total_em_aberto > ficha.limite_fiado:
+                texto_total += " ⚠️ acima do limite"
+        self._label_total.setText(texto_total)
         self._atualizar_botao_ver_produtos()
 
         if not ficha.confirmado and not self._prompt_confirmacao_ja_exibido:
@@ -249,10 +254,10 @@ class FichaClienteView(QDialog):
         if dialogo.exec() != QDialog.DialogCode.Accepted:
             return
 
-        nome_principal, nomes_alternativos, telefones, compradores = dialogo.dados()
+        nome_principal, nomes_alternativos, telefones, compradores, limite_fiado = dialogo.dados()
         try:
             self._controller.editar(
-                self._cliente_id, nome_principal, nomes_alternativos, telefones, compradores
+                self._cliente_id, nome_principal, nomes_alternativos, telefones, compradores, limite_fiado
             )
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível editar o cliente", str(exc))

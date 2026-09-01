@@ -6,13 +6,17 @@ mais gastaram (maior valor total em compras), os que mais lançaram contas
 o total geral em aberto do negócio e os clientes com maior saldo em
 aberto.
 
-Também traz "Clientes com Maior Atraso" (com o botão de enviar lembrete
-por WhatsApp) — antes era uma sub-aba pouco visível dentro de "Histórico e
-Relatórios"; trazida pra cá para ficar visível assim que o sistema abre.
-Diferente do resto do painel, essa seção não depende do período
-selecionado (é sobre a situação atual das contas, não histórico de um
-intervalo) — por isso fica fora da área que é recarregada ao trocar o
-período, com seu próprio filtro e atualização independentes.
+Também traz duas seções com o botão de enviar lembrete por WhatsApp,
+ambas fora do ciclo de recarregamento por período (são sobre a situação
+atual das contas, não histórico de um intervalo — cada uma com seu
+próprio filtro/atualização independente):
+
+- "Clientes com Maior Atraso" — antes era uma sub-aba pouco visível
+  dentro de "Histórico e Relatórios"; trazida pra cá para ficar visível
+  assim que o sistema abre.
+- "Clientes Acima do Limite de Fiado" — clientes com um limite de compra
+  no fiado definido (``Cliente.limite_fiado``) cujo saldo em aberto já
+  passou desse limite.
 """
 
 from __future__ import annotations
@@ -49,9 +53,10 @@ from app.config.logging_config import logger
 from app.controllers.painel_controller import PainelController
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
-from app.services.relatorio_service import SaldoAtrasoResumo
+from app.services.relatorio_service import ClienteAcimaDoLimiteResumo, SaldoAtrasoResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
+from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.relatorio_view import LembreteWhatsAppDialog
 
 
@@ -141,6 +146,7 @@ class PainelInicioView(QWidget):
         layout_periodo.addStretch()
 
         caixa_maior_atraso = self._construir_caixa_maior_atraso()
+        caixa_acima_do_limite = self._construir_caixa_acima_do_limite()
 
         self._area_scroll = QScrollArea()
         self._area_scroll.setWidgetResizable(True)
@@ -151,12 +157,14 @@ class PainelInicioView(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(titulo)
         layout.addLayout(layout_periodo)
+        layout.addWidget(caixa_acima_do_limite)
         layout.addWidget(caixa_maior_atraso)
         layout.addWidget(self._area_scroll)
         self.setLayout(layout)
 
         self._carregar()
         self._carregar_maiores_atrasos()
+        self._carregar_acima_do_limite()
 
     def _limpar_conteudo(self) -> None:
         while self._layout_conteudo.count():
@@ -237,7 +245,86 @@ class PainelInicioView(QWidget):
             self._tabela_atrasos.setCellWidget(linha, 4, botao_lembrete)
 
     def _abrir_lembrete(self, saldo: SaldoAtrasoResumo) -> None:
-        dialogo = LembreteWhatsAppDialog(saldo, self)
+        mensagem = montar_mensagem_lembrete_saldo(
+            saldo.nome_principal,
+            f"R$ {saldo.total_em_atraso:.2f}",
+            saldo.dias_desde_a_compra_mais_antiga,
+        )
+        dialogo = LembreteWhatsAppDialog(saldo.nome_principal, saldo.telefone, mensagem, self)
+        dialogo.exec()
+
+    # -- Clientes Acima do Limite de Fiado -----------------------------------
+    #
+    # Mesmo raciocínio da caixa de maior atraso: fora do ciclo de
+    # recarregamento por período, com filtro/atualização próprios.
+
+    def _construir_caixa_acima_do_limite(self) -> QGroupBox:
+        caixa = QGroupBox("Clientes Acima do Limite de Fiado")
+
+        botao_atualizar_limite = QPushButton("Atualizar")
+        botao_atualizar_limite.setIcon(icone("REFRESH"))
+        botao_atualizar_limite.clicked.connect(self._carregar_acima_do_limite)
+
+        layout_topo = QHBoxLayout()
+        layout_topo.addWidget(QLabel(
+            "Clientes com limite de fiado definido (ver Editar Cliente) cujo saldo "
+            "em aberto já passou do combinado."
+        ))
+        layout_topo.addStretch()
+        layout_topo.addWidget(botao_atualizar_limite)
+
+        self._tabela_acima_do_limite = QTableWidget(0, 6)
+        self._tabela_acima_do_limite.setHorizontalHeaderLabels(
+            ["Cliente", "Telefone", "Limite", "Total em Aberto", "Excesso", ""]
+        )
+        self._tabela_acima_do_limite.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._tabela_acima_do_limite.setMaximumHeight(220)
+
+        layout_caixa = QVBoxLayout(caixa)
+        layout_caixa.addLayout(layout_topo)
+        layout_caixa.addWidget(self._tabela_acima_do_limite)
+        return caixa
+
+    def _carregar_acima_do_limite(self) -> None:
+        try:
+            clientes = self._controller_relatorio.listar_clientes_acima_do_limite()
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao carregar a lista de clientes acima do limite.")
+            QMessageBox.critical(
+                self, "Erro inesperado", "Não foi possível carregar os clientes acima do limite."
+            )
+            return
+
+        self._tabela_acima_do_limite.setRowCount(len(clientes))
+        for linha, item in enumerate(clientes):
+            self._tabela_acima_do_limite.setItem(linha, 0, QTableWidgetItem(item.nome_principal))
+            self._tabela_acima_do_limite.setItem(linha, 1, QTableWidgetItem(item.telefone or "-"))
+            self._tabela_acima_do_limite.setItem(
+                linha, 2, QTableWidgetItem(f"R$ {item.limite_fiado:.2f}")
+            )
+            self._tabela_acima_do_limite.setItem(
+                linha, 3, QTableWidgetItem(f"R$ {item.total_em_aberto:.2f}")
+            )
+            self._tabela_acima_do_limite.setItem(
+                linha, 4, QTableWidgetItem(f"R$ {item.excesso:.2f}")
+            )
+
+            botao_lembrete = QPushButton("Enviar Lembrete")
+            botao_lembrete.setIcon(icone("BRAND_WHATSAPP"))
+            botao_lembrete.setEnabled(bool(item.telefone))
+            botao_lembrete.clicked.connect(lambda _checked=False, i=item: self._abrir_lembrete_limite(i))
+            self._tabela_acima_do_limite.setCellWidget(linha, 5, botao_lembrete)
+
+    def _abrir_lembrete_limite(self, item: ClienteAcimaDoLimiteResumo) -> None:
+        mensagem = montar_mensagem_lembrete_limite(
+            item.nome_principal,
+            f"R$ {item.total_em_aberto:.2f}",
+            f"R$ {item.limite_fiado:.2f}",
+        )
+        dialogo = LembreteWhatsAppDialog(item.nome_principal, item.telefone, mensagem, self)
         dialogo.exec()
 
     def _carregar(self) -> None:

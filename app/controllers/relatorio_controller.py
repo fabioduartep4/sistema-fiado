@@ -11,6 +11,7 @@ from typing import Optional
 from app.services import relatorio_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.relatorio_service import (
+    ClienteAcimaDoLimiteResumo,
     HistoricoResumo,
     LogErroResumo,
     SaldoAtrasoResumo,
@@ -52,3 +53,7 @@ class RelatorioController:
     def listar_saldos_em_atraso(self, dias_atraso: int = 30) -> list[SaldoAtrasoResumo]:
         """Lista os clientes com saldo em aberto há mais de ``dias_atraso`` dias."""
         return relatorio_service.listar_saldos_em_atraso(self.usuario_logado, dias_atraso)
+
+    def listar_clientes_acima_do_limite(self) -> list[ClienteAcimaDoLimiteResumo]:
+        """Lista os clientes com saldo em aberto acima do limite de fiado definido."""
+        return relatorio_service.listar_clientes_acima_do_limite(self.usuario_logado)
