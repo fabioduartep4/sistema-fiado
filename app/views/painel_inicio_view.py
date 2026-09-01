@@ -67,6 +67,11 @@ from app.views.relatorio_view import LembreteWhatsAppDialog
 # com poucos clientes visíveis de cada vez.
 _ALTURA_TABELA_10_LINHAS = 10 * 32 + 34
 
+# Largura máxima do conteúdo da tela de Início — limita a coluna central
+# numa janela larga (senão fica esticada de ponta a ponta, com espaço
+# lateral desperdiçado) e é centralizada dentro da área de rolagem.
+_LARGURA_MAXIMA_CONTEUDO = 1000
+
 
 def _construir_grafico_barras(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
     """Monta um gráfico de barras verticais simples (uma série)."""
@@ -166,7 +171,13 @@ class PainelInicioView(QWidget):
         self._area_scroll = QScrollArea()
         self._area_scroll.setWidgetResizable(True)
         self._container = QWidget()
+        # Largura máxima + margens laterais menores: numa janela larga, o
+        # conteúdo esticado de ponta a ponta ficava com espaço lateral
+        # desperdiçado e uma coluna "gorda" demais — mais confortável de
+        # ler e rolar centralizado, com uma largura razoável.
+        self._container.setMaximumWidth(_LARGURA_MAXIMA_CONTEUDO)
         layout_scroll = QVBoxLayout(self._container)
+        layout_scroll.setContentsMargins(4, 8, 4, 8)
         layout_scroll.addWidget(caixa_acima_do_limite)
         layout_scroll.addWidget(caixa_maior_atraso)
 
@@ -174,7 +185,16 @@ class PainelInicioView(QWidget):
         self._layout_conteudo = QVBoxLayout(self._widget_periodo)
         layout_scroll.addWidget(self._widget_periodo)
 
-        self._area_scroll.setWidget(self._container)
+        # Centraliza self._container (largura limitada) dentro da área de
+        # rolagem (que continua ocupando a largura toda da tela).
+        widget_centralizado = QWidget()
+        layout_centralizado = QHBoxLayout(widget_centralizado)
+        layout_centralizado.setContentsMargins(0, 0, 0, 0)
+        layout_centralizado.addStretch()
+        layout_centralizado.addWidget(self._container)
+        layout_centralizado.addStretch()
+
+        self._area_scroll.setWidget(widget_centralizado)
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)
