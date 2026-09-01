@@ -148,17 +148,29 @@ class PainelInicioView(QWidget):
         caixa_maior_atraso = self._construir_caixa_maior_atraso()
         caixa_acima_do_limite = self._construir_caixa_acima_do_limite()
 
+        # Tudo — as duas caixas fixas e os gráficos dependentes do período —
+        # dentro do MESMO QScrollArea, para a rolagem do mouse funcionar de
+        # forma única na tela inteira (antes, as caixas ficavam fora da
+        # área de rolagem, como se fossem uma "página" à parte dos
+        # gráficos, o que ficava estranho). Só o widget interno
+        # (``_widget_periodo``) é limpo/reconstruído a cada período — as
+        # caixas continuam fixas, sem perder o filtro delas.
         self._area_scroll = QScrollArea()
         self._area_scroll.setWidgetResizable(True)
         self._container = QWidget()
-        self._layout_conteudo = QVBoxLayout(self._container)
+        layout_scroll = QVBoxLayout(self._container)
+        layout_scroll.addWidget(caixa_acima_do_limite)
+        layout_scroll.addWidget(caixa_maior_atraso)
+
+        self._widget_periodo = QWidget()
+        self._layout_conteudo = QVBoxLayout(self._widget_periodo)
+        layout_scroll.addWidget(self._widget_periodo)
+
         self._area_scroll.setWidget(self._container)
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)
         layout.addLayout(layout_periodo)
-        layout.addWidget(caixa_acima_do_limite)
-        layout.addWidget(caixa_maior_atraso)
         layout.addWidget(self._area_scroll)
         self.setLayout(layout)
 
