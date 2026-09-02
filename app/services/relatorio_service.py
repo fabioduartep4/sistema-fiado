@@ -73,6 +73,19 @@ class SaldoAtrasoResumo:
     dias_desde_a_compra_mais_antiga: int
 
 
+@dataclass(frozen=True)
+class ClienteAcimaDoLimiteResumo:
+    """Cliente com saldo em aberto maior que o limite de fiado definido para ele."""
+
+    id: str
+    id_visivel: int
+    nome_principal: str
+    telefone: Optional[str]
+    limite_fiado: Decimal
+    total_em_aberto: Decimal
+    excesso: Decimal
+
+
 def _exigir_administrador(usuario_logado: UsuarioAutenticado) -> None:
     if not usuario_logado.eh_administrador:
         raise PermissaoNegadaError("Apenas administradores podem acessar histórico e relatórios.")
@@ -202,6 +215,49 @@ def listar_saldos_em_atraso(
                     telefone=telefone,
                     total_em_atraso=Decimal(total),
                     dias_desde_a_compra_mais_antiga=(hoje - data_mais_antiga).days,
+                )
+            )
+        return resultado
+
+
+@tratar_erros
+def listar_clientes_acima_do_limite(
+    usuario_logado: UsuarioAutenticado,
+) -> list[ClienteAcimaDoLimiteResumo]:
+    """Lista clientes com saldo em aberto acima do limite de fiado definido para eles.
+
+    Só considera clientes com um limite configurado (ver
+    ``app.models.cliente.Cliente.limite_fiado``) — quem não tem limite
+    definido nunca aparece aqui. Usado para destacar na tela de Início
+    quem já passou do combinado, com o botão de enviar lembrete.
+
+    Args:
+        usuario_logado: Usuário autenticado que está consultando.
+
+    Returns:
+        Lista de :class:`ClienteAcimaDoLimiteResumo`, do maior excesso
+        para o menor.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    _exigir_administrador(usuario_logado)
+
+    with session_scope() as session:
+        linhas = relatorio_repository.listar_clientes_acima_do_limite(session)
+        resultado = []
+        for cliente, total in linhas:
+            telefone = cliente.telefones[0].numero if cliente.telefones else None
+            total_em_aberto = Decimal(total)
+            resultado.append(
+                ClienteAcimaDoLimiteResumo(
+                    id=str(cliente.id),
+                    id_visivel=cliente.id_visivel,
+                    nome_principal=cliente.nome_principal,
+                    telefone=telefone,
+                    limite_fiado=cliente.limite_fiado,
+                    total_em_aberto=total_em_aberto,
+                    excesso=total_em_aberto - cliente.limite_fiado,
                 )
             )
         return resultado

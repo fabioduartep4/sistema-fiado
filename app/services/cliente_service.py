@@ -10,6 +10,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Optional
 
 from app.database.connection import session_scope
 from app.repositories import cliente_repository, compra_repository, pagamento_repository
@@ -61,12 +62,18 @@ def _limpar_lista(valores: list[str], tamanho_maximo: int) -> list[str]:
 
 
 @tratar_erros
+def _validar_limite_fiado(limite_fiado: Optional[Decimal]) -> None:
+    if limite_fiado is not None and limite_fiado <= 0:
+        raise ValueError("O limite de fiado deve ser maior que zero (ou em branco, para não ter limite).")
+
+
 def cadastrar_cliente(
     usuario_logado: UsuarioAutenticado,
     nome_principal: str,
     nomes_alternativos: list[str],
     telefones: list[str],
     compradores: list[str],
+    limite_fiado: Optional[Decimal] = None,
 ) -> ClienteResumo:
     """Cadastra um novo cliente.
 
@@ -80,19 +87,24 @@ def cadastrar_cliente(
         nomes_alternativos: Apelidos/variações do nome (opcional, 0 ou mais).
         telefones: Telefones de contato (opcional, 0 ou mais).
         compradores: Pessoas autorizadas a comprar na conta (opcional, 0 ou mais).
+        limite_fiado: Limite de compra no fiado (opcional; None = sem
+            limite). Clientes com saldo em aberto acima do limite
+            aparecem na tela de Início, com o botão de enviar lembrete.
 
     Returns:
         Um :class:`ClienteResumo` com os dados do cliente recém-criado.
 
     Raises:
-        ValueError: Se o nome principal estiver vazio ou algum campo
-            exceder o tamanho máximo permitido.
+        ValueError: Se o nome principal estiver vazio, algum campo
+            exceder o tamanho máximo permitido, ou o limite de fiado
+            informado não for maior que zero.
     """
     nome_principal = nome_principal.strip()
     if not nome_principal:
         raise ValueError("O nome principal é obrigatório.")
     if len(nome_principal) > _TAMANHO_MAXIMO_NOME:
         raise ValueError(f"O nome principal excede o tamanho máximo de {_TAMANHO_MAXIMO_NOME} caracteres.")
+    _validar_limite_fiado(limite_fiado)
 
     nomes_alternativos = _limpar_lista(nomes_alternativos, _TAMANHO_MAXIMO_NOME)
     telefones = _limpar_lista(telefones, _TAMANHO_MAXIMO_TELEFONE)
@@ -105,6 +117,7 @@ def cadastrar_cliente(
             nomes_alternativos=nomes_alternativos,
             telefones=telefones,
             compradores=compradores,
+            limite_fiado=limite_fiado,
         )
         historico_service.registrar_historico(
             session,
@@ -157,6 +170,7 @@ class ClienteFicha:
     compras: list[CompraResumo]
     total_em_aberto: Decimal
     confirmado: bool
+    limite_fiado: Optional[Decimal]
 
 
 @tratar_erros
@@ -257,6 +271,7 @@ def _montar_ficha(cliente_id_str: str, session) -> ClienteFicha:  # type: ignore
         ],
         total_em_aberto=total_em_aberto,
         confirmado=cliente.confirmado,
+        limite_fiado=cliente.limite_fiado,
     )
 
 
@@ -285,6 +300,7 @@ def editar_cliente(
     nomes_alternativos: list[str],
     telefones: list[str],
     compradores: list[str],
+    limite_fiado: Optional[Decimal] = None,
 ) -> ClienteFicha:
     """Edita os dados de um cliente existente.
 
@@ -296,13 +312,16 @@ def editar_cliente(
         nomes_alternativos: Nova lista completa de nomes alternativos.
         telefones: Nova lista completa de telefones.
         compradores: Nova lista completa de nomes de compradores.
+        limite_fiado: Novo limite de compra no fiado (None = sem limite —
+            também remove um limite definido antes).
 
     Returns:
         A :class:`ClienteFicha` atualizada.
 
     Raises:
         ValueError: Se o cliente não for encontrado, o nome principal
-            estiver vazio, ou algum campo exceder o tamanho máximo.
+            estiver vazio, algum campo exceder o tamanho máximo, ou o
+            limite de fiado informado não for maior que zero.
     """
     nome_principal = nome_principal.strip()
     if not nome_principal:
@@ -311,6 +330,7 @@ def editar_cliente(
         raise ValueError(
             f"O nome principal excede o tamanho máximo de {_TAMANHO_MAXIMO_NOME} caracteres."
         )
+    _validar_limite_fiado(limite_fiado)
 
     nomes_alternativos = _limpar_lista(nomes_alternativos, _TAMANHO_MAXIMO_NOME)
     telefones = _limpar_lista(telefones, _TAMANHO_MAXIMO_TELEFONE)
@@ -323,7 +343,7 @@ def editar_cliente(
 
         valor_antigo = f"nome_principal={cliente.nome_principal}"
         cliente_repository.atualizar_cliente(
-            session, cliente, nome_principal, nomes_alternativos, telefones, compradores
+            session, cliente, nome_principal, nomes_alternativos, telefones, compradores, limite_fiado
         )
         historico_service.registrar_historico(
             session,

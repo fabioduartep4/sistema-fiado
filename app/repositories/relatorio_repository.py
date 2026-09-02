@@ -2,8 +2,9 @@
 
 Contém o relatório de saldo em aberto por cliente (usado na aba
 Histórico e Relatórios) e as consultas agregadas usadas no painel de
-Início (maior valor gasto, mais contas lançadas, evolução mensal e total
-em aberto geral) — ambas somente para Administrador.
+Início (maior valor gasto, mais contas lançadas, evolução mensal, total
+em aberto geral, clientes com maior atraso e clientes acima do limite de
+fiado) — todas somente para Administrador.
 """
 
 from __future__ import annotations
@@ -75,6 +76,36 @@ def listar_saldos_em_atraso(session: Session, data_limite: date) -> list[tuple[C
         )
         .group_by(Cliente.id)
         .order_by(func.sum(Compra.valor).desc())
+    )
+    return list(session.execute(stmt).all())
+
+
+def listar_clientes_acima_do_limite(session: Session) -> list[tuple[Cliente, Decimal]]:
+    """Lista clientes com saldo em aberto maior que o limite de fiado definido para eles.
+
+    Só considera clientes com ``limite_fiado`` definido (não nulo) — quem
+    não tem limite configurado nunca aparece aqui, não importa o quanto
+    deva.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+
+    Returns:
+        Lista de tuplas (cliente, total_em_aberto), do maior excesso
+        (``total_em_aberto - limite_fiado``) para o menor.
+    """
+    stmt = (
+        select(Cliente, func.sum(Compra.valor))
+        .join(Compra, Compra.cliente_id == Cliente.id)
+        .where(
+            Cliente.ativo.is_(True),
+            Cliente.limite_fiado.is_not(None),
+            Compra.ativo.is_(True),
+            Compra.status != StatusCompra.QUITADA,
+        )
+        .group_by(Cliente.id)
+        .having(func.sum(Compra.valor) > Cliente.limite_fiado)
+        .order_by((func.sum(Compra.valor) - Cliente.limite_fiado).desc())
     )
     return list(session.execute(stmt).all())
 

@@ -7,6 +7,9 @@ negócio ou acesso a dados.
 
 from __future__ import annotations
 
+from decimal import Decimal
+from typing import Optional
+
 from app.services import cliente_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteBusca, ClienteFicha, ClienteResumo, GrupoDuplicados
@@ -29,10 +32,16 @@ class ClienteController:
         nomes_alternativos: list[str],
         telefones: list[str],
         compradores: list[str],
+        limite_fiado: Optional[Decimal] = None,
     ) -> ClienteResumo:
         """Cadastra um novo cliente."""
         return cliente_service.cadastrar_cliente(
-            self.usuario_logado, nome_principal, nomes_alternativos, telefones, compradores
+            self.usuario_logado,
+            nome_principal,
+            nomes_alternativos,
+            telefones,
+            compradores,
+            limite_fiado,
         )
 
     def buscar(self, termo: str) -> list[ClienteBusca]:
@@ -50,10 +59,17 @@ class ClienteController:
         nomes_alternativos: list[str],
         telefones: list[str],
         compradores: list[str],
+        limite_fiado: Optional[Decimal] = None,
     ) -> ClienteFicha:
         """Edita os dados de um cliente existente."""
         return cliente_service.editar_cliente(
-            self.usuario_logado, cliente_id, nome_principal, nomes_alternativos, telefones, compradores
+            self.usuario_logado,
+            cliente_id,
+            nome_principal,
+            nomes_alternativos,
+            telefones,
+            compradores,
+            limite_fiado,
         )
 
     def excluir(self, cliente_id: str) -> None:

@@ -51,7 +51,13 @@ _TAMANHO_LOTE_INDEXACAO = 200
 
 @dataclass(frozen=True)
 class CandidatoImportacao:
-    """Um XML de venda a prazo pendente de importação, com os clientes candidatos."""
+    """Um XML de venda a prazo pendente de importação, com os clientes candidatos.
+
+    Attributes:
+        valor: Só a parte da nota marcada como fiado (``NotaFiscalXml.valor_fiado``)
+            — numa nota com pagamento misto (parte em dinheiro/cartão,
+            parte na conta), é sempre esse valor, nunca o total da nota.
+    """
 
     caminho_arquivo: str
     chave: str
@@ -98,6 +104,7 @@ def _linha_indice_para_arquivo(caminho: Path) -> dict[str, Any]:
             "eh_fiado": False,
             "nome_cliente_xml": None,
             "valor_total": None,
+            "valor_fiado": None,
             "data_emissao": None,
             "xml_invalido": True,
         }
@@ -112,6 +119,7 @@ def _linha_indice_para_arquivo(caminho: Path) -> dict[str, Any]:
         "eh_fiado": nota.eh_fiado,
         "nome_cliente_xml": nota.nome_cliente,
         "valor_total": nota.valor_total,
+        "valor_fiado": nota.valor_fiado,
         "data_emissao": nota.data_emissao,
         "xml_invalido": False,
     }
@@ -188,7 +196,10 @@ def listar_candidatos_importacao(
         # Extrai os dados enquanto a sessão está aberta, antes de resolver
         # os clientes candidatos (consulta separada, fora desta sessão).
         dados_pendentes = [
-            (item.caminho_arquivo, item.chave, item.nome_cliente_xml, item.valor_total, item.data_emissao)
+            # valor_fiado (não valor_total): numa nota com pagamento misto
+            # (parte em dinheiro/cartão, parte marcada na conta), só a
+            # parte marcada é dívida do cliente — ver NotaFiscalXml.valor_fiado.
+            (item.caminho_arquivo, item.chave, item.nome_cliente_xml, item.valor_fiado, item.data_emissao)
             for item in pendentes
         ]
 
@@ -267,8 +278,11 @@ def importar_xmls(
                         valor_novo=f"nome_principal={nota.nome_cliente}",
                     )
 
+            # valor_fiado (não valor_total): numa nota com pagamento misto
+            # (parte em dinheiro/cartão, parte marcada na conta), só a
+            # parte marcada é dívida do cliente — ver NotaFiscalXml.valor_fiado.
             compra = compra_repository.criar_compra(
-                session, cliente_id=cliente.id, valor=nota.valor_total, data=nota.data_emissao
+                session, cliente_id=cliente.id, valor=nota.valor_fiado, data=nota.data_emissao
             )
             compra.origem_nfe_xml = nota.chave
             session.flush()
@@ -280,7 +294,7 @@ def importar_xmls(
                 usuario_id=uuid.UUID(usuario_logado.id),
                 acao="criacao_via_xml",
                 valor_novo=(
-                    f"valor={nota.valor_total}, data={nota.data_emissao}, chave_nfe={nota.chave}"
+                    f"valor={nota.valor_fiado}, data={nota.data_emissao}, chave_nfe={nota.chave}"
                 ),
             )
 

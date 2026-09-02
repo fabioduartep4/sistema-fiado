@@ -35,6 +35,8 @@ _CHAVE_ORIGINAL = 'Id="NFe11111111111111111111111111111111111111111111"'
 _NOME_ORIGINAL = "<xNome>CLIENTE DE TESTE</xNome>"
 _CHAVE_ORIGINAL_CARTAO = 'Id="NFe33333333333333333333333333333333333333333333"'
 _NOME_ORIGINAL_CARTAO = "<xNome>CLIENTE CARTAO DE TESTE</xNome>"
+_CHAVE_ORIGINAL_MISTO = 'Id="NFe66666666666666666666666666666666666666666666"'
+_NOME_ORIGINAL_MISTO = "<xNome>CLIENTE PAGAMENTO MISTO</xNome>"
 
 
 def _gerar_chave() -> str:
@@ -56,6 +58,18 @@ def _escrever_xml_cartao_teste(pasta: Path, nome_arquivo: str, chave: str, nome_
     texto = (_PASTA_FIXTURES / "nfe_exemplo_venda_a_prazo_cartao.xml").read_text(encoding="utf-8")
     texto = texto.replace(_CHAVE_ORIGINAL_CARTAO, f'Id="NFe{chave}"')
     texto = texto.replace(_NOME_ORIGINAL_CARTAO, f"<xNome>{nome_cliente}</xNome>")
+    caminho = pasta / nome_arquivo
+    caminho.write_text(texto, encoding="utf-8")
+    return caminho
+
+
+def _escrever_xml_pagamento_misto_teste(pasta: Path, nome_arquivo: str, chave: str, nome_cliente: str) -> Path:
+    """Mesma ideia de ``_escrever_xml_teste``, mas com a fixture de nota com
+    pagamento misto (parte dinheiro, parte fiado) — ver
+    ``nfe_exemplo_pagamento_misto.xml``."""
+    texto = (_PASTA_FIXTURES / "nfe_exemplo_pagamento_misto.xml").read_text(encoding="utf-8")
+    texto = texto.replace(_CHAVE_ORIGINAL_MISTO, f'Id="NFe{chave}"')
+    texto = texto.replace(_NOME_ORIGINAL_MISTO, f"<xNome>{nome_cliente}</xNome>")
     caminho = pasta / nome_arquivo
     caminho.write_text(texto, encoding="utf-8")
     return caminho
@@ -143,6 +157,34 @@ def test_importar_cria_cliente_pendente_e_compra_vinculada(
     assert len(ficha.compras) == 1
     assert ficha.compras[0].valor == Decimal("35.50")
     assert ficha.compras[0].origem_nfe_xml == chave
+
+    cliente_service.excluir_cliente(usuario_admin_teste, resultados[0].cliente_id)
+
+
+def test_candidato_e_compra_de_nota_com_pagamento_misto_usam_so_a_parte_fiado(
+    usuario_admin_teste, _pasta_xml_configurada
+) -> None:
+    """Regressão de ponta a ponta com o caso real que motivou a correção:
+    nota de R$ 66,84 paga com R$ 50,00 em dinheiro + R$ 16,84 marcado na
+    conta. Tanto o candidato listado quanto a compra criada precisam usar
+    só os R$ 16,84 — nunca o total da nota."""
+    chave = _gerar_chave()
+    nome_cliente = f"Teste Automatizado Pagamento Misto {uuid.uuid4().hex[:8]}"
+    caminho = _escrever_xml_pagamento_misto_teste(_pasta_xml_configurada, "nota1.xml", chave, nome_cliente)
+
+    candidatos = xml_importacao_service.listar_candidatos_importacao(usuario_admin_teste)
+    candidato = next((c for c in candidatos if c.chave == chave), None)
+    assert candidato is not None
+    assert candidato.valor == Decimal("16.84")
+
+    resultados = xml_importacao_service.importar_xmls(
+        usuario_admin_teste, [EscolhaImportacao(caminho_arquivo=str(caminho), cliente_id=None)]
+    )
+
+    assert len(resultados) == 1
+    ficha = cliente_service.obter_ficha(resultados[0].cliente_id)
+    assert len(ficha.compras) == 1
+    assert ficha.compras[0].valor == Decimal("16.84")  # nunca R$ 66.84 (total da nota)
 
     cliente_service.excluir_cliente(usuario_admin_teste, resultados[0].cliente_id)
 

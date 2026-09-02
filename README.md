@@ -1,5 +1,88 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Limite de fiado por cliente, com aviso na tela de Início (novidade)
+
+- **O que é**: cada cliente agora pode ter um limite de compra no fiado
+  (opcional — sem limite definido, funciona exatamente como antes).
+  Definido em "Cadastrar Cliente" ou "Editar Cliente" (Ficha do Cliente),
+  em branco = sem limite.
+- **Onde aparece**: clientes cujo saldo em aberto passou do limite
+  combinado aparecem numa nova seção **"Clientes Acima do Limite de
+  Fiado"** direto na tela de Início — mesmo formato da seção "Clientes
+  com Maior Atraso" já existente (cliente, telefone, limite, total em
+  aberto, quanto passou do limite, e o botão "Enviar Lembrete" por
+  WhatsApp). Quem não tem limite definido nunca aparece aqui, não importa
+  o quanto deva.
+- Também mostrado na própria Ficha do Cliente, junto do "Total em
+  aberto" (com um aviso ⚠️ quando o saldo já passou do limite).
+- Puramente informativo: definir um limite **não bloqueia** novas
+  compras nem o "Receber Conta" — só avisa. Se quiser que ultrapassar o
+  limite impeça novas compras no fiado, é uma etapa separada, me avise.
+
+## "Lembretes" movido pra tela de Início, mais visível (novidade)
+
+- **Causa raiz**: a lista de clientes com maior atraso (e o botão de
+  enviar lembrete por WhatsApp) ficava numa sub-aba "Lembretes", dentro de
+  "Histórico e Relatórios" — dois níveis de aba escondida, um lugar que
+  ninguém pensaria em procurar pra mandar cobrança.
+- **Correção**: essa funcionalidade foi movida pra tela de **Início**
+  (primeira aba do sistema), como uma seção "Clientes com Maior Atraso" —
+  visível assim que o sistema abre, sem precisar navegar em lugar nenhum.
+  Mesmo filtro de dias em atraso e mesmo botão "Enviar Lembrete" de antes,
+  só que agora em destaque. A sub-aba "Lembretes" foi removida de
+  "Histórico e Relatórios" (que ficou só com Histórico de Alterações, Log
+  de Erros e Saldo em Aberto) — não é mais preciso ir lá.
+- Essa seção é independente do filtro de período do resto da tela de
+  Início (é sobre a situação atual das contas, não um histórico de
+  intervalo) — tem seu próprio filtro de "dias em atraso" e não é
+  recarregada quando o período do resto do painel muda.
+
+## Correção: nota com pagamento misto lançava o valor errado (novidade)
+
+- **Causa raiz**: é comum o cliente pagar parte da compra na hora
+  (dinheiro/cartão) e só o restante ficar marcado na conta — a nota fiscal
+  tem, nesse caso, mais de um `<detPag>` (um par forma de pagamento +
+  valor por forma). O sistema só olhava se existia **algum** `tPag=05`
+  (Crédito Loja) na nota pra decidir "é fiado", mas usava o **valor total
+  da nota inteira** (`<vNF>`) como valor da compra — mesmo quando só uma
+  parte era fiado de verdade. Confirmado com nota real: cliente pagou R$
+  50,00 em dinheiro e R$ 16,84 ficou na conta (nota de R$ 66,84 no total)
+  — o sistema lançaria os R$ 66,84 inteiros, cobrando R$ 50,00 a mais do
+  que devido.
+- **Correção**: `nfe_parser.ler_nfe` agora lê cada `<detPag>` como um par
+  (forma de pagamento + valor daquela forma), soma só os valores com
+  `tPag=05` (`NotaFiscalXml.valor_fiado`) e é esse valor — não o total da
+  nota — que vira o valor da compra, tanto na lista de candidatos a
+  importação quanto na compra criada de fato.
+- **Nota rodada de novo**: as notas fiado já indexadas antes desta
+  correção (ainda não importadas) são reprocessadas automaticamente na
+  próxima varredura, pra recalcular o valor certo — não precisa fazer
+  nada manualmente.
+- Compras que **já foram importadas** antes desta correção, a partir de
+  uma nota com pagamento misto, podem ter ficado com o valor maior que o
+  devido — isso não é corrigido automaticamente (exigiria revisar cada
+  caso manualmente); avise se quiser ajuda para identificar quais.
+
+## Correção: valor de nota fora da faixa travava a indexação em lote (novidade)
+
+- **Causa raiz**: alguma nota tem um valor total (`<vNF>`) fora da faixa que
+  as colunas de valor do banco aceitam (`Numeric(12,2)` — até
+  9.999.999.999,99) — dado corrompido/errado no próprio arquivo, não algo
+  causado pelo sistema (o XML nunca é alterado, só lido). Isso só passou a
+  aparecer depois da correção anterior (NFC-e sem cliente não é mais
+  "inválida") — antes, esse arquivo específico provavelmente já era
+  rejeitado mais cedo por falta de cliente identificado, então o sistema
+  nunca chegava a ler o valor dele. Como a indexação grava em lotes de 200
+  arquivos numa única transação, um valor assim fora da faixa fazia o
+  banco rejeitar **o lote inteiro** — e como nada daquele lote ficava
+  marcado como resolvido, a próxima varredura tentava o mesmo lote de
+  novo, do mesmo jeito, travando sempre no mesmo lugar.
+- **Correção**: `nfe_parser.ler_nfe` agora valida o valor total contra a
+  faixa que o banco aceita — um valor fora da faixa faz o arquivo ser
+  tratado como inválido (mesma categoria já usada para XML corrompido),
+  em vez de tentar gravar e quebrar o lote inteiro. O resto do lote
+  continua sendo processado normalmente.
+
 ## Compras quitadas saem da Ficha do Cliente, vão pro Histórico (novidade)
 
 - **Causa raiz**: a Ficha do Cliente listava todas as compras do cliente

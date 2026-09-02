@@ -72,6 +72,56 @@ def test_editar_cliente_atualiza_nome_principal(usuario_admin_teste) -> None:
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
 
 
+def test_cadastrar_cliente_com_limite_fiado(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Limite Cadastro", [], [], [],
+        limite_fiado=Decimal("150.00"),
+    )
+
+    ficha = cliente_service.obter_ficha(cliente.id)
+    assert ficha.limite_fiado == Decimal("150.00")
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_cadastrar_cliente_sem_limite_fiado_fica_sem_limite(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Sem Limite Cadastro", [], [], []
+    )
+
+    ficha = cliente_service.obter_ficha(cliente.id)
+    assert ficha.limite_fiado is None
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_cadastrar_cliente_com_limite_fiado_zero_e_rejeitado(usuario_admin_teste) -> None:
+    with pytest.raises(ValueError):
+        cliente_service.cadastrar_cliente(
+            usuario_admin_teste, "Teste Automatizado Limite Invalido", [], [], [],
+            limite_fiado=Decimal("0"),
+        )
+
+
+def test_editar_cliente_define_e_depois_remove_o_limite_fiado(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Limite Edicao", [], [], []
+    )
+
+    ficha = cliente_service.editar_cliente(
+        usuario_admin_teste, cliente.id, cliente.nome_principal, [], [], [],
+        limite_fiado=Decimal("300.00"),
+    )
+    assert ficha.limite_fiado == Decimal("300.00")
+
+    ficha = cliente_service.editar_cliente(
+        usuario_admin_teste, cliente.id, cliente.nome_principal, [], [], [], limite_fiado=None
+    )
+    assert ficha.limite_fiado is None
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
 def test_mesclar_clientes_duplicados_move_compras_para_o_principal(usuario_admin_teste) -> None:
     principal = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Duplicado Merge", [], [], []

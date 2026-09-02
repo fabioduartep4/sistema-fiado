@@ -54,7 +54,13 @@ class XmlIndexado(Base, ColunasComunsMixin):
             sistema. É este campo (não ``eh_venda_a_prazo``) que filtra
             candidatos de importação.
         nome_cliente_xml: Nome do destinatário extraído do XML.
-        valor_total: Valor total da nota.
+        valor_total: Valor total da nota (``<vNF>``) — soma de todas as
+            formas de pagamento, guardado só para referência/depuração.
+        valor_fiado: Soma só da(s) forma(s) de pagamento "Crédito Loja"
+            (``tPag=05``) — é este o valor usado ao importar como compra,
+            não ``valor_total``. Confirmado com dado real: o cliente pode
+            pagar parte da compra na hora e só o restante ficar na conta —
+            nesse caso ``valor_fiado`` é menor que ``valor_total``.
         data_emissao: Data de emissão da nota.
         xml_invalido: True quando o arquivo não pôde ser lido como uma
             NF-e válida — indexado mesmo assim, para não tentar reabri-lo
@@ -72,6 +78,7 @@ class XmlIndexado(Base, ColunasComunsMixin):
     eh_fiado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     nome_cliente_xml: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     valor_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    valor_fiado: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     data_emissao: Mapped[Optional[date_]] = mapped_column(Date, nullable=True)
     xml_invalido: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
