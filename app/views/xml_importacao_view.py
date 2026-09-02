@@ -174,6 +174,7 @@ class ImportarXmlDialog(QDialog):
         self._botao_importar = QPushButton("Confirmar Importação")
         self._botao_importar.setIcon(icone("UPLOAD"))
         self._botao_importar.setMinimumHeight(42)
+        self._botao_importar.setProperty("importancia", "primaria")
         self._botao_importar.clicked.connect(self._confirmar)
 
         self._botao_fechar = QPushButton("Fechar")

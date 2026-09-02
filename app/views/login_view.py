@@ -47,7 +47,7 @@ class LoginView(QDialog):
         self._campo_senha.setMinimumHeight(36)
 
         self._label_erro = QLabel("")
-        self._label_erro.setStyleSheet("color: #c0392b;")
+        self._label_erro.setProperty("papel", "erro")
         self._label_erro.setWordWrap(True)
 
         self._botao_entrar = QPushButton("Entrar")

@@ -1,5 +1,23 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Retoque visual estendido para (quase) todas as telas (novidade)
+
+- Continuação do item anterior: as classes `papel="titulo"/"subtitulo"/
+  "secundario"/"erro"` e `importancia="primaria"` (ver retoque visual
+  abaixo) foram aplicadas em todas as telas principais do sistema —
+  Cadastrar/Buscar/Editar Cliente, Adicionar Compra, Receber Conta, Ficha
+  do Cliente, Usuários, Backup, Configurações, Histórico e Relatórios,
+  Importar XMLs — não só Login e Início.
+- Cada tela ganhou seu botão principal em destaque (cor de contraste)
+  quando fazia sentido: Salvar/Cadastrar/Confirmar/Novo Usuário. Telas
+  sem uma ação claramente "principal" (Backup, Configurações — várias
+  ações independentes de peso parecido) não ganharam destaque, de
+  propósito, para não perder o sentido de hierarquia.
+- De quebra, corrigidos alguns lugares com cor fixa em vez de seguir o
+  tema (`#666`, `#c0392b`) e um título que existia mas sem nenhum estilo
+  (tela de Usuários) — pequenas inconsistências que apareceram ao
+  varrer todas as telas.
+
 ## Retoque visual: tema claro próprio, tipografia e botões (novidade)
 
 - **Causa raiz**: o tema claro não tinha estilo nenhum — era literalmente

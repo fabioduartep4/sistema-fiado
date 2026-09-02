@@ -108,7 +108,7 @@ class RelatorioView(QWidget):
         abas.addTab(self._construir_aba_saldo_em_aberto(), "Saldo em Aberto")
 
         titulo = QLabel("Histórico e Relatórios")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)

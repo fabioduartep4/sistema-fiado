@@ -58,7 +58,7 @@ class ConfiguracoesView(QWidget):
         self._usuario_logado = usuario_logado
 
         titulo = QLabel("Configurações")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
 
         info_conexao = QLabel(
             f"Servidor: {settings.database.host}:{settings.database.port}  •  "
@@ -66,7 +66,7 @@ class ConfiguracoesView(QWidget):
             "(Editável apenas no arquivo .env deste computador — requer reiniciar o sistema.)"
         )
         info_conexao.setWordWrap(True)
-        info_conexao.setStyleSheet("color: #666;")
+        info_conexao.setProperty("papel", "secundario")
 
         self._campo_modo_data = QComboBox()
         for modo, rotulo in _ROTULOS_MODO_DATA.items():

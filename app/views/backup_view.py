@@ -36,7 +36,7 @@ class BackupView(QWidget):
         self._controller = BackupController(usuario_logado)
 
         titulo = QLabel("Backup")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
 
         self._campo_pasta = QLineEdit()
         self._campo_pasta.setReadOnly(True)
@@ -63,7 +63,7 @@ class BackupView(QWidget):
             "instalados e no PATH deste computador."
         )
         aviso.setWordWrap(True)
-        aviso.setStyleSheet("color: #666;")
+        aviso.setProperty("papel", "secundario")
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)

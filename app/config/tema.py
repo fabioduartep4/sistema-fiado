@@ -98,6 +98,11 @@ QLabel[papel="secundario"] {{
     color: {c["texto_secundario"]};
 }}
 
+QLabel[papel="erro"] {{
+    color: {c["erro"]};
+    font-weight: 600;
+}}
+
 QPushButton {{
     background-color: {c["fundo_alt"]};
     border: 1px solid {c["borda"]};

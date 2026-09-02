@@ -81,7 +81,8 @@ class MainWindow(QMainWindow):
         cabecalho = QLabel(
             f"Logado como: {usuario.nome}  —  Perfil: {usuario.perfil.value.capitalize()}"
         )
-        cabecalho.setStyleSheet("padding: 6px; font-weight: bold;")
+        cabecalho.setProperty("papel", "subtitulo")
+        cabecalho.setStyleSheet("padding: 6px;")
 
         botao_sair = QPushButton("Sair")
         botao_sair.setIcon(icone("LOGOUT"))
@@ -133,7 +134,8 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         label = QLabel(f"'{nome}' será implementada em uma próxima etapa.")
-        label.setStyleSheet("padding: 24px; color: #666;")
+        label.setProperty("papel", "secundario")
+        label.setStyleSheet("padding: 24px;")
         layout.addWidget(label)
         return widget
 

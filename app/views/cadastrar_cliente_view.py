@@ -58,6 +58,7 @@ class CadastrarClienteView(QWidget):
         botao_salvar = QPushButton("Salvar Cliente")
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(44)
+        botao_salvar.setProperty("importancia", "primaria")
         botao_salvar.clicked.connect(self._salvar)
 
         botao_limpar = QPushButton("Limpar Formulário")
@@ -66,7 +67,7 @@ class CadastrarClienteView(QWidget):
         botao_limpar.clicked.connect(self._limpar_formulario)
 
         titulo = QLabel("Cadastrar Cliente")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)

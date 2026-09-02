@@ -30,7 +30,7 @@ class BuscarClienteView(QWidget):
         self._campo_busca.resultado_ativado.connect(self._abrir_ficha)
 
         titulo = QLabel("Buscar Cliente")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)
