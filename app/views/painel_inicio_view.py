@@ -135,7 +135,7 @@ class PainelInicioView(QWidget):
         self._controller_relatorio = RelatorioController(usuario_logado)
 
         titulo = QLabel("Início")
-        titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
 
         hoje = date.today()
         self._campo_data_inicio = QDateEdit(QDate(hoje.replace(day=1)))
@@ -280,6 +280,7 @@ class PainelInicioView(QWidget):
 
             botao_lembrete = QPushButton("Enviar Lembrete")
             botao_lembrete.setIcon(icone("BRAND_WHATSAPP"))
+            botao_lembrete.setProperty("importancia", "primaria")
             botao_lembrete.setEnabled(bool(saldo.telefone))
             botao_lembrete.clicked.connect(lambda _checked=False, s=saldo: self._abrir_lembrete(s))
             self._tabela_atrasos.setCellWidget(linha, 4, botao_lembrete)
@@ -354,6 +355,7 @@ class PainelInicioView(QWidget):
 
             botao_lembrete = QPushButton("Enviar Lembrete")
             botao_lembrete.setIcon(icone("BRAND_WHATSAPP"))
+            botao_lembrete.setProperty("importancia", "primaria")
             botao_lembrete.setEnabled(bool(item.telefone))
             botao_lembrete.clicked.connect(lambda _checked=False, i=item: self._abrir_lembrete_limite(i))
             self._tabela_acima_do_limite.setCellWidget(linha, 5, botao_lembrete)

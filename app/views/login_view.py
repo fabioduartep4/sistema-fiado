@@ -55,6 +55,7 @@ class LoginView(QDialog):
         self._botao_entrar.setMinimumHeight(42)
         self._botao_entrar.setDefault(True)
         self._botao_entrar.setAutoDefault(True)
+        self._botao_entrar.setProperty("importancia", "primaria")
         self._botao_entrar.clicked.connect(self._on_entrar_clicado)
 
         self._botao_cancelar = QPushButton("Cancelar")
@@ -63,7 +64,7 @@ class LoginView(QDialog):
         self._botao_cancelar.clicked.connect(self.reject)
 
         titulo = QLabel("Sistema de Gestão de Fiado")
-        titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
         titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout_botoes = QHBoxLayout()

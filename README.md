@@ -1,5 +1,31 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Retoque visual: tema claro próprio, tipografia e botões (novidade)
+
+- **Causa raiz**: o tema claro não tinha estilo nenhum — era literalmente
+  a aparência crua do Windows, sem QSS (só o tema escuro tinha
+  cores/bordas/hover customizados). Widgets padrão do Windows são bem
+  datados visualmente, então quem usa o modo claro no dia a dia sentia o
+  sistema mais "feio/simples" do que o modo escuro.
+- **Correção**: `app/config/tema.py` reescrito — os dois temas agora
+  compartilham a mesma estrutura de regras (uma função só monta o QSS a
+  partir da paleta de cada tema, pra nunca ficarem desalinhados um do
+  outro), com: cantos mais arredondados, foco visível nos campos de texto
+  (antes não existia nenhum destaque ao clicar num campo), seleção de
+  linha nas tabelas/listas com a cor de destaque, abas com cantos
+  arredondados no topo, e caixas (`QGroupBox`) com título em negrito na
+  cor de destaque.
+- **Duas convenções novas, opcionais**: `label.setProperty("papel",
+  "titulo")` para títulos de tela (em vez de cada tela definir seu
+  próprio `setStyleSheet` com tamanho de fonte solto) e
+  `botao.setProperty("importancia", "primaria")` para a ação principal de
+  uma tela se destacar visualmente das secundárias (preenchido com a cor
+  de destaque, em vez de todos os botões parecerem iguais). Aplicadas por
+  enquanto nas telas de Login e Início (título + botão "Entrar"/"Enviar
+  Lembrete") como demonstração — as demais telas continuam funcionando
+  normalmente, só não têm esse destaque ainda; é fácil estender pra elas
+  se fizer sentido.
+
 ## Limite de fiado por cliente, com aviso na tela de Início (novidade)
 
 - **O que é**: cada cliente agora pode ter um limite de compra no fiado
