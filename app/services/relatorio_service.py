@@ -2,8 +2,9 @@
 
 Reúne consultas administrativas: histórico de alterações (auditoria), log
 de erros do sistema, relatório de clientes com saldo em aberto (com
-exportação para CSV) e o painel de início (maior valor gasto, mais contas
-lançadas, evolução mensal e total em aberto geral).
+exportação para CSV), as vendas de hoje (e dos últimos 7 dias) e o painel
+de início (maior valor gasto, mais contas lançadas, evolução mensal e
+total em aberto geral).
 
 Todas as funções exigem perfil Administrador, na mesma linha dos demais
 serviços administrativos (usuários, backup, configurações).
@@ -338,6 +339,59 @@ def exportar_saldos_em_aberto_xlsx(usuario_logado: UsuarioAutenticado, caminho_a
 
     planilha.freeze_panes = "A2"
     pasta_trabalho.save(caminho_arquivo)
+
+
+@dataclass(frozen=True)
+class PontoVendaDiaria:
+    """Um ponto da série de vendas diárias (últimos N dias)."""
+
+    dia: str  # "dd/mm"
+    total: Decimal
+
+
+@dataclass(frozen=True)
+class VendasHojeResumo:
+    """Dados da seção "Vendas de Hoje" da tela de Início — situação do dia
+    atual, sem filtro de período (não faz sentido escolher um "período"
+    para "hoje").
+
+    Attributes:
+        total_vendido_hoje: Soma de tudo que foi vendido no fiado hoje.
+        vendas_ultimos_7_dias: Total vendido por dia, últimos 7 dias
+            (janela fixa, incluindo hoje).
+    """
+
+    total_vendido_hoje: Decimal
+    vendas_ultimos_7_dias: list[PontoVendaDiaria]
+
+
+@tratar_erros
+def obter_vendas_hoje(usuario_logado: UsuarioAutenticado) -> VendasHojeResumo:
+    """Monta os dados da seção "Vendas de Hoje" — sempre o dia atual e os
+    últimos 7 dias, sem período selecionável.
+
+    Args:
+        usuario_logado: Usuário autenticado que está consultando.
+
+    Returns:
+        Um :class:`VendasHojeResumo`.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    if not usuario_logado.eh_administrador:
+        raise PermissaoNegadaError("Apenas administradores podem ver as vendas de hoje.")
+
+    hoje = date.today()
+    with session_scope() as session:
+        total_hoje = relatorio_repository.calcular_total_vendido_no_dia(session, hoje)
+        vendas_diarias = relatorio_repository.listar_vendas_ultimos_dias(session, dias=7)
+        return VendasHojeResumo(
+            total_vendido_hoje=total_hoje,
+            vendas_ultimos_7_dias=[
+                PontoVendaDiaria(dia=dia.strftime("%d/%m"), total=total) for dia, total in vendas_diarias
+            ],
+        )
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import csv
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import openpyxl
@@ -274,5 +274,38 @@ def test_obter_painel_saldos_total_em_aberto_reflete_nova_compra(usuario_admin_t
     painel_depois = relatorio_service.obter_painel_saldos(usuario_admin_teste)
 
     assert painel_depois.total_em_aberto_geral - painel_antes.total_em_aberto_geral == Decimal("77.00")
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_obter_vendas_hoje_funcionario_e_rejeitado(usuario_admin_teste) -> None:
+    funcionario, usuario_funcionario = _criar_funcionario_teste(usuario_admin_teste)
+
+    with pytest.raises(PermissaoNegadaError):
+        relatorio_service.obter_vendas_hoje(usuario_funcionario)
+
+    usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_obter_vendas_hoje_total_reflete_nova_compra(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Vendas Hoje", [], [], []
+    )
+    # Aqui precisa ser a data real de hoje (não ``obter_data_padrao()``,
+    # que pode ser "ontem" dependendo do modo configurado) — é o que
+    # ``obter_vendas_hoje`` usa internamente como referência.
+    hoje = date.today()
+
+    resumo_antes = relatorio_service.obter_vendas_hoje(usuario_admin_teste)
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("42.00"), hoje, None)
+    resumo_depois = relatorio_service.obter_vendas_hoje(usuario_admin_teste)
+
+    assert resumo_depois.total_vendido_hoje - resumo_antes.total_vendido_hoje == Decimal("42.00")
+    assert len(resumo_depois.vendas_ultimos_7_dias) == 7
+    assert resumo_depois.vendas_ultimos_7_dias[-1].dia == hoje.strftime("%d/%m")
+    assert (
+        resumo_depois.vendas_ultimos_7_dias[-1].total - resumo_antes.vendas_ultimos_7_dias[-1].total
+        == Decimal("42.00")
+    )
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

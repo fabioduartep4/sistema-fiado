@@ -8,17 +8,21 @@ Vendas" e "Clientes com Maior Saldo em Aberto" (situação atual, não
 histórico de um intervalo) saíram daqui para a aba "Saldos" — ver
 ``app.views.saldos_view``.
 
-Também traz duas seções com o botão de enviar lembrete por WhatsApp,
-ambas fora do ciclo de recarregamento por período (são sobre a situação
-atual das contas, não histórico de um intervalo — cada uma com seu
-próprio filtro/atualização independente):
+Também traz três seções fora do ciclo de recarregamento por período (são
+sobre o dia atual ou a situação atual das contas, não histórico de um
+intervalo — cada uma com seu próprio filtro/atualização independente),
+nesta ordem:
 
-- "Clientes com Maior Atraso" — antes era uma sub-aba pouco visível
-  dentro de "Histórico e Relatórios"; trazida pra cá para ficar visível
-  assim que o sistema abre.
+- "Vendas de Hoje" — total vendido no fiado hoje e um gráfico com os
+  últimos 7 dias. Não tem período selecionável de propósito: "hoje" e
+  "últimos 7 dias" já são, por definição, uma janela fixa.
 - "Clientes Acima do Limite de Fiado" — clientes com um limite de compra
   no fiado definido (``Cliente.limite_fiado``) cujo saldo em aberto já
-  passou desse limite.
+  passou desse limite, com o botão de enviar lembrete por WhatsApp.
+- "Clientes com Maior Atraso" — antes era uma sub-aba pouco visível
+  dentro de "Histórico e Relatórios"; trazida pra cá para ficar visível
+  assim que o sistema abre. Também com o botão de enviar lembrete por
+  WhatsApp.
 """
 
 from __future__ import annotations
@@ -47,7 +51,7 @@ from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.services.relatorio_service import ClienteAcimaDoLimiteResumo, SaldoAtrasoResumo
 from app.utils.exceptions import ErroDeNegocio
-from app.utils.graficos import construir_grafico_barras
+from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
 from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.relatorio_view import LembreteWhatsAppDialog
@@ -98,10 +102,11 @@ class PainelInicioView(QWidget):
         layout_periodo.addWidget(botao_atualizar)
         layout_periodo.addStretch()
 
-        caixa_maior_atraso = self._construir_caixa_maior_atraso()
+        caixa_vendas_hoje = self._construir_caixa_vendas_hoje()
         caixa_acima_do_limite = self._construir_caixa_acima_do_limite()
+        caixa_maior_atraso = self._construir_caixa_maior_atraso()
 
-        # Tudo — as duas caixas fixas e os gráficos dependentes do período —
+        # Tudo — as três caixas fixas e os gráficos dependentes do período —
         # dentro do MESMO QScrollArea, para a rolagem do mouse funcionar de
         # forma única na tela inteira (antes, as caixas ficavam fora da
         # área de rolagem, como se fossem uma "página" à parte dos
@@ -118,6 +123,7 @@ class PainelInicioView(QWidget):
         self._container.setMaximumWidth(_LARGURA_MAXIMA_CONTEUDO)
         layout_scroll = QVBoxLayout(self._container)
         layout_scroll.setContentsMargins(4, 8, 4, 8)
+        layout_scroll.addWidget(caixa_vendas_hoje)
         layout_scroll.addWidget(caixa_acima_do_limite)
         layout_scroll.addWidget(caixa_maior_atraso)
 
@@ -143,8 +149,9 @@ class PainelInicioView(QWidget):
         self.setLayout(layout)
 
         self._carregar()
-        self._carregar_maiores_atrasos()
+        self._carregar_vendas_hoje()
         self._carregar_acima_do_limite()
+        self._carregar_maiores_atrasos()
 
     def _limpar_conteudo(self) -> None:
         while self._layout_conteudo.count():
@@ -152,6 +159,62 @@ class PainelInicioView(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    # -- Vendas de Hoje -------------------------------------------------------
+    #
+    # Fora do ciclo de recarregamento por período de propósito: "hoje" e
+    # "últimos 7 dias" já são, por definição, uma janela fixa — não haveria
+    # sentido em oferecer um período selecionável pra eles.
+
+    def _construir_caixa_vendas_hoje(self) -> QGroupBox:
+        caixa = QGroupBox("Vendas de Hoje")
+
+        botao_atualizar_vendas_hoje = QPushButton("Atualizar")
+        botao_atualizar_vendas_hoje.setIcon(icone("REFRESH"))
+        botao_atualizar_vendas_hoje.clicked.connect(self._carregar_vendas_hoje)
+
+        layout_topo = QHBoxLayout()
+        layout_topo.addStretch()
+        layout_topo.addWidget(botao_atualizar_vendas_hoje)
+
+        self._label_total_vendido_hoje = QLabel()
+        self._label_total_vendido_hoje.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px;")
+
+        self._layout_grafico_vendas_hoje = QVBoxLayout()
+
+        layout_caixa = QVBoxLayout(caixa)
+        layout_caixa.addLayout(layout_topo)
+        layout_caixa.addWidget(self._label_total_vendido_hoje)
+        layout_caixa.addLayout(self._layout_grafico_vendas_hoje)
+        return caixa
+
+    def _carregar_vendas_hoje(self) -> None:
+        while self._layout_grafico_vendas_hoje.count():
+            item = self._layout_grafico_vendas_hoje.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        try:
+            resumo = self._controller_relatorio.obter_vendas_hoje()
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao carregar as vendas de hoje.")
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar as vendas de hoje.")
+            return
+
+        self._label_total_vendido_hoje.setText(
+            f"Vendas no fiado hoje: R$ {resumo.total_vendido_hoje:.2f}"
+        )
+
+        grafico = construir_grafico_linha(
+            "Total Vendido (R$)",
+            [p.dia for p in resumo.vendas_ultimos_7_dias],
+            [float(p.total) for p in resumo.vendas_ultimos_7_dias],
+        )
+        self._layout_grafico_vendas_hoje.addWidget(grafico)
 
     # -- Clientes com Maior Atraso (ex-aba "Lembretes") ----------------------
     #

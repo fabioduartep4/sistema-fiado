@@ -1,5 +1,20 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Nova seção "Vendas de Hoje" na tela de Início (novidade)
+
+- **O que é**: nova seção **"Vendas de Hoje"**, primeira da tela de
+  Início (antes de "Clientes Acima do Limite de Fiado" e "Clientes com
+  Maior Atraso"). Mostra o **total vendido no fiado hoje** e, logo
+  abaixo, um **gráfico de linha com os últimos 7 dias** (hoje incluído).
+- **Sem período selecionável de propósito**: "hoje" e "últimos 7 dias"
+  já são, por definição, uma janela fixa — não faria sentido ter um
+  seletor de datas pra eles (mesmo raciocínio já aplicado à aba
+  "Saldos"). Tem seu próprio botão "Atualizar", independente do
+  seletor de período do resto da tela.
+- Dias sem nenhuma venda aparecem no gráfico com total zero (em vez de
+  serem simplesmente omitidos) — assim o gráfico sempre mostra os 7
+  dias completos, mesmo que o mercado tenha ficado fechado nalgum deles.
+
 ## Nova aba "Saldos", reunindo indicadores da situação atual do negócio (novidade)
 
 - **O que é**: nova aba **"Saldos"**, visível só para Administrador,
