@@ -14,6 +14,7 @@ from app.services.relatorio_service import (
     ClienteAcimaDoLimiteResumo,
     HistoricoResumo,
     LogErroResumo,
+    PainelSaldos,
     SaldoAtrasoResumo,
     SaldoClienteResumo,
 )
@@ -57,3 +58,7 @@ class RelatorioController:
     def listar_clientes_acima_do_limite(self) -> list[ClienteAcimaDoLimiteResumo]:
         """Lista os clientes com saldo em aberto acima do limite de fiado definido."""
         return relatorio_service.listar_clientes_acima_do_limite(self.usuario_logado)
+
+    def obter_saldos(self) -> PainelSaldos:
+        """Obtém os dados da aba Saldos (situação atual, sem período)."""
+        return relatorio_service.obter_painel_saldos(self.usuario_logado)

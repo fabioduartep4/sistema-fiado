@@ -1,10 +1,12 @@
 """Tela de Início (painel/dashboard), visível apenas para Administrador.
 
 Mostra, para um período selecionável (padrão: mês atual): os clientes que
-mais gastaram (maior valor total em compras), os que mais lançaram contas
-(mais vezes foram ao mercado), a evolução de vendas dos últimos 6 meses,
-o total geral em aberto do negócio e os clientes com maior saldo em
-aberto.
+mais gastaram (maior valor total em compras) e os que mais lançaram
+contas (mais vezes foram ao mercado) — os únicos dois indicadores que
+realmente dependem do período escolhido. "Total em aberto", "Evolução de
+Vendas" e "Clientes com Maior Saldo em Aberto" (situação atual, não
+histórico de um intervalo) saíram daqui para a aba "Saldos" — ver
+``app.views.saldos_view``.
 
 Também traz duas seções com o botão de enviar lembrete por WhatsApp,
 ambas fora do ciclo de recarregamento por período (são sobre a situação
@@ -23,17 +25,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from PySide6.QtCharts import (
-    QBarCategoryAxis,
-    QBarSeries,
-    QBarSet,
-    QChart,
-    QChartView,
-    QLineSeries,
-    QValueAxis,
-)
-from PySide6.QtCore import QDate, Qt
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QDateEdit,
     QGroupBox,
@@ -55,6 +47,7 @@ from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.services.relatorio_service import ClienteAcimaDoLimiteResumo, SaldoAtrasoResumo
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.graficos import construir_grafico_barras
 from app.utils.icons import icone
 from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.relatorio_view import LembreteWhatsAppDialog
@@ -71,59 +64,6 @@ _ALTURA_TABELA_10_LINHAS = 10 * 32 + 34
 # numa janela larga (senão fica esticada de ponta a ponta, com espaço
 # lateral desperdiçado) e é centralizada dentro da área de rolagem.
 _LARGURA_MAXIMA_CONTEUDO = 1000
-
-
-def _construir_grafico_barras(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
-    """Monta um gráfico de barras verticais simples (uma série)."""
-    conjunto = QBarSet(titulo_serie)
-    conjunto.append(valores)
-
-    serie = QBarSeries()
-    serie.append(conjunto)
-
-    grafico = QChart()
-    grafico.addSeries(serie)
-    grafico.legend().hide()
-
-    eixo_categorias = QBarCategoryAxis()
-    eixo_categorias.append(rotulos)
-    grafico.addAxis(eixo_categorias, Qt.AlignmentFlag.AlignBottom)
-    serie.attachAxis(eixo_categorias)
-
-    eixo_valores = QValueAxis()
-    grafico.addAxis(eixo_valores, Qt.AlignmentFlag.AlignLeft)
-    serie.attachAxis(eixo_valores)
-
-    view = QChartView(grafico)
-    view.setRenderHint(QPainter.RenderHint.Antialiasing)
-    view.setMinimumHeight(280)
-    return view
-
-
-def _construir_grafico_linha(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
-    """Monta um gráfico de linha simples (uma série), para séries temporais."""
-    serie = QLineSeries()
-    serie.setName(titulo_serie)
-    for indice, valor in enumerate(valores):
-        serie.append(indice, valor)
-
-    grafico = QChart()
-    grafico.addSeries(serie)
-    grafico.legend().hide()
-
-    eixo_categorias = QBarCategoryAxis()
-    eixo_categorias.append(rotulos)
-    grafico.addAxis(eixo_categorias, Qt.AlignmentFlag.AlignBottom)
-    serie.attachAxis(eixo_categorias)
-
-    eixo_valores = QValueAxis()
-    grafico.addAxis(eixo_valores, Qt.AlignmentFlag.AlignLeft)
-    serie.attachAxis(eixo_valores)
-
-    view = QChartView(grafico)
-    view.setRenderHint(QPainter.RenderHint.Antialiasing)
-    view.setMinimumHeight(280)
-    return view
 
 
 class PainelInicioView(QWidget):
@@ -369,6 +309,8 @@ class PainelInicioView(QWidget):
         dialogo = LembreteWhatsAppDialog(item.nome_principal, item.telefone, mensagem, self)
         dialogo.exec()
 
+    # -- Gráficos dependentes do período --------------------------------------
+
     def _carregar(self) -> None:
         self._limpar_conteudo()
 
@@ -385,15 +327,11 @@ class PainelInicioView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o painel de início.")
             return
 
-        label_total_aberto = QLabel(f"Total em aberto (geral do negócio): R$ {painel.total_em_aberto_geral:.2f}")
-        label_total_aberto.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px;")
-        self._layout_conteudo.addWidget(label_total_aberto)
-
         if painel.maior_valor_gasto:
             caixa = QGroupBox("Maior Valor Gasto no Período")
             layout_caixa = QVBoxLayout(caixa)
             layout_caixa.addWidget(
-                _construir_grafico_barras(
+                construir_grafico_barras(
                     "Valor Gasto (R$)",
                     [c.nome_principal for c in painel.maior_valor_gasto],
                     [float(c.valor) for c in painel.maior_valor_gasto],
@@ -405,34 +343,10 @@ class PainelInicioView(QWidget):
             caixa = QGroupBox("Mais Contas Lançadas no Período")
             layout_caixa = QVBoxLayout(caixa)
             layout_caixa.addWidget(
-                _construir_grafico_barras(
+                construir_grafico_barras(
                     "Nº de Contas",
                     [c.nome_principal for c in painel.mais_contas_lancadas],
                     [float(c.quantidade) for c in painel.mais_contas_lancadas],
-                )
-            )
-            self._layout_conteudo.addWidget(caixa)
-
-        if painel.evolucao_mensal:
-            caixa = QGroupBox("Evolução de Vendas (últimos 6 meses)")
-            layout_caixa = QVBoxLayout(caixa)
-            layout_caixa.addWidget(
-                _construir_grafico_linha(
-                    "Total Vendido (R$)",
-                    [p.mes for p in painel.evolucao_mensal],
-                    [float(p.total) for p in painel.evolucao_mensal],
-                )
-            )
-            self._layout_conteudo.addWidget(caixa)
-
-        if painel.maiores_saldos_em_aberto:
-            caixa = QGroupBox("Clientes com Maior Saldo em Aberto")
-            layout_caixa = QVBoxLayout(caixa)
-            layout_caixa.addWidget(
-                _construir_grafico_barras(
-                    "Saldo em Aberto (R$)",
-                    [c.nome_principal for c in painel.maiores_saldos_em_aberto],
-                    [float(c.valor) for c in painel.maiores_saldos_em_aberto],
                 )
             )
             self._layout_conteudo.addWidget(caixa)

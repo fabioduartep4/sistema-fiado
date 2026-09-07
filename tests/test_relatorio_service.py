@@ -243,22 +243,36 @@ def test_obter_painel_inicio_funcionario_e_rejeitado(usuario_admin_teste) -> Non
     usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
 
 
-def test_obter_painel_inicio_total_em_aberto_reflete_nova_compra(usuario_admin_teste) -> None:
+def test_obter_painel_inicio_periodo_e_preenchido_corretamente(usuario_admin_teste) -> None:
+    hoje = obter_data_padrao()
+
+    painel = relatorio_service.obter_painel_inicio(
+        usuario_admin_teste, data_inicio=hoje, data_fim=hoje
+    )
+
+    assert painel.periodo_inicio == hoje
+    assert painel.periodo_fim == hoje
+
+
+def test_obter_painel_saldos_funcionario_e_rejeitado(usuario_admin_teste) -> None:
+    funcionario, usuario_funcionario = _criar_funcionario_teste(usuario_admin_teste)
+
+    with pytest.raises(PermissaoNegadaError):
+        relatorio_service.obter_painel_saldos(usuario_funcionario)
+
+    usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_obter_painel_saldos_total_em_aberto_reflete_nova_compra(usuario_admin_teste) -> None:
     cliente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Relatorio Painel", [], [], []
     )
     hoje = obter_data_padrao()
 
-    painel_antes = relatorio_service.obter_painel_inicio(
-        usuario_admin_teste, data_inicio=hoje, data_fim=hoje
-    )
+    painel_antes = relatorio_service.obter_painel_saldos(usuario_admin_teste)
     compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("77.00"), hoje, None)
-    painel_depois = relatorio_service.obter_painel_inicio(
-        usuario_admin_teste, data_inicio=hoje, data_fim=hoje
-    )
+    painel_depois = relatorio_service.obter_painel_saldos(usuario_admin_teste)
 
     assert painel_depois.total_em_aberto_geral - painel_antes.total_em_aberto_geral == Decimal("77.00")
-    assert painel_depois.periodo_inicio == hoje
-    assert painel_depois.periodo_fim == hoje
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

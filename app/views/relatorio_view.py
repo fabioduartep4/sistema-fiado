@@ -1,8 +1,8 @@
 """Tela de Histórico e Relatórios (PySide6).
 
-Visível apenas para Administrador. Reúne três sub-abas: Histórico de
-Alterações (auditoria), Log de Erros e Saldo em Aberto (com exportação
-para CSV/Excel).
+Visível apenas para Administrador. Reúne duas sub-abas: Histórico de
+Alterações (auditoria) e Log de Erros. A antiga sub-aba "Saldo em
+Aberto" foi movida para a aba "Saldos" — ver ``app.views.saldos_view``.
 
 ``LembreteWhatsAppDialog`` continua definido aqui (usado também pela tela
 de Início, que reaproveita esta classe) mesmo com a antiga sub-aba
@@ -17,7 +17,6 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -105,7 +104,6 @@ class RelatorioView(QWidget):
         abas = QTabWidget()
         abas.addTab(self._construir_aba_historico(), "Histórico de Alterações")
         abas.addTab(self._construir_aba_log_erros(), "Log de Erros")
-        abas.addTab(self._construir_aba_saldo_em_aberto(), "Saldo em Aberto")
 
         titulo = QLabel("Histórico e Relatórios")
         titulo.setProperty("papel", "titulo")
@@ -225,94 +223,3 @@ class RelatorioView(QWidget):
         QMessageBox.information(
             self, "Detalhes do erro", registro.stacktrace or "Sem stacktrace disponível."
         )
-
-    # -- Sub-aba: Saldo em Aberto --------------------------------------------
-
-    def _construir_aba_saldo_em_aberto(self) -> QWidget:
-        pagina = QWidget()
-
-        botao_atualizar = QPushButton("Atualizar")
-        botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_saldos)
-
-        botao_exportar_csv = QPushButton("Exportar CSV")
-        botao_exportar_csv.setIcon(icone("DOWNLOAD"))
-        botao_exportar_csv.clicked.connect(self._exportar_csv)
-
-        botao_exportar_xlsx = QPushButton("Exportar Excel")
-        botao_exportar_xlsx.setIcon(icone("DOWNLOAD"))
-        botao_exportar_xlsx.clicked.connect(self._exportar_xlsx)
-
-        self._tabela_saldos = QTableWidget(0, 3)
-        self._tabela_saldos.setHorizontalHeaderLabels(["Código", "Cliente", "Total em Aberto"])
-        self._tabela_saldos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-
-        layout_botoes = QHBoxLayout()
-        layout_botoes.addWidget(botao_atualizar)
-        layout_botoes.addStretch()
-        layout_botoes.addWidget(botao_exportar_csv)
-        layout_botoes.addWidget(botao_exportar_xlsx)
-
-        layout = QVBoxLayout(pagina)
-        layout.addLayout(layout_botoes)
-        layout.addWidget(self._tabela_saldos)
-
-        self._carregar_saldos()
-        return pagina
-
-    def _carregar_saldos(self) -> None:
-        try:
-            saldos = self._controller.listar_saldos_em_aberto()
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar o relatório", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao carregar o relatório de saldo em aberto.")
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o relatório.")
-            return
-
-        self._tabela_saldos.setRowCount(len(saldos))
-        for linha, saldo in enumerate(saldos):
-            self._tabela_saldos.setItem(linha, 0, QTableWidgetItem(str(saldo.id_visivel)))
-            self._tabela_saldos.setItem(linha, 1, QTableWidgetItem(saldo.nome_principal))
-            self._tabela_saldos.setItem(
-                linha, 2, QTableWidgetItem(f"R$ {saldo.total_em_aberto:.2f}")
-            )
-
-    def _exportar_csv(self) -> None:
-        caminho_arquivo, _ = QFileDialog.getSaveFileName(
-            self, "Exportar Saldo em Aberto", "saldo_em_aberto.csv", "CSV (*.csv)"
-        )
-        if not caminho_arquivo:
-            return
-
-        try:
-            self._controller.exportar_saldos_em_aberto_csv(caminho_arquivo)
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível exportar", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao exportar o relatório de saldo em aberto para CSV.")
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível exportar o relatório.")
-            return
-
-        QMessageBox.information(self, "Exportado", f"Relatório exportado para:\n{caminho_arquivo}")
-
-    def _exportar_xlsx(self) -> None:
-        caminho_arquivo, _ = QFileDialog.getSaveFileName(
-            self, "Exportar Saldo em Aberto", "saldo_em_aberto.xlsx", "Excel (*.xlsx)"
-        )
-        if not caminho_arquivo:
-            return
-
-        try:
-            self._controller.exportar_saldos_em_aberto_xlsx(caminho_arquivo)
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível exportar", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao exportar o relatório de saldo em aberto para Excel.")
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível exportar o relatório.")
-            return
-
-        QMessageBox.information(self, "Exportado", f"Relatório exportado para:\n{caminho_arquivo}")

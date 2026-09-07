@@ -366,15 +366,20 @@ class PontoEvolucaoMensal:
 
 @dataclass(frozen=True)
 class PainelInicio:
-    """Dados completos do painel de Início (dashboard), para um período."""
+    """Dados do painel de Início (dashboard) que dependem de um período.
+
+    Separado de :class:`PainelSaldos` porque nem tudo que já esteve nessa
+    tela depende de período — "Total em aberto", "Evolução de Vendas" e
+    "Clientes com Maior Saldo em Aberto" são a situação atual (ou uma
+    janela fixa de 6 meses, no caso da evolução), não algo filtrável por
+    data. Essas três foram para a aba "Saldos" (ver :func:`obter_painel_saldos`);
+    aqui ficou só o que realmente muda conforme o período selecionado.
+    """
 
     periodo_inicio: date
     periodo_fim: date
     maior_valor_gasto: list[ClienteValorResumo]
     mais_contas_lancadas: list[ClienteContagemResumo]
-    evolucao_mensal: list[PontoEvolucaoMensal]
-    total_em_aberto_geral: Decimal
-    maiores_saldos_em_aberto: list[ClienteValorResumo]
 
 
 @tratar_erros
@@ -383,7 +388,7 @@ def obter_painel_inicio(
     data_inicio: Optional[date] = None,
     data_fim: Optional[date] = None,
 ) -> PainelInicio:
-    """Monta os dados do painel de Início (dashboard) para o período informado.
+    """Monta os dados do painel de Início que dependem do período informado.
 
     Args:
         usuario_logado: Usuário autenticado que está consultando.
@@ -392,7 +397,7 @@ def obter_painel_inicio(
         data_fim: Fim do período. Se omitido, usa a data de hoje.
 
     Returns:
-        Um :class:`PainelInicio` com todos os indicadores.
+        Um :class:`PainelInicio` com os indicadores do período.
 
     Raises:
         PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
@@ -409,6 +414,56 @@ def obter_painel_inicio(
     with session_scope() as session:
         maior_valor = relatorio_repository.listar_maior_valor_gasto(session, data_inicio, data_fim)
         mais_contas = relatorio_repository.listar_mais_contas_lancadas(session, data_inicio, data_fim)
+
+        return PainelInicio(
+            periodo_inicio=data_inicio,
+            periodo_fim=data_fim,
+            maior_valor_gasto=[
+                ClienteValorResumo(nome_principal=cliente.nome_principal, valor=Decimal(valor))
+                for cliente, valor in maior_valor
+            ],
+            mais_contas_lancadas=[
+                ClienteContagemResumo(nome_principal=cliente.nome_principal, quantidade=int(quantidade))
+                for cliente, quantidade in mais_contas
+            ],
+        )
+
+
+@dataclass(frozen=True)
+class PainelSaldos:
+    """Dados da aba "Saldos" — situação atual das contas, sem filtro de período.
+
+    Attributes:
+        evolucao_mensal: Total vendido por mês, últimos 6 meses (janela
+            fixa, não é afetada por nenhum período selecionável).
+        total_em_aberto_geral: Soma de tudo que está em aberto no negócio,
+            agora.
+        maiores_saldos_em_aberto: Os 10 clientes com maior saldo em
+            aberto, agora.
+    """
+
+    evolucao_mensal: list[PontoEvolucaoMensal]
+    total_em_aberto_geral: Decimal
+    maiores_saldos_em_aberto: list[ClienteValorResumo]
+
+
+@tratar_erros
+def obter_painel_saldos(usuario_logado: UsuarioAutenticado) -> PainelSaldos:
+    """Monta os dados da aba "Saldos" — sempre a situação atual, sem período.
+
+    Args:
+        usuario_logado: Usuário autenticado que está consultando.
+
+    Returns:
+        Um :class:`PainelSaldos`.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    if not usuario_logado.eh_administrador:
+        raise PermissaoNegadaError("Apenas administradores podem ver os saldos do negócio.")
+
+    with session_scope() as session:
         evolucao = relatorio_repository.listar_evolucao_mensal(session, meses=6)
         total_aberto_geral = relatorio_repository.calcular_total_em_aberto_geral(session)
         saldos = relatorio_repository.listar_saldos_em_aberto(session)
@@ -422,17 +477,7 @@ def obter_painel_inicio(
             reverse=True,
         )[:10]
 
-        return PainelInicio(
-            periodo_inicio=data_inicio,
-            periodo_fim=data_fim,
-            maior_valor_gasto=[
-                ClienteValorResumo(nome_principal=cliente.nome_principal, valor=Decimal(valor))
-                for cliente, valor in maior_valor
-            ],
-            mais_contas_lancadas=[
-                ClienteContagemResumo(nome_principal=cliente.nome_principal, quantidade=int(quantidade))
-                for cliente, quantidade in mais_contas
-            ],
+        return PainelSaldos(
             evolucao_mensal=[PontoEvolucaoMensal(mes=mes, total=total) for mes, total in evolucao],
             total_em_aberto_geral=total_aberto_geral,
             maiores_saldos_em_aberto=maiores_saldos,

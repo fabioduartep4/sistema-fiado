@@ -1,5 +1,30 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Nova aba "Saldos", reunindo indicadores da situação atual do negócio (novidade)
+
+- **O que é**: nova aba **"Saldos"**, visível só para Administrador,
+  logo depois de "Receber Conta". Reúne, nesta ordem: **Total em Aberto**
+  (geral do negócio), **Evolução de Vendas** (gráfico de linha, últimos 6
+  meses), **Clientes com Maior Saldo em Aberto** (gráfico de barras) e
+  **Saldo em Aberto** (tabela completa, com exportação para CSV/Excel).
+- **Não é funcionalidade nova** — as quatro só estavam espalhadas: as três
+  primeiras viviam na tela de Início, a última era uma sub-aba dentro de
+  "Histórico e Relatórios". A lógica de negócio por trás de cada uma não
+  mudou.
+- **Por que mudou de lugar**: as três que estavam na tela de Início
+  ficavam ao lado de um seletor de período (mês atual, por padrão) que
+  não fazia sentido para elas — "Total em aberto", "Evolução de Vendas" e
+  "Clientes com Maior Saldo em Aberto" são sempre a situação **atual**
+  (ou uma janela fixa de 6 meses, no caso da evolução), não algo que
+  varie com um intervalo de datas escolhido. A tela de Início agora só
+  mostra os dois indicadores que realmente dependem do período
+  selecionado: "Maior Valor Gasto" e "Mais Contas Lançadas".
+- Nos bastidores, `relatorio_service.PainelInicio` (o que depende de
+  período) foi separado de um novo `relatorio_service.PainelSaldos` (o
+  que não depende), e a montagem dos gráficos (`QtCharts`) foi extraída
+  para `app/utils/graficos.py`, compartilhada entre as telas de Início e
+  Saldos.
+
 ## Retoque visual estendido para (quase) todas as telas (novidade)
 
 - Continuação do item anterior: as classes `papel="titulo"/"subtitulo"/
