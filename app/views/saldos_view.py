@@ -37,6 +37,15 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
 
+# Altura mínima da tabela de "Saldo em Aberto", calculada para caber pelo
+# menos 10 linhas visíveis sem precisar rolar dentro da própria tabela
+# (~32px por linha + ~34px do cabeçalho). Sem isso, como o addStretch()
+# no fim do layout absorve o espaço sobrando, a tabela ficava espremida
+# numa altura quase nula — as linhas existiam, só não tinham espaço
+# visível pra aparecer (mesmo problema que as tabelas de
+# app.views.painel_inicio_view já evitam com o mesmo cálculo).
+_ALTURA_TABELA_10_LINHAS = 10 * 32 + 34
+
 
 class SaldosView(QWidget):
     """Tela de Saldos: situação atual das contas do negócio (somente Administrador)."""
@@ -138,6 +147,7 @@ class SaldosView(QWidget):
         tabela_saldos = QTableWidget(len(saldos), 3)
         tabela_saldos.setHorizontalHeaderLabels(["Código", "Cliente", "Total em Aberto"])
         tabela_saldos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tabela_saldos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
         for linha, saldo in enumerate(saldos):
             tabela_saldos.setItem(linha, 0, QTableWidgetItem(str(saldo.id_visivel)))
             tabela_saldos.setItem(linha, 1, QTableWidgetItem(saldo.nome_principal))
