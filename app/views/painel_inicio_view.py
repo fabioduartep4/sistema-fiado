@@ -53,6 +53,7 @@ from app.services.relatorio_service import ClienteAcimaDoLimiteResumo, SaldoAtra
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
+from app.utils.tabelas import ajustar_colunas
 from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.relatorio_view import LembreteWhatsAppDialog
 
@@ -247,6 +248,7 @@ class PainelInicioView(QWidget):
         )
         self._tabela_atrasos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela_atrasos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
+        ajustar_colunas(self._tabela_atrasos, 0)  # Cliente
 
         layout_caixa = QVBoxLayout(caixa)
         layout_caixa.addLayout(layout_filtro)
@@ -323,6 +325,7 @@ class PainelInicioView(QWidget):
         )
         self._tabela_acima_do_limite.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela_acima_do_limite.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
+        ajustar_colunas(self._tabela_acima_do_limite, 0)  # Cliente
 
         layout_caixa = QVBoxLayout(caixa)
         layout_caixa.addLayout(layout_topo)

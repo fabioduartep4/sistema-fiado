@@ -1,5 +1,21 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Largura de coluna consistente em todas as tabelas do sistema (novidade)
+
+- **Causa raiz**: sem um modo de redimensionamento configurado, o Qt
+  estica por padrão a ÚLTIMA coluna da tabela para preencher o espaço
+  sobrando (`stretchLastSection`) — em várias telas essa última coluna é
+  justamente a do botão de ação (ex.: "Enviar Lembrete"), não a do nome.
+  O botão acabava esticando de forma estranha numa janela larga, e o
+  nome do cliente não tinha espaço garantido numa janela estreita
+  (podendo ficar cortado).
+- **Correção**: `app/utils/tabelas.py` (novo) — helper único
+  (`ajustar_colunas`) aplicado a todas as tabelas do sistema. A coluna de
+  texto livre (nome do cliente, descrição, mensagem de erro) ocupa o
+  espaço sobrando; todas as outras — incluindo a do botão de ação —
+  ficam do tamanho exato do conteúdo. O nome nunca fica cortado, e o
+  botão nunca fica espremido ou esticado à toa.
+
 ## Nova seção "Vendas de Hoje" na tela de Início (novidade)
 
 - **O que é**: nova seção **"Vendas de Hoje"**, primeira da tela de

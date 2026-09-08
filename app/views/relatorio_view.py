@@ -34,6 +34,7 @@ from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
+from app.utils.tabelas import ajustar_colunas
 from app.utils.text_normalizer import normalizar_telefone
 from app.utils.whatsapp import montar_link_whatsapp
 
@@ -131,6 +132,7 @@ class RelatorioView(QWidget):
             ["Data/Hora", "Entidade", "Ação", "Usuário", "De", "Para"]
         )
         self._tabela_historico.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        ajustar_colunas(self._tabela_historico, 4, 5)  # De, Para
 
         layout_filtro = QHBoxLayout()
         layout_filtro.addWidget(QLabel("Entidade:"))
@@ -185,6 +187,7 @@ class RelatorioView(QWidget):
         self._tabela_log_erros.setHorizontalHeaderLabels(["Data/Hora", "Usuário", "Erro"])
         self._tabela_log_erros.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela_log_erros.itemDoubleClicked.connect(self._exibir_stacktrace)
+        ajustar_colunas(self._tabela_log_erros, 2)  # Erro
 
         layout = QVBoxLayout(pagina)
         layout.addWidget(QLabel("Dê duplo clique em um erro para ver o stacktrace completo."))

@@ -34,6 +34,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.pagamento_service import PagamentoResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
+from app.utils.tabelas import ajustar_colunas
 from app.views.xml_importacao_view import ObterProdutosWorker, ProdutosXmlDialog
 
 
@@ -65,6 +66,7 @@ class HistoricoPagamentosDialog(QDialog):
         self._tabela.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._tabela.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._tabela.itemSelectionChanged.connect(self._atualizar_compras_quitadas)
+        ajustar_colunas(self._tabela, 3)  # Observações
 
         self._botao_estornar = QPushButton("Estornar Pagamento Selecionado")
         self._botao_estornar.setIcon(icone("ARROW_BACK_UP"))

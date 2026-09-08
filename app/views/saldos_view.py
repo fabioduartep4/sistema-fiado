@@ -36,6 +36,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
+from app.utils.tabelas import ajustar_colunas
 
 # Altura mínima da tabela de "Saldo em Aberto", calculada para caber pelo
 # menos 10 linhas visíveis sem precisar rolar dentro da própria tabela
@@ -148,6 +149,7 @@ class SaldosView(QWidget):
         tabela_saldos.setHorizontalHeaderLabels(["Código", "Cliente", "Total em Aberto"])
         tabela_saldos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         tabela_saldos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
+        ajustar_colunas(tabela_saldos, 1)  # Cliente
         for linha, saldo in enumerate(saldos):
             tabela_saldos.setItem(linha, 0, QTableWidgetItem(str(saldo.id_visivel)))
             tabela_saldos.setItem(linha, 1, QTableWidgetItem(saldo.nome_principal))

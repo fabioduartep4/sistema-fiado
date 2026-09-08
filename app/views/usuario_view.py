@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -32,6 +31,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import UsuarioResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
+from app.utils.tabelas import ajustar_colunas
 
 _ROTULOS_PERFIL = {
     PerfilUsuario.ADMINISTRADOR: "Administrador",
@@ -227,7 +227,7 @@ class UsuarioView(QWidget):
         self._tabela.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._tabela.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._tabela.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._tabela.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        ajustar_colunas(self._tabela, 0)  # Nome
 
         botao_novo = QPushButton("Novo Usuário")
         botao_novo.setIcon(icone("USER_PLUS"))

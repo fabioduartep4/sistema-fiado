@@ -14,7 +14,6 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
-    QHeaderView,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -31,6 +30,7 @@ from app.services.xml_importacao_service import CandidatoImportacao, EscolhaImpo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.nfe_parser import ProdutoXml
+from app.utils.tabelas import ajustar_colunas
 
 
 class ObterProdutosWorker(QThread):
@@ -131,7 +131,7 @@ class ProdutosXmlDialog(QDialog):
         tabela = QTableWidget(len(produtos), 3)
         tabela.setHorizontalHeaderLabels(["Produto", "Quantidade", "Valor"])
         tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        tabela.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        ajustar_colunas(tabela, 0)  # Produto
 
         for linha, produto in enumerate(produtos):
             tabela.setItem(linha, 0, QTableWidgetItem(produto.nome))
@@ -166,7 +166,7 @@ class ImportarXmlDialog(QDialog):
         self._tabela = QTableWidget(0, 4)
         self._tabela.setHorizontalHeaderLabels(["Nome no XML", "Valor", "Data", "Vincular a"])
         self._tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        ajustar_colunas(self._tabela, 3)  # Vincular a
 
         self._label_status = QLabel()
         self._label_status.setWordWrap(True)
