@@ -64,7 +64,7 @@ class AdicionarCompraView(QWidget):
 
         layout = QVBoxLayout()
         titulo = QLabel("Adicionar Compra")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
         layout.addWidget(titulo)
         layout.addWidget(self._paginas)
         layout.addStretch()
@@ -116,6 +116,7 @@ class AdicionarCompraView(QWidget):
         botao_salvar = QPushButton("Salvar Compra")
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(44)
+        botao_salvar.setProperty("importancia", "primaria")
         botao_salvar.clicked.connect(self._salvar_compra)
 
         layout = QVBoxLayout(pagina)

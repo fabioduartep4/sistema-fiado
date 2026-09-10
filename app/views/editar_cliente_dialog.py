@@ -63,6 +63,7 @@ class EditarClienteDialog(QDialog):
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(42)
         botao_salvar.setDefault(True)
+        botao_salvar.setProperty("importancia", "primaria")
         botao_salvar.clicked.connect(self._validar_e_aceitar)
 
         botao_cancelar = QPushButton("Cancelar")

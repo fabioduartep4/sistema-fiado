@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -32,6 +31,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import UsuarioResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
+from app.utils.tabelas import ajustar_colunas
 
 _ROTULOS_PERFIL = {
     PerfilUsuario.ADMINISTRADOR: "Administrador",
@@ -79,6 +79,7 @@ class NovoUsuarioDialog(QDialog):
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(40)
         botao_salvar.setDefault(True)
+        botao_salvar.setProperty("importancia", "primaria")
         botao_salvar.clicked.connect(self._validar_e_aceitar)
 
         botao_cancelar = QPushButton("Cancelar")
@@ -137,6 +138,7 @@ class EditarUsuarioDialog(QDialog):
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(40)
         botao_salvar.setDefault(True)
+        botao_salvar.setProperty("importancia", "primaria")
         botao_salvar.clicked.connect(self.accept)
 
         botao_cancelar = QPushButton("Cancelar")
@@ -181,6 +183,7 @@ class RedefinirSenhaDialog(QDialog):
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(40)
         botao_salvar.setDefault(True)
+        botao_salvar.setProperty("importancia", "primaria")
         botao_salvar.clicked.connect(self._validar_e_aceitar)
 
         botao_cancelar = QPushButton("Cancelar")
@@ -224,10 +227,11 @@ class UsuarioView(QWidget):
         self._tabela.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._tabela.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._tabela.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._tabela.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        ajustar_colunas(self._tabela, 0)  # Nome
 
         botao_novo = QPushButton("Novo Usuário")
         botao_novo.setIcon(icone("USER_PLUS"))
+        botao_novo.setProperty("importancia", "primaria")
         botao_editar = QPushButton("Editar")
         botao_editar.setIcon(icone("EDIT"))
         botao_redefinir_senha = QPushButton("Redefinir Senha")
@@ -260,8 +264,11 @@ class UsuarioView(QWidget):
         layout_botoes.addStretch()
         layout_botoes.addWidget(botao_atualizar)
 
+        titulo = QLabel("Usuários do sistema")
+        titulo.setProperty("papel", "titulo")
+
         layout = QVBoxLayout()
-        layout.addWidget(QLabel("Usuários do sistema"))
+        layout.addWidget(titulo)
         layout.addWidget(self._tabela)
         layout.addLayout(layout_botoes)
         self.setLayout(layout)

@@ -62,7 +62,7 @@ class FichaClienteView(QDialog):
         self.setMinimumSize(540, 500)
 
         self._label_nome = QLabel()
-        self._label_nome.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self._label_nome.setProperty("papel", "titulo")
         self._label_alternativos = QLabel()
         self._label_telefones = QLabel()
         self._label_compradores = QLabel()
@@ -70,7 +70,7 @@ class FichaClienteView(QDialog):
         self._lista_compras = QListWidget()
         self._lista_compras.itemSelectionChanged.connect(self._atualizar_botao_ver_produtos)
         self._label_total = QLabel()
-        self._label_total.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self._label_total.setProperty("papel", "subtitulo")
 
         self._botao_ver_produtos = QPushButton("Ver Produtos")
         self._botao_ver_produtos.setIcon(icone("FILE_INVOICE"))
@@ -103,6 +103,9 @@ class FichaClienteView(QDialog):
             self._botao_fechar,
         ):
             botao.setMinimumHeight(40)
+
+        for botao_principal in (botao_adicionar_compra, botao_receber_conta):
+            botao_principal.setProperty("importancia", "primaria")
 
         botao_adicionar_compra.clicked.connect(self._adicionar_compra)
         botao_receber_conta.clicked.connect(self._receber_conta)

@@ -2,14 +2,14 @@
 
 Contém o relatório de saldo em aberto por cliente (usado na aba
 Histórico e Relatórios) e as consultas agregadas usadas no painel de
-Início (maior valor gasto, mais contas lançadas, evolução mensal, total
-em aberto geral, clientes com maior atraso e clientes acima do limite de
-fiado) — todas somente para Administrador.
+Início (vendas de hoje, maior valor gasto, mais contas lançadas,
+evolução mensal, total em aberto geral, clientes com maior atraso e
+clientes acima do limite de fiado) — todas somente para Administrador.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -213,3 +213,60 @@ def calcular_total_em_aberto_geral(session: Session) -> Decimal:
     )
     total = session.execute(stmt).scalar_one()
     return Decimal(total)
+
+
+def calcular_total_vendido_no_dia(session: Session, dia: date) -> Decimal:
+    """Soma o valor de todas as vendas no fiado lançadas em um dia específico.
+
+    Diferente do total em aberto, aqui conta toda venda feita naquele dia,
+    já paga ou não — é sobre o que foi vendido, não sobre o que ainda
+    está pendente (mesmo critério de :func:`listar_maior_valor_gasto`).
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        dia: Data a considerar.
+
+    Returns:
+        Soma do valor de todas as compras ativas lançadas em ``dia``.
+    """
+    stmt = select(func.coalesce(func.sum(Compra.valor), 0)).where(
+        Compra.ativo.is_(True), Compra.data == dia
+    )
+    total = session.execute(stmt).scalar_one()
+    return Decimal(total)
+
+
+def listar_vendas_ultimos_dias(session: Session, dias: int = 7) -> list[tuple[date, Decimal]]:
+    """Soma o valor de vendas no fiado por dia, para os últimos ``dias`` dias (incluindo hoje).
+
+    Ao contrário de :func:`listar_evolucao_mensal` (que só lista meses com
+    alguma venda), aqui todo dia da janela aparece no resultado, mesmo sem
+    nenhuma venda (total zero) — numa janela tão curta (dias, não meses) é
+    comum ter um dia sem nenhuma venda (ex.: mercado fechado no domingo),
+    e pular esse dia deixaria o gráfico com menos pontos que o esperado.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        dias: Quantidade de dias a considerar (incluindo hoje).
+
+    Returns:
+        Lista de tuplas (dia, valor_total), em ordem cronológica, sempre
+        com exatamente ``dias`` elementos.
+    """
+    hoje = date.today()
+    data_inicio = hoje - timedelta(days=dias - 1)
+
+    stmt = (
+        select(Compra.data, func.coalesce(func.sum(Compra.valor), 0))
+        .where(Compra.ativo.is_(True), Compra.data >= data_inicio, Compra.data <= hoje)
+        .group_by(Compra.data)
+    )
+    totais_por_dia = {dia_com_venda: Decimal(total) for dia_com_venda, total in session.execute(stmt).all()}
+
+    return [
+        (
+            data_inicio + timedelta(days=offset),
+            totais_por_dia.get(data_inicio + timedelta(days=offset), Decimal("0")),
+        )
+        for offset in range(dias)
+    ]

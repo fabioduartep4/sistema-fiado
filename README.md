@@ -1,5 +1,105 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Largura de coluna consistente em todas as tabelas do sistema (novidade)
+
+- **Causa raiz**: sem um modo de redimensionamento configurado, o Qt
+  estica por padrão a ÚLTIMA coluna da tabela para preencher o espaço
+  sobrando (`stretchLastSection`) — em várias telas essa última coluna é
+  justamente a do botão de ação (ex.: "Enviar Lembrete"), não a do nome.
+  O botão acabava esticando de forma estranha numa janela larga, e o
+  nome do cliente não tinha espaço garantido numa janela estreita
+  (podendo ficar cortado).
+- **Correção**: `app/utils/tabelas.py` (novo) — helper único
+  (`ajustar_colunas`) aplicado a todas as tabelas do sistema. A coluna de
+  texto livre (nome do cliente, descrição, mensagem de erro) ocupa o
+  espaço sobrando; todas as outras — incluindo a do botão de ação —
+  ficam do tamanho exato do conteúdo. O nome nunca fica cortado, e o
+  botão nunca fica espremido ou esticado à toa.
+
+## Nova seção "Vendas de Hoje" na tela de Início (novidade)
+
+- **O que é**: nova seção **"Vendas de Hoje"**, primeira da tela de
+  Início (antes de "Clientes Acima do Limite de Fiado" e "Clientes com
+  Maior Atraso"). Mostra o **total vendido no fiado hoje** e, logo
+  abaixo, um **gráfico de linha com os últimos 7 dias** (hoje incluído).
+- **Sem período selecionável de propósito**: "hoje" e "últimos 7 dias"
+  já são, por definição, uma janela fixa — não faria sentido ter um
+  seletor de datas pra eles (mesmo raciocínio já aplicado à aba
+  "Saldos"). Tem seu próprio botão "Atualizar", independente do
+  seletor de período do resto da tela.
+- Dias sem nenhuma venda aparecem no gráfico com total zero (em vez de
+  serem simplesmente omitidos) — assim o gráfico sempre mostra os 7
+  dias completos, mesmo que o mercado tenha ficado fechado nalgum deles.
+
+## Nova aba "Saldos", reunindo indicadores da situação atual do negócio (novidade)
+
+- **O que é**: nova aba **"Saldos"**, visível só para Administrador,
+  logo depois de "Receber Conta". Reúne, nesta ordem: **Total em Aberto**
+  (geral do negócio), **Evolução de Vendas** (gráfico de linha, últimos 6
+  meses), **Clientes com Maior Saldo em Aberto** (gráfico de barras) e
+  **Saldo em Aberto** (tabela completa, com exportação para CSV/Excel).
+- **Não é funcionalidade nova** — as quatro só estavam espalhadas: as três
+  primeiras viviam na tela de Início, a última era uma sub-aba dentro de
+  "Histórico e Relatórios". A lógica de negócio por trás de cada uma não
+  mudou.
+- **Por que mudou de lugar**: as três que estavam na tela de Início
+  ficavam ao lado de um seletor de período (mês atual, por padrão) que
+  não fazia sentido para elas — "Total em aberto", "Evolução de Vendas" e
+  "Clientes com Maior Saldo em Aberto" são sempre a situação **atual**
+  (ou uma janela fixa de 6 meses, no caso da evolução), não algo que
+  varie com um intervalo de datas escolhido. A tela de Início agora só
+  mostra os dois indicadores que realmente dependem do período
+  selecionado: "Maior Valor Gasto" e "Mais Contas Lançadas".
+- Nos bastidores, `relatorio_service.PainelInicio` (o que depende de
+  período) foi separado de um novo `relatorio_service.PainelSaldos` (o
+  que não depende), e a montagem dos gráficos (`QtCharts`) foi extraída
+  para `app/utils/graficos.py`, compartilhada entre as telas de Início e
+  Saldos.
+
+## Retoque visual estendido para (quase) todas as telas (novidade)
+
+- Continuação do item anterior: as classes `papel="titulo"/"subtitulo"/
+  "secundario"/"erro"` e `importancia="primaria"` (ver retoque visual
+  abaixo) foram aplicadas em todas as telas principais do sistema —
+  Cadastrar/Buscar/Editar Cliente, Adicionar Compra, Receber Conta, Ficha
+  do Cliente, Usuários, Backup, Configurações, Histórico e Relatórios,
+  Importar XMLs — não só Login e Início.
+- Cada tela ganhou seu botão principal em destaque (cor de contraste)
+  quando fazia sentido: Salvar/Cadastrar/Confirmar/Novo Usuário. Telas
+  sem uma ação claramente "principal" (Backup, Configurações — várias
+  ações independentes de peso parecido) não ganharam destaque, de
+  propósito, para não perder o sentido de hierarquia.
+- De quebra, corrigidos alguns lugares com cor fixa em vez de seguir o
+  tema (`#666`, `#c0392b`) e um título que existia mas sem nenhum estilo
+  (tela de Usuários) — pequenas inconsistências que apareceram ao
+  varrer todas as telas.
+
+## Retoque visual: tema claro próprio, tipografia e botões (novidade)
+
+- **Causa raiz**: o tema claro não tinha estilo nenhum — era literalmente
+  a aparência crua do Windows, sem QSS (só o tema escuro tinha
+  cores/bordas/hover customizados). Widgets padrão do Windows são bem
+  datados visualmente, então quem usa o modo claro no dia a dia sentia o
+  sistema mais "feio/simples" do que o modo escuro.
+- **Correção**: `app/config/tema.py` reescrito — os dois temas agora
+  compartilham a mesma estrutura de regras (uma função só monta o QSS a
+  partir da paleta de cada tema, pra nunca ficarem desalinhados um do
+  outro), com: cantos mais arredondados, foco visível nos campos de texto
+  (antes não existia nenhum destaque ao clicar num campo), seleção de
+  linha nas tabelas/listas com a cor de destaque, abas com cantos
+  arredondados no topo, e caixas (`QGroupBox`) com título em negrito na
+  cor de destaque.
+- **Duas convenções novas, opcionais**: `label.setProperty("papel",
+  "titulo")` para títulos de tela (em vez de cada tela definir seu
+  próprio `setStyleSheet` com tamanho de fonte solto) e
+  `botao.setProperty("importancia", "primaria")` para a ação principal de
+  uma tela se destacar visualmente das secundárias (preenchido com a cor
+  de destaque, em vez de todos os botões parecerem iguais). Aplicadas por
+  enquanto nas telas de Login e Início (título + botão "Entrar"/"Enviar
+  Lembrete") como demonstração — as demais telas continuam funcionando
+  normalmente, só não têm esse destaque ainda; é fácil estender pra elas
+  se fizer sentido.
+
 ## Limite de fiado por cliente, com aviso na tela de Início (novidade)
 
 - **O que é**: cada cliente agora pode ter um limite de compra no fiado

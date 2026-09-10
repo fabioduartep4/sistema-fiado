@@ -2,7 +2,7 @@
 
 Mostra quem está logado, o perfil de acesso e as abas do sistema
 (Cadastrar Cliente, Buscar Cliente, Adicionar Compra, Receber Conta e,
-para Administradores, Usuários, Backup, Histórico e Relatórios e
+para Administradores, Saldos, Usuários, Backup, Histórico e Relatórios e
 Configurações). Também dispara, em segundo plano, a verificação do backup
 automático diário, e registra os atalhos de teclado globais do sistema.
 """
@@ -32,6 +32,7 @@ from app.views.configuracoes_view import ConfiguracoesView
 from app.views.painel_inicio_view import PainelInicioView
 from app.views.receber_conta_view import ReceberContaView
 from app.views.relatorio_view import RelatorioView
+from app.views.saldos_view import SaldosView
 from app.views.usuario_view import UsuarioView
 from app.views.xml_importacao_view import ImportarXmlDialog
 from app.utils.icons import icone
@@ -81,7 +82,8 @@ class MainWindow(QMainWindow):
         cabecalho = QLabel(
             f"Logado como: {usuario.nome}  —  Perfil: {usuario.perfil.value.capitalize()}"
         )
-        cabecalho.setStyleSheet("padding: 6px; font-weight: bold;")
+        cabecalho.setProperty("papel", "subtitulo")
+        cabecalho.setStyleSheet("padding: 6px;")
 
         botao_sair = QPushButton("Sair")
         botao_sair.setIcon(icone("LOGOUT"))
@@ -94,6 +96,7 @@ class MainWindow(QMainWindow):
         abas.addTab(ReceberContaView(usuario), icone("CASH_BANKNOTE"), "Receber Conta")
 
         if usuario.eh_administrador:
+            abas.addTab(SaldosView(usuario), icone("REPORT_MONEY"), "Saldos")
             abas.addTab(UsuarioView(usuario), icone("USERS"), "Usuários")
             abas.addTab(BackupView(usuario), icone("DATABASE"), "Backup")
             abas.addTab(RelatorioView(usuario), icone("CHART_BAR"), "Histórico e Relatórios")
@@ -133,7 +136,8 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         label = QLabel(f"'{nome}' será implementada em uma próxima etapa.")
-        label.setStyleSheet("padding: 24px; color: #666;")
+        label.setProperty("papel", "secundario")
+        label.setStyleSheet("padding: 24px;")
         layout.addWidget(label)
         return widget
 

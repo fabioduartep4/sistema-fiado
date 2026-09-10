@@ -60,7 +60,7 @@ class ReceberContaView(QWidget):
 
         layout = QVBoxLayout()
         titulo = QLabel("Receber Conta")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setProperty("papel", "titulo")
         layout.addWidget(titulo)
         layout.addWidget(self._paginas)
         layout.addStretch()
@@ -101,7 +101,7 @@ class ReceberContaView(QWidget):
         self._lista_compras_abertas.setMaximumHeight(120)
 
         self._label_total_em_aberto = QLabel()
-        self._label_total_em_aberto.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self._label_total_em_aberto.setProperty("papel", "subtitulo")
 
         self._campo_valor_pago = QLineEdit()
         self._campo_valor_pago.setPlaceholderText("Ex.: 25,50")
@@ -121,6 +121,7 @@ class ReceberContaView(QWidget):
         botao_confirmar = QPushButton("Confirmar Pagamento")
         botao_confirmar.setIcon(icone("CASH_BANKNOTE"))
         botao_confirmar.setMinimumHeight(44)
+        botao_confirmar.setProperty("importancia", "primaria")
         botao_confirmar.clicked.connect(self._confirmar_pagamento)
 
         layout = QVBoxLayout(pagina)
