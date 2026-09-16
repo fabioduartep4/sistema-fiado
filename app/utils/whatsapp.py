@@ -8,6 +8,7 @@ API paga nem de credenciais.
 
 from __future__ import annotations
 
+from typing import Optional
 from urllib.parse import quote
 
 _DDI_BRASIL = "55"
@@ -46,23 +47,36 @@ def montar_link_whatsapp(numero_normalizado: str, mensagem: str) -> str:
 
 
 def montar_mensagem_lembrete_saldo(
-    nome_cliente: str, total_em_atraso: str, dias_atraso: int
+    nome_cliente: str,
+    data_ultimo_pagamento: Optional[str],
+    total_em_aberto: str,
+    total_em_atraso: str,
 ) -> str:
-    """Monta o texto padrão do lembrete de saldo em aberto.
+    """Monta o texto padrão do lembrete de saldo em atraso.
 
     Args:
         nome_cliente: Nome principal do cliente.
-        total_em_atraso: Valor já formatado (ex.: "R$ 123,45").
-        dias_atraso: Há quantos dias a compra mais antiga em aberto foi feita.
+        data_ultimo_pagamento: Data do último pagamento já registrado,
+            formatada (ex.: "10/10/2026"). ``None`` se o cliente nunca
+            tiver feito nenhum pagamento (ou todos tiverem sido estornados).
+        total_em_aberto: Saldo total em aberto do cliente (atrasado ou
+            não), já formatado (ex.: "R$ 3.000,00").
+        total_em_atraso: Só a parte atrasada do saldo, já formatada
+            (ex.: "R$ 1.920,00").
 
     Returns:
         Mensagem pronta, editável pelo usuário antes do envio.
     """
+    frase_ultimo_pagamento = (
+        f"o último pagamento foi dia {data_ultimo_pagamento}"
+        if data_ultimo_pagamento
+        else "ainda não identificamos nenhum pagamento seu registrado"
+    )
     return (
-        f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Notamos que você tem um saldo em "
-        f"aberto de {total_em_atraso}, referente a uma compra de {dias_atraso} dias "
-        "atrás. Assim que possível, pedimos que regularize. Qualquer dúvida, "
-        "estamos à disposição!"
+        f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Seu pagamento está em atraso, "
+        f"{frase_ultimo_pagamento}. Atualmente sua conta está no valor total de "
+        f"{total_em_aberto}. Para regularizar, pedimos que realize o pagamento do saldo "
+        f"em atraso de {total_em_atraso}. Qualquer dúvida, estamos à disposição!"
     )
 
 

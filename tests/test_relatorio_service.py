@@ -83,6 +83,11 @@ def test_listar_saldos_em_atraso_inclui_compra_antiga_e_exclui_recente(usuario_a
     compra_service.registrar_compra(
         usuario_admin_teste, cliente_atrasado.id, Decimal("90.00"), hoje - timedelta(days=40), None
     )
+    # Uma segunda compra recente (não atrasada) na MESMA conta: deve
+    # entrar em total_em_aberto, mas não em total_em_atraso.
+    compra_service.registrar_compra(
+        usuario_admin_teste, cliente_atrasado.id, Decimal("15.00"), hoje, None
+    )
 
     cliente_recente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Relatorio Recente", [], [], []
@@ -99,6 +104,7 @@ def test_listar_saldos_em_atraso_inclui_compra_antiga_e_exclui_recente(usuario_a
 
     saldo_atrasado = next(s for s in atrasados if s.nome_principal == cliente_atrasado.nome_principal)
     assert saldo_atrasado.total_em_atraso == Decimal("90.00")
+    assert saldo_atrasado.total_em_aberto == Decimal("105.00")
     assert saldo_atrasado.dias_desde_a_compra_mais_antiga >= 40
     assert saldo_atrasado.telefone is not None
     assert "99999" in saldo_atrasado.telefone

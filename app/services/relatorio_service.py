@@ -97,13 +97,18 @@ class SaldoClienteResumo:
 
 @dataclass(frozen=True)
 class SaldoAtrasoResumo:
-    """Saldo em aberto "atrasado" (compras em aberto há mais de N dias) de um cliente."""
+    """Saldo em aberto "atrasado" (compras em aberto há mais de N dias) de um cliente.
+
+    ``total_em_atraso`` soma só as compras que passam do limite de dias;
+    ``total_em_aberto`` é a situação completa da conta (atrasado ou não).
+    """
 
     id: str
     id_visivel: int
     nome_principal: str
     telefone: Optional[str]
     total_em_atraso: Decimal
+    total_em_aberto: Decimal
     dias_desde_a_compra_mais_antiga: int
 
 
@@ -405,7 +410,7 @@ def listar_saldos_em_atraso(
     with session_scope() as session:
         linhas = relatorio_repository.listar_saldos_em_atraso(session, data_limite)
         resultado = []
-        for cliente, total, data_mais_antiga in linhas:
+        for cliente, total_em_atraso, total_em_aberto, data_mais_antiga in linhas:
             telefone = cliente.telefones[0].numero if cliente.telefones else None
             resultado.append(
                 SaldoAtrasoResumo(
@@ -413,7 +418,8 @@ def listar_saldos_em_atraso(
                     id_visivel=cliente.id_visivel,
                     nome_principal=cliente.nome_principal,
                     telefone=telefone,
-                    total_em_atraso=Decimal(total),
+                    total_em_atraso=Decimal(total_em_atraso),
+                    total_em_aberto=Decimal(total_em_aberto),
                     dias_desde_a_compra_mais_antiga=(hoje - data_mais_antiga).days,
                 )
             )

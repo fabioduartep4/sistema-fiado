@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
@@ -52,7 +52,9 @@ def listar_saldos_em_aberto(session: Session) -> list[tuple[Cliente, Decimal]]:
     return list(session.execute(stmt).all())
 
 
-def listar_saldos_em_atraso(session: Session, data_limite: date) -> list[tuple[Cliente, Decimal, date]]:
+def listar_saldos_em_atraso(
+    session: Session, data_limite: date
+) -> list[tuple[Cliente, Decimal, Decimal, date]]:
     """Lista clientes com compras em aberto lançadas há mais de N dias.
 
     Usado como aproximação de "saldo em atraso" — o modelo de dados não tem
@@ -62,26 +64,36 @@ def listar_saldos_em_atraso(session: Session, data_limite: date) -> list[tuple[C
 
     Args:
         session: Sessão SQLAlchemy ativa.
-        data_limite: Só considera compras com ``data <= data_limite``
+        data_limite: Só considera "atrasada" (pra fins de filtro e de
+            ``total_em_atraso``) uma compra com ``data <= data_limite``
             (ex.: hoje menos 30 dias).
 
     Returns:
-        Lista de tuplas (cliente, total_em_atraso, data_da_compra_mais_antiga),
-        da maior para a menor soma. ``total_em_atraso`` soma só as compras
-        que passam do limite — compras em aberto mais recentes do mesmo
-        cliente não entram nesse total.
+        Lista de tuplas (cliente, total_em_atraso, total_em_aberto,
+        data_da_compra_mais_antiga_em_atraso), da maior para a menor soma
+        atrasada. ``total_em_atraso`` soma só as compras que passam do
+        limite; ``total_em_aberto`` soma TODAS as compras em aberto do
+        cliente (atrasadas ou não) — a situação completa da conta, não só
+        a parte atrasada.
     """
+    esta_atrasada = Compra.data <= data_limite
+    valor_se_atrasada = case((esta_atrasada, Compra.valor), else_=0)
     stmt = (
-        select(Cliente, func.sum(Compra.valor), func.min(Compra.data))
+        select(
+            Cliente,
+            func.sum(valor_se_atrasada),
+            func.sum(Compra.valor),
+            func.min(case((esta_atrasada, Compra.data))),
+        )
         .join(Compra, Compra.cliente_id == Cliente.id)
         .where(
             Cliente.ativo.is_(True),
             Compra.ativo.is_(True),
             Compra.status != StatusCompra.QUITADA,
-            Compra.data <= data_limite,
         )
         .group_by(Cliente.id)
-        .order_by(func.sum(Compra.valor).desc())
+        .having(func.sum(valor_se_atrasada) > 0)
+        .order_by(func.sum(valor_se_atrasada).desc())
     )
     return list(session.execute(stmt).all())
 

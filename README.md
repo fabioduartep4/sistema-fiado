@@ -1,5 +1,17 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## "Clientes com Maior Atraso": total em aberto na tabela e lembrete mais completo (novidade)
+
+- **Nova coluna "Total em Aberto"** na tabela de "Clientes com Maior
+  Atraso" (tela de Início): `Cliente | Telefone | Em atraso há | Total
+  Atrasado | Total em Aberto | Enviar Lembrete`. "Total Atrasado" só soma
+  as compras que passaram do prazo configurado; "Total em Aberto" é a
+  conta inteira do cliente (atrasada ou não).
+- **Mensagem do lembrete reescrita**, agora citando: quando foi o último
+  pagamento do cliente (ou avisando que nunca houve um, se for o caso),
+  o total em aberto da conta e, por fim, o total especificamente
+  atrasado a regularizar.
+
 ## Aba "Histórico" dividida em Vendas, Recebimentos e Alterações (novidade)
 
 - **O que mudou**: a antiga sub-aba única "Histórico de Alterações" virou
