@@ -1,8 +1,9 @@
 """Tela de gestão de usuários (PySide6).
 
-Visível apenas para usuários com perfil Administrador (a aba correspondente
-só é adicionada à janela principal nesse caso — ver ``app.views.main_window``).
-A checagem de permissão também é reforçada na camada de serviço
+Visível apenas para usuários com perfil Administrador — hoje como
+sub-aba "Usuários" dentro de "Configurações" (não é mais uma aba própria
+da janela principal), ver ``app.views.configuracoes_view``. A checagem
+de permissão também é reforçada na camada de serviço
 (``app.services.usuario_service``).
 """
 

@@ -1,11 +1,11 @@
 """Tela de Adicionar Compra (PySide6).
 
-Pode ser aberta de duas formas:
-
-1. Diretamente pela aba "Adicionar Compra": o usuário busca e seleciona o
-   cliente antes de preencher os dados da compra.
-2. Pelo botão "Adicionar Compra" da Ficha do Cliente: o cliente já vem
-   pré-selecionado e essa etapa de busca é pulada.
+Não é mais uma aba própria da janela principal (o cliente já é buscado
+antes, em "Buscar Cliente") — hoje só é aberta pelo botão "Adicionar
+Compra" da Ficha do Cliente, através de :class:`AdicionarCompraDialog`,
+com o cliente já pré-selecionado. A página de busca (``_paginas`` índice
+0) continua existindo na classe pra quem quiser reaproveitá-la sem
+cliente pré-selecionado, mas nenhuma tela do sistema faz isso hoje.
 
 Reaproveita o mesmo componente de busca de cliente com debounce usado em
 Buscar Cliente e Receber Conta (``app.views.componentes.CampoBuscaClienteWidget``).

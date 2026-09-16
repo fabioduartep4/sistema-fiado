@@ -1,5 +1,27 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Barra de abas simplificada: menos abas, ações onde já se usa o cliente (novidade)
+
+- **Nova ordem de abas** (Administrador): Início | Buscar Cliente |
+  Cadastrar Cliente | Saldos | Histórico | Backup | Configurações.
+  Funcionário (não-admin) vê só Buscar Cliente | Cadastrar Cliente.
+- **"Adicionar Compra" e "Receber Conta" deixaram de ser abas próprias**
+  — eram basicamente redundantes: os mesmos formulários já abrem, com o
+  cliente pré-selecionado, pelos botões "Adicionar Compra"/"Receber
+  Conta" da Ficha do Cliente (Buscar Cliente → duplo clique). Nada de
+  funcionalidade se perde — nenhuma das duas exigia perfil Administrador,
+  então funcionários continuam com acesso total por ali.
+- **"Usuários" deixou de ser uma aba própria** — agora é uma sub-aba
+  dentro de "Configurações" (que passou a ter sub-abas "Geral" e
+  "Usuários"), mesmo padrão de sub-abas já usado em "Histórico".
+- **"Histórico e Relatórios" foi renomeada para só "Histórico"**, mais
+  curto e alinhado com o resto da barra.
+- Corrigido de quebra: os atalhos Ctrl+N (Cadastrar Cliente) e Ctrl+F
+  (Buscar Cliente) tinham índice fixo e, por causa da aba "Início" sendo
+  inserida antes de tudo para Administrador, na prática abriam a aba
+  errada para esse perfil — agora sempre apontam pra aba certa, seja qual
+  for o perfil.
+
 ## Largura de coluna consistente em todas as tabelas do sistema (novidade)
 
 - **Causa raiz**: sem um modo de redimensionamento configurado, o Qt
