@@ -1,10 +1,12 @@
 """Serviço de relatórios, histórico e painel inicial.
 
-Reúne consultas administrativas: histórico de alterações (auditoria), log
-de erros do sistema, relatório de clientes com saldo em aberto (com
-exportação para CSV), as vendas de hoje (e dos últimos 7 dias) e o painel
-de início (maior valor gasto, mais contas lançadas, evolução mensal e
-total em aberto geral).
+Reúne consultas administrativas: os três históricos da aba "Histórico"
+(Vendas, Recebimentos e Alterações — auditoria genérica, com uma
+descrição legível montada a partir do registro bruto de cada ação, ver
+``_descrever_acao``), log de erros do sistema, relatório de clientes com
+saldo em aberto (com exportação para CSV), as vendas de hoje (e dos
+últimos 7 dias) e o painel de início (maior valor gasto, mais contas
+lançadas, evolução mensal e total em aberto geral).
 
 Todas as funções exigem perfil Administrador, na mesma linha dos demais
 serviços administrativos (usuários, backup, configurações).
@@ -13,6 +15,7 @@ serviços administrativos (usuários, backup, configurações).
 from __future__ import annotations
 
 import csv
+import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -21,26 +24,56 @@ from typing import Optional
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
+from sqlalchemy.orm import Session
 
 from app.database.connection import session_scope
-from app.repositories import historico_repository, log_erro_repository, relatorio_repository
+from app.models.usuario import PerfilUsuario
+from app.repositories import (
+    cliente_repository,
+    historico_repository,
+    log_erro_repository,
+    pagamento_repository,
+    relatorio_repository,
+    usuario_repository,
+)
 from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
 
+_ROTULOS_PERFIL = {
+    PerfilUsuario.ADMINISTRADOR: "Administrador",
+    PerfilUsuario.FUNCIONARIO: "Funcionário",
+}
+
 
 @dataclass(frozen=True)
 class HistoricoResumo:
-    """Uma entrada do histórico de alterações, para exibição."""
+    """Uma entrada do histórico de alterações, para exibição.
 
-    entidade: str
-    entidade_id: str
-    usuario_nome: str
-    acao: str
-    campo: Optional[str]
-    valor_antigo: Optional[str]
-    valor_novo: Optional[str]
+    ``descricao`` já vem pronta para exibir (ex.: 'Editou o cliente:
+    "João" → "João Silva".') — ver :func:`_descrever_acao`.
+    """
+
     data_hora: datetime
+    descricao: str
+    usuario_nome: str
+
+
+@dataclass(frozen=True)
+class HistoricoFinanceiroResumo:
+    """Uma entrada do histórico de Vendas ou de Recebimentos, para exibição.
+
+    ``estornado`` só é usado pelo histórico de Recebimentos — um
+    pagamento estornado continua aparecendo (o dinheiro foi recebido
+    naquele dia), só marcado para deixar claro que foi desfeito depois.
+    Nunca é True vindo do histórico de Vendas (compra não tem estorno).
+    """
+
+    data_hora: datetime
+    cliente_nome: str
+    valor: Decimal
+    usuario_nome: str
+    estornado: bool = False
 
 
 @dataclass(frozen=True)
@@ -92,11 +125,118 @@ def _exigir_administrador(usuario_logado: UsuarioAutenticado) -> None:
         raise PermissaoNegadaError("Apenas administradores podem acessar histórico e relatórios.")
 
 
+def _extrair_campo(valor_empacotado: Optional[str], chave: str) -> Optional[str]:
+    """Extrai o valor de uma chave de uma string empacotada tipo ``"a=1, b=2"``.
+
+    Formato usado nos campos ``valor_antigo``/``valor_novo`` do histórico
+    de alterações desde o início do projeto — nunca estruturado, sempre
+    texto livre (ver docstring de :class:`app.models.historico_alteracao.HistoricoAlteracao`).
+    Retorna ``None`` se a string for vazia ou não tiver essa chave.
+    """
+    if not valor_empacotado:
+        return None
+    for parte in valor_empacotado.split(", "):
+        chave_encontrada, _, valor_encontrado = parte.partition("=")
+        if chave_encontrada.strip() == chave:
+            return valor_encontrado.strip()
+    return None
+
+
+def _descrever_acao(
+    session: Session,
+    entidade: str,
+    entidade_id: uuid.UUID,
+    acao: str,
+    valor_antigo: Optional[str],
+    valor_novo: Optional[str],
+) -> str:
+    """Traduz uma entrada bruta do histórico de alterações numa frase legível.
+
+    Prioriza os valores já capturados em ``valor_antigo``/``valor_novo``
+    (refletem o estado exato no momento da ação); quando a ação não
+    guarda nada ali (ex.: exclusão lógica, redefinição de senha), busca o
+    nome atual do registro relacionado — sempre possível, mesmo se
+    inativo desde então, porque este sistema nunca apaga registros de
+    verdade (exclusão lógica).
+
+    Qualquer combinação de entidade/ação ainda não mapeada aqui (ex.: uma
+    nova ação adicionada no futuro) cai no texto genérico do final, em
+    vez de quebrar a tela.
+    """
+    if entidade == "Cliente":
+        if acao == "criacao":
+            nome = _extrair_campo(valor_novo, "nome_principal") or "?"
+            return f'Cadastrou o cliente "{nome}".'
+        if acao == "criacao_via_xml":
+            nome = _extrair_campo(valor_novo, "nome_principal") or "?"
+            return f'Cadastrou o cliente "{nome}" (via importação de XML).'
+        if acao == "edicao":
+            antigo = _extrair_campo(valor_antigo, "nome_principal")
+            novo = _extrair_campo(valor_novo, "nome_principal")
+            if antigo and novo and antigo != novo:
+                return f'Editou o cliente: "{antigo}" → "{novo}".'
+            return f'Editou o cliente "{novo or antigo or "?"}".'
+        if acao == "exclusao_logica":
+            cliente = cliente_repository.buscar_por_id(session, entidade_id)
+            nome = cliente.nome_principal if cliente else "?"
+            return f'Excluiu a conta do cliente "{nome}".'
+        if acao == "confirmacao_xml":
+            cliente = cliente_repository.buscar_por_id(session, entidade_id)
+            nome = cliente.nome_principal if cliente else "?"
+            return f'Confirmou o cadastro do cliente "{nome}" (criado via XML).'
+        if acao == "mesclagem":
+            nome_duplicado = _extrair_campo(valor_antigo, "nome_principal") or "?"
+            id_principal = _extrair_campo(valor_novo, "mesclado_em")
+            nome_principal = "?"
+            if id_principal:
+                principal = cliente_repository.buscar_por_id(session, uuid.UUID(id_principal))
+                if principal is not None:
+                    nome_principal = principal.nome_principal
+            return f'Mesclou o cliente "{nome_duplicado}" com "{nome_principal}".'
+
+    if entidade == "Usuario":
+        usuario_alvo = usuario_repository.buscar_por_id(session, entidade_id)
+        nome = usuario_alvo.nome if usuario_alvo else "?"
+        if acao == "criacao":
+            return f'Criou o usuário "{nome}".'
+        if acao == "edicao":
+            perfil_antigo = _extrair_campo(valor_antigo, "perfil")
+            perfil_novo = _extrair_campo(valor_novo, "perfil")
+            if perfil_antigo and perfil_novo and perfil_antigo != perfil_novo:
+                rotulo_antigo = _ROTULOS_PERFIL.get(PerfilUsuario(perfil_antigo), perfil_antigo)
+                rotulo_novo = _ROTULOS_PERFIL.get(PerfilUsuario(perfil_novo), perfil_novo)
+                return f'Editou o usuário "{nome}" (perfil: {rotulo_antigo} → {rotulo_novo}).'
+            return f'Editou o usuário "{nome}".'
+        if acao == "redefinicao_senha":
+            return f'Redefiniu a senha do usuário "{nome}".'
+        if acao == "reativacao":
+            return f'Reativou o usuário "{nome}".'
+        if acao == "exclusao_logica":
+            return f'Inativou o usuário "{nome}".'
+
+    if entidade == "Pagamento" and acao == "estorno":
+        valor = _extrair_campo(valor_antigo, "valor_pago") or "?"
+        pagamento = pagamento_repository.buscar_por_id(session, entidade_id)
+        nome_cliente = "?"
+        if pagamento is not None:
+            cliente = cliente_repository.buscar_por_id(session, pagamento.cliente_id)
+            if cliente is not None:
+                nome_cliente = cliente.nome_principal
+        return f'Estornou um recebimento de R$ {valor} do cliente "{nome_cliente}".'
+
+    return f"{acao.replace('_', ' ').capitalize()} ({entidade})."
+
+
 @tratar_erros
 def listar_historico(
     usuario_logado: UsuarioAutenticado, entidade: Optional[str] = None, limite: int = 200
 ) -> list[HistoricoResumo]:
-    """Lista o histórico de alterações do sistema.
+    """Lista o histórico de alterações do sistema (aba "Histórico" > "Alterações").
+
+    Não inclui lançamento de Compra/Pagamento (ver
+    :func:`listar_historico_vendas`/:func:`listar_historico_recebimentos`,
+    cada um com sua própria aba) nem login/logout — ver
+    ``app.repositories.historico_repository.listar``.
 
     Args:
         usuario_logado: Usuário autenticado que está consultando.
@@ -114,16 +254,75 @@ def listar_historico(
         registros = historico_repository.listar(session, entidade, limite)
         return [
             HistoricoResumo(
-                entidade=r.entidade,
-                entidade_id=str(r.entidade_id),
-                usuario_nome=r.usuario.nome,
-                acao=r.acao,
-                campo=r.campo,
-                valor_antigo=r.valor_antigo,
-                valor_novo=r.valor_novo,
                 data_hora=r.data_hora,
+                descricao=_descrever_acao(
+                    session, r.entidade, r.entidade_id, r.acao, r.valor_antigo, r.valor_novo
+                ),
+                usuario_nome=r.usuario.nome,
             )
             for r in registros
+        ]
+
+
+@tratar_erros
+def listar_historico_vendas(
+    usuario_logado: UsuarioAutenticado, limite: int = 200
+) -> list[HistoricoFinanceiroResumo]:
+    """Lista as compras lançadas no sistema (aba "Histórico" > "Vendas").
+
+    Args:
+        usuario_logado: Usuário autenticado que está consultando.
+        limite: Número máximo de registros retornados.
+
+    Returns:
+        Lista de :class:`HistoricoFinanceiroResumo`, mais recente primeiro
+        (``estornado`` sempre False aqui — compra não tem estorno).
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    _exigir_administrador(usuario_logado)
+    with session_scope() as session:
+        registros = relatorio_repository.listar_historico_vendas(session, limite)
+        return [
+            HistoricoFinanceiroResumo(
+                data_hora=data_hora, cliente_nome=cliente_nome, valor=Decimal(valor), usuario_nome=usuario_nome
+            )
+            for data_hora, cliente_nome, valor, usuario_nome in registros
+        ]
+
+
+@tratar_erros
+def listar_historico_recebimentos(
+    usuario_logado: UsuarioAutenticado, limite: int = 200
+) -> list[HistoricoFinanceiroResumo]:
+    """Lista os pagamentos recebidos no sistema (aba "Histórico" > "Recebimentos").
+
+    Inclui pagamentos já estornados (``estornado=True``) — o dinheiro foi
+    recebido naquele dia, então continua aparecendo aqui, só marcado.
+
+    Args:
+        usuario_logado: Usuário autenticado que está consultando.
+        limite: Número máximo de registros retornados.
+
+    Returns:
+        Lista de :class:`HistoricoFinanceiroResumo`, mais recente primeiro.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    _exigir_administrador(usuario_logado)
+    with session_scope() as session:
+        registros = relatorio_repository.listar_historico_recebimentos(session, limite)
+        return [
+            HistoricoFinanceiroResumo(
+                data_hora=data_hora,
+                cliente_nome=cliente_nome,
+                valor=Decimal(valor),
+                usuario_nome=usuario_nome,
+                estornado=not ativo,
+            )
+            for data_hora, cliente_nome, valor, usuario_nome, ativo in registros
         ]
 
 

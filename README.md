@@ -1,5 +1,30 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Aba "Histórico" dividida em Vendas, Recebimentos e Alterações (novidade)
+
+- **O que mudou**: a antiga sub-aba única "Histórico de Alterações" virou
+  três, nesta ordem: **Vendas** (uma linha por compra lançada — manual ou
+  via XML — com data, conta, valor e quem lançou), **Recebimentos**
+  (mesmo formato, um por pagamento recebido) e **Alterações** (o resto da
+  auditoria: cadastro/edição/exclusão de cliente, gestão de usuários,
+  estorno de pagamento). "Log de Erros" continua como a 4ª sub-aba, sem
+  mudanças.
+- **Recebimentos**: um pagamento estornado continua aparecendo (o
+  dinheiro foi recebido naquele dia), só marcado com "[Estornado]" ao
+  lado do valor — não é escondido, pra não parecer receita sumindo sem
+  explicação.
+- **Alterações ficou mais enxuta**: 3 colunas (Data, Ação, Usuário) em
+  vez de 6 — a coluna "Ação" já vem com uma frase pronta (ex.: 'Editou o
+  cliente: "João" → "João Silva".') em vez das antigas colunas
+  "Entidade"/"De"/"Para" separadas. Login/logout deixaram de aparecer
+  aqui (são evento de sessão, não uma alteração num registro) — continuam
+  gravados na auditoria bruta, só não poluem mais essa lista.
+- Nos bastidores: como a tabela de compras não guarda quem lançou cada
+  uma, o histórico de Vendas é montado a partir do registro de auditoria
+  genérico (que já guarda isso), cruzado com a compra e o cliente —
+  compras "Resto" (geradas ao dividir um pagamento) nunca entram aqui,
+  porque não geram esse registro (não são uma venda nova).
+
 ## Barra de abas simplificada: menos abas, ações onde já se usa o cliente (novidade)
 
 - **Nova ordem de abas** (Administrador): Início | Buscar Cliente |
