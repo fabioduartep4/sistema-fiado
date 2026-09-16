@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.config.logging_config import logger
+from app.controllers.pagamento_controller import PagamentoController
 from app.controllers.painel_controller import PainelController
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
@@ -78,6 +79,7 @@ class PainelInicioView(QWidget):
         super().__init__()
         self._controller = PainelController(usuario_logado)
         self._controller_relatorio = RelatorioController(usuario_logado)
+        self._controller_pagamento = PagamentoController(usuario_logado)
 
         titulo = QLabel("Início")
         titulo.setProperty("papel", "titulo")
@@ -242,9 +244,9 @@ class PainelInicioView(QWidget):
         layout_filtro.addStretch()
         layout_filtro.addWidget(botao_atualizar_atraso)
 
-        self._tabela_atrasos = QTableWidget(0, 5)
+        self._tabela_atrasos = QTableWidget(0, 6)
         self._tabela_atrasos.setHorizontalHeaderLabels(
-            ["Cliente", "Telefone", "Em atraso há", "Total em Atraso", ""]
+            ["Cliente", "Telefone", "Em atraso há", "Total Atrasado", "Total em Aberto", ""]
         )
         self._tabela_atrasos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela_atrasos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
@@ -282,19 +284,32 @@ class PainelInicioView(QWidget):
             self._tabela_atrasos.setItem(
                 linha, 3, QTableWidgetItem(f"R$ {saldo.total_em_atraso:.2f}")
             )
+            self._tabela_atrasos.setItem(
+                linha, 4, QTableWidgetItem(f"R$ {saldo.total_em_aberto:.2f}")
+            )
 
             botao_lembrete = QPushButton("Enviar Lembrete")
             botao_lembrete.setIcon(icone("BRAND_WHATSAPP"))
             botao_lembrete.setProperty("importancia", "primaria")
             botao_lembrete.setEnabled(bool(saldo.telefone))
             botao_lembrete.clicked.connect(lambda _checked=False, s=saldo: self._abrir_lembrete(s))
-            self._tabela_atrasos.setCellWidget(linha, 4, botao_lembrete)
+            self._tabela_atrasos.setCellWidget(linha, 5, botao_lembrete)
 
     def _abrir_lembrete(self, saldo: SaldoAtrasoResumo) -> None:
+        data_ultimo_pagamento = None
+        try:
+            pagamentos = self._controller_pagamento.listar_pagamentos(saldo.id)
+            ultimo_pagamento_ativo = next((p for p in pagamentos if p.ativo), None)
+            if ultimo_pagamento_ativo is not None:
+                data_ultimo_pagamento = ultimo_pagamento_ativo.data_pagamento.strftime("%d/%m/%Y")
+        except Exception:
+            logger.exception("Falha ao buscar o último pagamento do cliente %s.", saldo.id)
+
         mensagem = montar_mensagem_lembrete_saldo(
             saldo.nome_principal,
+            data_ultimo_pagamento,
+            f"R$ {saldo.total_em_aberto:.2f}",
             f"R$ {saldo.total_em_atraso:.2f}",
-            saldo.dias_desde_a_compra_mais_antiga,
         )
         dialogo = LembreteWhatsAppDialog(saldo.nome_principal, saldo.telefone, mensagem, self)
         dialogo.exec()

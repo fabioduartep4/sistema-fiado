@@ -12,6 +12,7 @@ from app.services import relatorio_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.relatorio_service import (
     ClienteAcimaDoLimiteResumo,
+    HistoricoFinanceiroResumo,
     HistoricoResumo,
     LogErroResumo,
     PainelSaldos,
@@ -35,6 +36,14 @@ class RelatorioController:
     def listar_historico(self, entidade: Optional[str] = None, limite: int = 200) -> list[HistoricoResumo]:
         """Lista o histórico de alterações do sistema."""
         return relatorio_service.listar_historico(self.usuario_logado, entidade, limite)
+
+    def listar_historico_vendas(self, limite: int = 200) -> list[HistoricoFinanceiroResumo]:
+        """Lista as compras lançadas no sistema (histórico de Vendas)."""
+        return relatorio_service.listar_historico_vendas(self.usuario_logado, limite)
+
+    def listar_historico_recebimentos(self, limite: int = 200) -> list[HistoricoFinanceiroResumo]:
+        """Lista os pagamentos recebidos no sistema (histórico de Recebimentos)."""
+        return relatorio_service.listar_historico_recebimentos(self.usuario_logado, limite)
 
     def listar_log_erros(self, limite: int = 200) -> list[LogErroResumo]:
         """Lista os erros registrados pelo sistema."""

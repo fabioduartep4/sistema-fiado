@@ -32,11 +32,21 @@ def test_montar_link_whatsapp_inclui_numero_e_mensagem_codificada() -> None:
 
 
 def test_montar_mensagem_lembrete_saldo_inclui_dados_do_cliente() -> None:
-    mensagem = montar_mensagem_lembrete_saldo("Maria da Silva", "R$ 123,45", 40)
+    mensagem = montar_mensagem_lembrete_saldo("Maria da Silva", "10/10/2026", "R$ 3.000,00", "R$ 1.920,00")
 
     assert "Maria da Silva" in mensagem
-    assert "R$ 123,45" in mensagem
-    assert "40 dias" in mensagem
+    assert "10/10/2026" in mensagem
+    assert "R$ 3.000,00" in mensagem
+    assert "R$ 1.920,00" in mensagem
+
+
+def test_montar_mensagem_lembrete_saldo_sem_pagamento_anterior() -> None:
+    mensagem = montar_mensagem_lembrete_saldo("Maria da Silva", None, "R$ 3.000,00", "R$ 1.920,00")
+
+    assert "Maria da Silva" in mensagem
+    assert "nenhum pagamento" in mensagem
+    assert "R$ 3.000,00" in mensagem
+    assert "R$ 1.920,00" in mensagem
 
 
 def test_montar_mensagem_lembrete_limite_inclui_dados_do_cliente() -> None:
