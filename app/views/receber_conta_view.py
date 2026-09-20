@@ -1,9 +1,10 @@
 """Tela de Receber Conta (PySide6).
 
-Segue o mesmo padrão da tela Adicionar Compra: pode ser aberta pela aba
-direta (busca o cliente primeiro) ou pelo botão "Receber Conta" da Ficha
-do Cliente (cliente já pré-selecionado). Mostra o total em aberto e a
-lista de compras pendentes antes de confirmar o pagamento.
+Segue o mesmo padrão da tela Adicionar Compra: não é mais uma aba própria
+da janela principal — hoje só é aberta pelo botão "Receber Conta" da
+Ficha do Cliente, através de :class:`ReceberContaDialog`, com o cliente
+já pré-selecionado. Mostra o total em aberto e a lista de compras
+pendentes antes de confirmar o pagamento.
 """
 
 from __future__ import annotations

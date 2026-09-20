@@ -1,5 +1,64 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## "Clientes com Maior Atraso": total em aberto na tabela e lembrete mais completo (novidade)
+
+- **Nova coluna "Total em Aberto"** na tabela de "Clientes com Maior
+  Atraso" (tela de Início): `Cliente | Telefone | Em atraso há | Total
+  Atrasado | Total em Aberto | Enviar Lembrete`. "Total Atrasado" só soma
+  as compras que passaram do prazo configurado; "Total em Aberto" é a
+  conta inteira do cliente (atrasada ou não).
+- **Mensagem do lembrete reescrita**, agora citando: quando foi o último
+  pagamento do cliente (ou avisando que nunca houve um, se for o caso),
+  o total em aberto da conta e, por fim, o total especificamente
+  atrasado a regularizar.
+
+## Aba "Histórico" dividida em Vendas, Recebimentos e Alterações (novidade)
+
+- **O que mudou**: a antiga sub-aba única "Histórico de Alterações" virou
+  três, nesta ordem: **Vendas** (uma linha por compra lançada — manual ou
+  via XML — com data, conta, valor e quem lançou), **Recebimentos**
+  (mesmo formato, um por pagamento recebido) e **Alterações** (o resto da
+  auditoria: cadastro/edição/exclusão de cliente, gestão de usuários,
+  estorno de pagamento). "Log de Erros" continua como a 4ª sub-aba, sem
+  mudanças.
+- **Recebimentos**: um pagamento estornado continua aparecendo (o
+  dinheiro foi recebido naquele dia), só marcado com "[Estornado]" ao
+  lado do valor — não é escondido, pra não parecer receita sumindo sem
+  explicação.
+- **Alterações ficou mais enxuta**: 3 colunas (Data, Ação, Usuário) em
+  vez de 6 — a coluna "Ação" já vem com uma frase pronta (ex.: 'Editou o
+  cliente: "João" → "João Silva".') em vez das antigas colunas
+  "Entidade"/"De"/"Para" separadas. Login/logout deixaram de aparecer
+  aqui (são evento de sessão, não uma alteração num registro) — continuam
+  gravados na auditoria bruta, só não poluem mais essa lista.
+- Nos bastidores: como a tabela de compras não guarda quem lançou cada
+  uma, o histórico de Vendas é montado a partir do registro de auditoria
+  genérico (que já guarda isso), cruzado com a compra e o cliente —
+  compras "Resto" (geradas ao dividir um pagamento) nunca entram aqui,
+  porque não geram esse registro (não são uma venda nova).
+
+## Barra de abas simplificada: menos abas, ações onde já se usa o cliente (novidade)
+
+- **Nova ordem de abas** (Administrador): Início | Buscar Cliente |
+  Cadastrar Cliente | Saldos | Histórico | Backup | Configurações.
+  Funcionário (não-admin) vê só Buscar Cliente | Cadastrar Cliente.
+- **"Adicionar Compra" e "Receber Conta" deixaram de ser abas próprias**
+  — eram basicamente redundantes: os mesmos formulários já abrem, com o
+  cliente pré-selecionado, pelos botões "Adicionar Compra"/"Receber
+  Conta" da Ficha do Cliente (Buscar Cliente → duplo clique). Nada de
+  funcionalidade se perde — nenhuma das duas exigia perfil Administrador,
+  então funcionários continuam com acesso total por ali.
+- **"Usuários" deixou de ser uma aba própria** — agora é uma sub-aba
+  dentro de "Configurações" (que passou a ter sub-abas "Geral" e
+  "Usuários"), mesmo padrão de sub-abas já usado em "Histórico".
+- **"Histórico e Relatórios" foi renomeada para só "Histórico"**, mais
+  curto e alinhado com o resto da barra.
+- Corrigido de quebra: os atalhos Ctrl+N (Cadastrar Cliente) e Ctrl+F
+  (Buscar Cliente) tinham índice fixo e, por causa da aba "Início" sendo
+  inserida antes de tudo para Administrador, na prática abriam a aba
+  errada para esse perfil — agora sempre apontam pra aba certa, seja qual
+  for o perfil.
+
 ## Largura de coluna consistente em todas as tabelas do sistema (novidade)
 
 - **Causa raiz**: sem um modo de redimensionamento configurado, o Qt

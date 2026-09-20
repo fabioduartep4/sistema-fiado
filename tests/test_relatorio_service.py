@@ -14,7 +14,7 @@ from decimal import Decimal
 import openpyxl
 import pytest
 
-from app.services import cliente_service, compra_service, relatorio_service, usuario_service
+from app.services import cliente_service, compra_service, pagamento_service, relatorio_service, usuario_service
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.date_utils import obter_data_padrao
 
@@ -83,6 +83,11 @@ def test_listar_saldos_em_atraso_inclui_compra_antiga_e_exclui_recente(usuario_a
     compra_service.registrar_compra(
         usuario_admin_teste, cliente_atrasado.id, Decimal("90.00"), hoje - timedelta(days=40), None
     )
+    # Uma segunda compra recente (não atrasada) na MESMA conta: deve
+    # entrar em total_em_aberto, mas não em total_em_atraso.
+    compra_service.registrar_compra(
+        usuario_admin_teste, cliente_atrasado.id, Decimal("15.00"), hoje, None
+    )
 
     cliente_recente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Relatorio Recente", [], [], []
@@ -99,6 +104,7 @@ def test_listar_saldos_em_atraso_inclui_compra_antiga_e_exclui_recente(usuario_a
 
     saldo_atrasado = next(s for s in atrasados if s.nome_principal == cliente_atrasado.nome_principal)
     assert saldo_atrasado.total_em_atraso == Decimal("90.00")
+    assert saldo_atrasado.total_em_aberto == Decimal("105.00")
     assert saldo_atrasado.dias_desde_a_compra_mais_antiga >= 40
     assert saldo_atrasado.telefone is not None
     assert "99999" in saldo_atrasado.telefone
@@ -307,5 +313,86 @@ def test_obter_vendas_hoje_total_reflete_nova_compra(usuario_admin_teste) -> Non
         resumo_depois.vendas_ultimos_7_dias[-1].total - resumo_antes.vendas_ultimos_7_dias[-1].total
         == Decimal("42.00")
     )
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_historico_vendas_funcionario_e_rejeitado(usuario_admin_teste) -> None:
+    funcionario, usuario_funcionario = _criar_funcionario_teste(usuario_admin_teste)
+
+    with pytest.raises(PermissaoNegadaError):
+        relatorio_service.listar_historico_vendas(usuario_funcionario)
+
+    usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_listar_historico_vendas_reflete_compra_registrada(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Historico Vendas", [], [], []
+    )
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("63.50"), date.today(), None)
+
+    historico = relatorio_service.listar_historico_vendas(usuario_admin_teste)
+    entrada = next((h for h in historico if h.cliente_nome == "Teste Automatizado Historico Vendas"), None)
+
+    assert entrada is not None
+    assert entrada.valor == Decimal("63.50")
+    assert entrada.usuario_nome == usuario_admin_teste.nome
+    assert entrada.estornado is False
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_historico_recebimentos_funcionario_e_rejeitado(usuario_admin_teste) -> None:
+    funcionario, usuario_funcionario = _criar_funcionario_teste(usuario_admin_teste)
+
+    with pytest.raises(PermissaoNegadaError):
+        relatorio_service.listar_historico_recebimentos(usuario_funcionario)
+
+    usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_listar_historico_recebimentos_reflete_pagamento_registrado(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Historico Recebimentos", [], [], []
+    )
+    hoje = date.today()
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("100.00"), hoje, None)
+    pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("40.00"), hoje)
+
+    historico = relatorio_service.listar_historico_recebimentos(usuario_admin_teste)
+    entrada = next(
+        (h for h in historico if h.cliente_nome == "Teste Automatizado Historico Recebimentos"), None
+    )
+
+    assert entrada is not None
+    assert entrada.valor == Decimal("40.00")
+    assert entrada.usuario_nome == usuario_admin_teste.nome
+    assert entrada.estornado is False
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_historico_recebimentos_marca_pagamento_estornado(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Historico Recebimento Estornado", [], [], []
+    )
+    hoje = date.today()
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("50.00"), hoje, None)
+    pagamento = pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("50.00"), hoje)
+    pagamento_service.estornar_pagamento(usuario_admin_teste, pagamento.id)
+
+    historico = relatorio_service.listar_historico_recebimentos(usuario_admin_teste)
+    entrada = next(
+        (
+            h
+            for h in historico
+            if h.cliente_nome == "Teste Automatizado Historico Recebimento Estornado"
+        ),
+        None,
+    )
+
+    assert entrada is not None
+    assert entrada.estornado is True
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

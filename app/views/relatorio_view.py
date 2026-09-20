@@ -1,8 +1,14 @@
-"""Tela de Histórico e Relatórios (PySide6).
+"""Tela de Histórico (PySide6).
 
-Visível apenas para Administrador. Reúne duas sub-abas: Histórico de
-Alterações (auditoria) e Log de Erros. A antiga sub-aba "Saldo em
-Aberto" foi movida para a aba "Saldos" — ver ``app.views.saldos_view``.
+Visível apenas para Administrador. Reúne quatro sub-abas, nesta ordem:
+Vendas (compras lançadas, uma por linha — quem, quando, pra qual conta,
+quanto), Recebimentos (pagamentos recebidos, mesmo formato — inclui
+pagamentos já estornados, marcados como tal), Alterações (auditoria
+genérica do resto do sistema: cadastro/edição/exclusão de cliente,
+gestão de usuários, estorno de pagamento — com uma descrição em texto já
+pronta pra cada ação, ver ``app.services.relatorio_service._descrever_acao``)
+e Log de Erros. A antiga sub-aba "Saldo em Aberto" foi movida para a aba
+"Saldos" — ver ``app.views.saldos_view``.
 
 ``LembreteWhatsAppDialog`` continua definido aqui (usado também pela tela
 de Início, que reaproveita esta classe) mesmo com a antiga sub-aba
@@ -32,13 +38,17 @@ from PySide6.QtWidgets import (
 from app.config.logging_config import logger
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
+from app.services.relatorio_service import HistoricoFinanceiroResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.tabelas import ajustar_colunas
 from app.utils.text_normalizer import normalizar_telefone
 from app.utils.whatsapp import montar_link_whatsapp
 
-_ENTIDADES_FILTRO = ["Todas", "Cliente", "Compra", "Pagamento", "Usuario"]
+# "Compra" não entra aqui: toda entrada de histórico com essa entidade
+# vira a aba "Vendas" (ver app.repositories.historico_repository.listar),
+# então o filtro nunca teria nada pra mostrar.
+_ENTIDADES_FILTRO = ["Todas", "Cliente", "Pagamento", "Usuario"]
 
 
 class LembreteWhatsAppDialog(QDialog):
@@ -96,17 +106,19 @@ class LembreteWhatsAppDialog(QDialog):
 
 
 class RelatorioView(QWidget):
-    """Tela com as sub-abas de histórico e relatórios."""
+    """Tela com as sub-abas de histórico."""
 
     def __init__(self, usuario_logado: UsuarioAutenticado) -> None:
         super().__init__()
         self._controller = RelatorioController(usuario_logado)
 
         abas = QTabWidget()
-        abas.addTab(self._construir_aba_historico(), "Histórico de Alterações")
+        abas.addTab(self._construir_aba_vendas(), "Vendas")
+        abas.addTab(self._construir_aba_recebimentos(), "Recebimentos")
+        abas.addTab(self._construir_aba_historico(), "Alterações")
         abas.addTab(self._construir_aba_log_erros(), "Log de Erros")
 
-        titulo = QLabel("Histórico e Relatórios")
+        titulo = QLabel("Histórico")
         titulo.setProperty("papel", "titulo")
 
         layout = QVBoxLayout()
@@ -114,7 +126,97 @@ class RelatorioView(QWidget):
         layout.addWidget(abas)
         self.setLayout(layout)
 
-    # -- Sub-aba: Histórico de Alterações ------------------------------------
+    # -- Sub-aba: Vendas -------------------------------------------------------
+    #
+    # Uma linha por compra lançada (manual ou via XML) — quem lançou, pra
+    # qual conta, quando e quanto. Sem filtro: é um extrato simples, mais
+    # recentes primeiro.
+
+    def _construir_aba_vendas(self) -> QWidget:
+        pagina = QWidget()
+
+        botao_atualizar = QPushButton("Atualizar")
+        botao_atualizar.setIcon(icone("REFRESH"))
+        botao_atualizar.clicked.connect(self._carregar_vendas)
+
+        self._tabela_vendas = QTableWidget(0, 4)
+        self._tabela_vendas.setHorizontalHeaderLabels(["Data", "Conta", "Valor", "Usuário"])
+        self._tabela_vendas.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        ajustar_colunas(self._tabela_vendas, 1)  # Conta
+
+        layout = QVBoxLayout(pagina)
+        layout.addWidget(botao_atualizar)
+        layout.addWidget(self._tabela_vendas)
+
+        self._carregar_vendas()
+        return pagina
+
+    def _carregar_vendas(self) -> None:
+        try:
+            registros = self._controller.listar_historico_vendas()
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível carregar o histórico de vendas", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao carregar o histórico de vendas.")
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o histórico de vendas.")
+            return
+
+        self._preencher_tabela_financeira(self._tabela_vendas, registros)
+
+    # -- Sub-aba: Recebimentos --------------------------------------------------
+    #
+    # Mesmo formato de Vendas, uma linha por pagamento recebido. Pagamentos
+    # já estornados continuam aparecendo (o dinheiro entrou naquele dia),
+    # só marcados como "[Estornado]" na coluna Valor.
+
+    def _construir_aba_recebimentos(self) -> QWidget:
+        pagina = QWidget()
+
+        botao_atualizar = QPushButton("Atualizar")
+        botao_atualizar.setIcon(icone("REFRESH"))
+        botao_atualizar.clicked.connect(self._carregar_recebimentos)
+
+        self._tabela_recebimentos = QTableWidget(0, 4)
+        self._tabela_recebimentos.setHorizontalHeaderLabels(["Data", "Conta", "Valor", "Usuário"])
+        self._tabela_recebimentos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        ajustar_colunas(self._tabela_recebimentos, 1)  # Conta
+
+        layout = QVBoxLayout(pagina)
+        layout.addWidget(botao_atualizar)
+        layout.addWidget(self._tabela_recebimentos)
+
+        self._carregar_recebimentos()
+        return pagina
+
+    def _carregar_recebimentos(self) -> None:
+        try:
+            registros = self._controller.listar_historico_recebimentos()
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível carregar o histórico de recebimentos", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao carregar o histórico de recebimentos.")
+            QMessageBox.critical(
+                self, "Erro inesperado", "Não foi possível carregar o histórico de recebimentos."
+            )
+            return
+
+        self._preencher_tabela_financeira(self._tabela_recebimentos, registros)
+
+    @staticmethod
+    def _preencher_tabela_financeira(
+        tabela: QTableWidget, registros: list[HistoricoFinanceiroResumo]
+    ) -> None:
+        tabela.setRowCount(len(registros))
+        for linha, registro in enumerate(registros):
+            marca_estorno = " [Estornado]" if registro.estornado else ""
+            tabela.setItem(linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M")))
+            tabela.setItem(linha, 1, QTableWidgetItem(registro.cliente_nome))
+            tabela.setItem(linha, 2, QTableWidgetItem(f"R$ {registro.valor:.2f}{marca_estorno}"))
+            tabela.setItem(linha, 3, QTableWidgetItem(registro.usuario_nome))
+
+    # -- Sub-aba: Alterações ---------------------------------------------------
 
     def _construir_aba_historico(self) -> QWidget:
         pagina = QWidget()
@@ -127,12 +229,10 @@ class RelatorioView(QWidget):
         botao_atualizar.setIcon(icone("REFRESH"))
         botao_atualizar.clicked.connect(self._carregar_historico)
 
-        self._tabela_historico = QTableWidget(0, 6)
-        self._tabela_historico.setHorizontalHeaderLabels(
-            ["Data/Hora", "Entidade", "Ação", "Usuário", "De", "Para"]
-        )
+        self._tabela_historico = QTableWidget(0, 3)
+        self._tabela_historico.setHorizontalHeaderLabels(["Data/Hora", "Ação", "Usuário"])
         self._tabela_historico.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        ajustar_colunas(self._tabela_historico, 4, 5)  # De, Para
+        ajustar_colunas(self._tabela_historico, 1)  # Ação
 
         layout_filtro = QHBoxLayout()
         layout_filtro.addWidget(QLabel("Entidade:"))
@@ -163,16 +263,11 @@ class RelatorioView(QWidget):
 
         self._tabela_historico.setRowCount(len(registros))
         for linha, registro in enumerate(registros):
-            valores = [
-                registro.data_hora.strftime("%d/%m/%Y %H:%M"),
-                registro.entidade,
-                registro.acao,
-                registro.usuario_nome,
-                registro.valor_antigo or "-",
-                registro.valor_novo or "-",
-            ]
-            for coluna, valor in enumerate(valores):
-                self._tabela_historico.setItem(linha, coluna, QTableWidgetItem(valor))
+            self._tabela_historico.setItem(
+                linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M"))
+            )
+            self._tabela_historico.setItem(linha, 1, QTableWidgetItem(registro.descricao))
+            self._tabela_historico.setItem(linha, 2, QTableWidgetItem(registro.usuario_nome))
 
     # -- Sub-aba: Log de Erros -----------------------------------------------
 

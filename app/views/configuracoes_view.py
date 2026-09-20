@@ -1,10 +1,11 @@
 """Tela de Configurações (PySide6).
 
-Visível apenas para Administrador. Permite editar o modo de data padrão
-(configuração global usada em Adicionar Compra e Receber Conta) e a pasta
-de XMLs de NF-e (usada na importação de vendas a prazo), além de oferecer
-um botão para disparar a importação manualmente. A pasta de backup já é
-editável na própria aba "Backup" (etapa 7).
+Visível apenas para Administrador. Reúne duas sub-abas: "Geral" (modo de
+data padrão usado em Adicionar Compra e Receber Conta, pasta de XMLs de
+NF-e usada na importação de vendas a prazo, tema e importação/verificação
+de duplicados) e "Usuários" (gestão de contas do sistema — antes uma aba
+própria, ver ``app.views.usuario_view``). A pasta de backup já é editável
+na própria aba "Backup" (etapa 7).
 
 Conexão com o banco é exibida apenas de forma informativa — alterá-la
 exige reiniciar o sistema (é lida do arquivo ``.env`` na inicialização),
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -35,6 +37,7 @@ from app.services.configuracao_service import ModoDataPadrao, ModoTema
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.views.mesclar_clientes_view import MesclarClientesDialog
+from app.views.usuario_view import UsuarioView
 from app.views.xml_importacao_view import ImportarXmlDialog
 
 _ROTULOS_MODO_DATA = {
@@ -59,6 +62,20 @@ class ConfiguracoesView(QWidget):
 
         titulo = QLabel("Configurações")
         titulo.setProperty("papel", "titulo")
+
+        abas = QTabWidget()
+        abas.addTab(self._construir_aba_geral(), "Geral")
+        abas.addTab(UsuarioView(usuario_logado), "Usuários")
+
+        layout = QVBoxLayout()
+        layout.addWidget(titulo)
+        layout.addWidget(abas)
+        self.setLayout(layout)
+
+    # -- Sub-aba: Geral -------------------------------------------------------
+
+    def _construir_aba_geral(self) -> QWidget:
+        pagina = QWidget()
 
         info_conexao = QLabel(
             f"Servidor: {settings.database.host}:{settings.database.port}  •  "
@@ -107,8 +124,7 @@ class ConfiguracoesView(QWidget):
         botao_mesclar_duplicados.setMinimumHeight(42)
         botao_mesclar_duplicados.clicked.connect(self._verificar_duplicados)
 
-        layout = QVBoxLayout()
-        layout.addWidget(titulo)
+        layout = QVBoxLayout(pagina)
         layout.addWidget(QLabel("Conexão com o banco de dados:"))
         layout.addWidget(info_conexao)
         layout.addSpacing(12)
@@ -131,11 +147,11 @@ class ConfiguracoesView(QWidget):
         layout.addWidget(botao_importar_xml_agora)
         layout.addWidget(botao_mesclar_duplicados)
         layout.addStretch()
-        self.setLayout(layout)
 
         self._carregar_modo_data_atual()
         self._carregar_tema_atual()
         self._carregar_pasta_xml_atual()
+        return pagina
 
     def _carregar_tema_atual(self) -> None:
         try:

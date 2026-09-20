@@ -71,15 +71,32 @@ def test_funcionario_nao_pode_gerenciar_usuarios(usuario_admin_teste) -> None:
     usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
 
 
-def test_login_e_logout_sao_registrados_no_historico(usuario_admin_teste, senha_usuario_teste) -> None:
+def test_login_e_logout_sao_gravados_mas_nao_aparecem_no_historico_de_alteracoes(
+    usuario_admin_teste, senha_usuario_teste
+) -> None:
+    """Login/logout continuam gravados na auditoria bruta (útil pra
+    investigação), mas não aparecem mais na tela "Histórico" > "Alterações"
+    — são eventos de sessão, não uma alteração num registro (ver
+    ``app.repositories.historico_repository.listar``)."""
+    from sqlalchemy import select
+
+    from app.database.connection import session_scope
+    from app.models.historico_alteracao import HistoricoAlteracao
     from app.services import relatorio_service
 
     auth_service.autenticar(usuario_admin_teste.login, senha_usuario_teste)
     auth_service.encerrar_sessao(usuario_admin_teste)
 
-    historico = relatorio_service.listar_historico(usuario_admin_teste, entidade="Usuario", limite=50)
-    acoes_deste_usuario = [
-        h.acao for h in historico if h.entidade_id == usuario_admin_teste.id
-    ]
-    assert "login" in acoes_deste_usuario
-    assert "logout" in acoes_deste_usuario
+    with session_scope() as session:
+        stmt = select(HistoricoAlteracao.acao).where(
+            HistoricoAlteracao.entidade == "Usuario",
+            HistoricoAlteracao.entidade_id == uuid.UUID(usuario_admin_teste.id),
+            HistoricoAlteracao.acao.in_(("login", "logout")),
+        )
+        acoes_gravadas = set(session.execute(stmt).scalars().all())
+    assert {"login", "logout"} <= acoes_gravadas
+
+    historico = relatorio_service.listar_historico(usuario_admin_teste, entidade="Usuario", limite=200)
+    descricoes = " ".join(h.descricao.lower() for h in historico)
+    assert "login" not in descricoes
+    assert "logout" not in descricoes

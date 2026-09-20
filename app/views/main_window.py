@@ -1,10 +1,14 @@
 """Janela principal da aplicação (PySide6).
 
-Mostra quem está logado, o perfil de acesso e as abas do sistema
-(Cadastrar Cliente, Buscar Cliente, Adicionar Compra, Receber Conta e,
-para Administradores, Saldos, Usuários, Backup, Histórico e Relatórios e
-Configurações). Também dispara, em segundo plano, a verificação do backup
-automático diário, e registra os atalhos de teclado globais do sistema.
+Mostra quem está logado, o perfil de acesso e as abas do sistema (Buscar
+Cliente, Cadastrar Cliente e, para Administradores, Início, Saldos,
+Histórico, Backup e Configurações — esta última reúne também a gestão de
+Usuários, numa sub-aba). "Adicionar Compra" e "Receber Conta" não são
+mais abas próprias: os mesmos formulários já abrem, com o cliente
+pré-selecionado, pelos botões da Ficha do Cliente (aberta a partir de
+Buscar Cliente) — ver ``app.views.ficha_cliente_view``. Também dispara,
+em segundo plano, a verificação do backup automático diário, e registra
+os atalhos de teclado globais do sistema.
 """
 
 from __future__ import annotations
@@ -24,16 +28,13 @@ from PySide6.QtWidgets import (
 from app.config.logging_config import logger
 from app.services import auth_service, backup_service, xml_importacao_service
 from app.services.auth_service import UsuarioAutenticado
-from app.views.adicionar_compra_view import AdicionarCompraView
 from app.views.backup_view import BackupView
 from app.views.buscar_cliente_view import BuscarClienteView
 from app.views.cadastrar_cliente_view import CadastrarClienteView
 from app.views.configuracoes_view import ConfiguracoesView
 from app.views.painel_inicio_view import PainelInicioView
-from app.views.receber_conta_view import ReceberContaView
 from app.views.relatorio_view import RelatorioView
 from app.views.saldos_view import SaldosView
-from app.views.usuario_view import UsuarioView
 from app.views.xml_importacao_view import ImportarXmlDialog
 from app.utils.icons import icone
 
@@ -90,16 +91,19 @@ class MainWindow(QMainWindow):
         botao_sair.clicked.connect(self._sair)
 
         abas = QTabWidget()
-        abas.addTab(CadastrarClienteView(usuario), icone("USER_PLUS"), "Cadastrar Cliente")
-        abas.addTab(BuscarClienteView(usuario), icone("SEARCH"), "Buscar Cliente")
-        abas.addTab(AdicionarCompraView(usuario), icone("SHOPPING_CART_PLUS"), "Adicionar Compra")
-        abas.addTab(ReceberContaView(usuario), icone("CASH_BANKNOTE"), "Receber Conta")
+        # Guardadas em variáveis (em vez de índice fixo) porque a posição
+        # de cada uma muda conforme o perfil — Administrador tem "Início"
+        # inserida antes de tudo (ver abaixo), o que empurraria qualquer
+        # índice fixo pro atalho de teclado errado.
+        view_buscar_cliente = BuscarClienteView(usuario)
+        view_cadastrar_cliente = CadastrarClienteView(usuario)
+        abas.addTab(view_buscar_cliente, icone("SEARCH"), "Buscar Cliente")
+        abas.addTab(view_cadastrar_cliente, icone("USER_PLUS"), "Cadastrar Cliente")
 
         if usuario.eh_administrador:
             abas.addTab(SaldosView(usuario), icone("REPORT_MONEY"), "Saldos")
-            abas.addTab(UsuarioView(usuario), icone("USERS"), "Usuários")
+            abas.addTab(RelatorioView(usuario), icone("CHART_BAR"), "Histórico")
             abas.addTab(BackupView(usuario), icone("DATABASE"), "Backup")
-            abas.addTab(RelatorioView(usuario), icone("CHART_BAR"), "Histórico e Relatórios")
             abas.addTab(ConfiguracoesView(usuario), icone("SETTINGS"), "Configurações")
             abas.insertTab(0, PainelInicioView(usuario), icone("HOME"), "Início")
             abas.setCurrentIndex(0)
@@ -119,10 +123,10 @@ class MainWindow(QMainWindow):
         self._verificar_backup_automatico()  # também verifica logo ao abrir o sistema
 
         self._atalho_novo_cliente = QShortcut(QKeySequence("Ctrl+N"), self)
-        self._atalho_novo_cliente.activated.connect(lambda: abas.setCurrentIndex(0))
+        self._atalho_novo_cliente.activated.connect(lambda: abas.setCurrentWidget(view_cadastrar_cliente))
 
         self._atalho_buscar_cliente = QShortcut(QKeySequence("Ctrl+F"), self)
-        self._atalho_buscar_cliente.activated.connect(lambda: abas.setCurrentIndex(1))
+        self._atalho_buscar_cliente.activated.connect(lambda: abas.setCurrentWidget(view_buscar_cliente))
 
         self._atalho_sair = QShortcut(QKeySequence("Ctrl+Q"), self)
         self._atalho_sair.activated.connect(self.close)

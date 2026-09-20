@@ -1,10 +1,13 @@
 """Repositório de relatórios agregados (somente leitura).
 
 Contém o relatório de saldo em aberto por cliente (usado na aba
-Histórico e Relatórios) e as consultas agregadas usadas no painel de
-Início (vendas de hoje, maior valor gasto, mais contas lançadas,
-evolução mensal, total em aberto geral, clientes com maior atraso e
-clientes acima do limite de fiado) — todas somente para Administrador.
+Histórico), os históricos de Vendas e Recebimentos (compras/pagamentos
+lançados, um por linha — ver ``listar_historico_vendas``/
+``listar_historico_recebimentos``) e as consultas agregadas usadas no
+painel de Início (vendas de hoje, maior valor gasto, mais contas
+lançadas, evolução mensal, total em aberto geral, clientes com maior
+atraso e clientes acima do limite de fiado) — todas somente para
+Administrador.
 """
 
 from __future__ import annotations
@@ -12,11 +15,14 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
 from app.models.compra import Compra, StatusCompra
+from app.models.historico_alteracao import HistoricoAlteracao
+from app.models.pagamento import Pagamento
+from app.models.usuario import Usuario
 
 
 def listar_saldos_em_aberto(session: Session) -> list[tuple[Cliente, Decimal]]:
@@ -46,7 +52,9 @@ def listar_saldos_em_aberto(session: Session) -> list[tuple[Cliente, Decimal]]:
     return list(session.execute(stmt).all())
 
 
-def listar_saldos_em_atraso(session: Session, data_limite: date) -> list[tuple[Cliente, Decimal, date]]:
+def listar_saldos_em_atraso(
+    session: Session, data_limite: date
+) -> list[tuple[Cliente, Decimal, Decimal, date]]:
     """Lista clientes com compras em aberto lançadas há mais de N dias.
 
     Usado como aproximação de "saldo em atraso" — o modelo de dados não tem
@@ -56,26 +64,36 @@ def listar_saldos_em_atraso(session: Session, data_limite: date) -> list[tuple[C
 
     Args:
         session: Sessão SQLAlchemy ativa.
-        data_limite: Só considera compras com ``data <= data_limite``
+        data_limite: Só considera "atrasada" (pra fins de filtro e de
+            ``total_em_atraso``) uma compra com ``data <= data_limite``
             (ex.: hoje menos 30 dias).
 
     Returns:
-        Lista de tuplas (cliente, total_em_atraso, data_da_compra_mais_antiga),
-        da maior para a menor soma. ``total_em_atraso`` soma só as compras
-        que passam do limite — compras em aberto mais recentes do mesmo
-        cliente não entram nesse total.
+        Lista de tuplas (cliente, total_em_atraso, total_em_aberto,
+        data_da_compra_mais_antiga_em_atraso), da maior para a menor soma
+        atrasada. ``total_em_atraso`` soma só as compras que passam do
+        limite; ``total_em_aberto`` soma TODAS as compras em aberto do
+        cliente (atrasadas ou não) — a situação completa da conta, não só
+        a parte atrasada.
     """
+    esta_atrasada = Compra.data <= data_limite
+    valor_se_atrasada = case((esta_atrasada, Compra.valor), else_=0)
     stmt = (
-        select(Cliente, func.sum(Compra.valor), func.min(Compra.data))
+        select(
+            Cliente,
+            func.sum(valor_se_atrasada),
+            func.sum(Compra.valor),
+            func.min(case((esta_atrasada, Compra.data))),
+        )
         .join(Compra, Compra.cliente_id == Cliente.id)
         .where(
             Cliente.ativo.is_(True),
             Compra.ativo.is_(True),
             Compra.status != StatusCompra.QUITADA,
-            Compra.data <= data_limite,
         )
         .group_by(Cliente.id)
-        .order_by(func.sum(Compra.valor).desc())
+        .having(func.sum(valor_se_atrasada) > 0)
+        .order_by(func.sum(valor_se_atrasada).desc())
     )
     return list(session.execute(stmt).all())
 
@@ -270,3 +288,75 @@ def listar_vendas_ultimos_dias(session: Session, dias: int = 7) -> list[tuple[da
         )
         for offset in range(dias)
     ]
+
+
+def listar_historico_vendas(session: Session, limite: int = 200) -> list[tuple]:
+    """Lista as compras lançadas no sistema, uma por linha (aba "Vendas").
+
+    Vem do histórico de alterações (não direto da tabela de compras),
+    porque é lá que fica registrado quem lançou cada uma — a tabela de
+    compras não guarda isso. Cobre tanto lançamento manual (ação
+    "criacao") quanto por importação de XML ("criacao_via_xml"); compras
+    "Resto" (geradas automaticamente ao dividir um pagamento) nunca geram
+    uma entrada de "criacao" aqui, então já ficam de fora naturalmente —
+    não são uma venda nova.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        limite: Número máximo de registros retornados.
+
+    Returns:
+        Lista de tuplas (data_hora, nome_cliente, valor, nome_usuario), da
+        mais recente para a mais antiga.
+    """
+    stmt = (
+        select(
+            HistoricoAlteracao.data_hora,
+            Cliente.nome_principal,
+            Compra.valor,
+            Usuario.nome,
+        )
+        .join(Compra, Compra.id == HistoricoAlteracao.entidade_id)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .join(Usuario, Usuario.id == HistoricoAlteracao.usuario_id)
+        .where(
+            HistoricoAlteracao.entidade == "Compra",
+            HistoricoAlteracao.acao.in_(("criacao", "criacao_via_xml")),
+        )
+        .order_by(HistoricoAlteracao.data_hora.desc())
+        .limit(limite)
+    )
+    return list(session.execute(stmt).all())
+
+
+def listar_historico_recebimentos(session: Session, limite: int = 200) -> list[tuple]:
+    """Lista os pagamentos recebidos no sistema, um por linha (aba "Recebimentos").
+
+    Ao contrário de Vendas, vem direto da tabela de pagamentos — ela já
+    guarda quem recebeu (``Pagamento.recebido_por_usuario_id``). Inclui
+    pagamentos já estornados (``ativo=False``): o dinheiro foi recebido
+    naquele dia, então continua aparecendo aqui — o chamador decide como
+    sinalizar visualmente que foi desfeito depois.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        limite: Número máximo de registros retornados.
+
+    Returns:
+        Lista de tuplas (criado_em, nome_cliente, valor_pago, nome_usuario,
+        ativo), da mais recente para a mais antiga.
+    """
+    stmt = (
+        select(
+            Pagamento.criado_em,
+            Cliente.nome_principal,
+            Pagamento.valor_pago,
+            Usuario.nome,
+            Pagamento.ativo,
+        )
+        .join(Cliente, Cliente.id == Pagamento.cliente_id)
+        .join(Usuario, Usuario.id == Pagamento.recebido_por_usuario_id)
+        .order_by(Pagamento.criado_em.desc())
+        .limit(limite)
+    )
+    return list(session.execute(stmt).all())
