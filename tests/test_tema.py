@@ -39,6 +39,7 @@ def test_temas_suportam_classes_do_redesign_sidebar_card_e_status() -> None:
     for tema in (ModoTema.CLARO, ModoTema.ESCURO):
         css = obter_stylesheet(tema)
         assert 'papel="item_sidebar"' in css
+        assert 'papel="sidebar"' in css
         assert 'papel="card"' in css
         assert 'papel="sucesso"' in css
         assert 'papel="aviso"' in css

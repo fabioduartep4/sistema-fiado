@@ -1,10 +1,13 @@
 """Tela de Cadastrar Cliente (PySide6).
 
-Nesta etapa, cobre apenas o cadastro (criação) de um cliente novo, com
-nome principal (obrigatório) e nomes alternativos, telefones e
-compradores (todos opcionais e multivalorados). A edição de um cliente já
-existente faz parte da "ficha do cliente", a ser implementada na etapa de
-Busca de Cliente.
+Cobre o cadastro (criação) de um cliente novo, com nome principal
+(obrigatório) e nomes alternativos, telefones e compradores (todos
+opcionais e multivalorados). A edição de um cliente já existente faz
+parte da Ficha do Cliente (``app.views.ficha_cliente_view``).
+
+Não é mais uma aba própria da janela principal — hoje é aberta pelo
+botão "+ Novo Cliente" da tela "Clientes" (``app.views.clientes_view``),
+através de :class:`CadastrarClienteDialog`.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from PySide6.QtWidgets import (
+    QDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -139,3 +143,32 @@ class CadastrarClienteView(QWidget):
         self._lista_compradores.limpar()
         self._campo_limite_fiado.clear()
         self._campo_nome_principal.setFocus()
+
+
+class CadastrarClienteDialog(QDialog):
+    """Abre :class:`CadastrarClienteView` como um diálogo modal.
+
+    Usado pelo botão "+ Novo Cliente" da tela "Clientes" — mesmo padrão
+    de :class:`app.views.adicionar_compra_view.AdicionarCompraDialog`. O
+    formulário se limpa sozinho após cada cadastro bem-sucedido (não
+    fecha o diálogo automaticamente, para cadastrar vários clientes em
+    sequência sem reabrir); quem chamou decide se recarrega a lista ao
+    fechar (ver ``ClientesView``).
+    """
+
+    def __init__(self, usuario_logado: UsuarioAutenticado, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Novo Cliente")
+        self.setMinimumSize(420, 500)
+
+        self._view = CadastrarClienteView(usuario_logado)
+
+        botao_fechar = QPushButton("Fechar")
+        botao_fechar.setIcon(icone("X"))
+        botao_fechar.setMinimumHeight(38)
+        botao_fechar.clicked.connect(self.accept)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self._view)
+        layout.addWidget(botao_fechar)
+        self.setLayout(layout)

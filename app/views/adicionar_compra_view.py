@@ -198,22 +198,27 @@ class AdicionarCompraView(QWidget):
 class AdicionarCompraDialog(QDialog):
     """Abre :class:`AdicionarCompraView` como um diálogo modal.
 
-    Usado pelo botão "Adicionar Compra" da Ficha do Cliente, com o cliente
-    já pré-selecionado (etapa de busca pulada).
+    Usado pelo botão "Adicionar Compra" da Ficha do Cliente, com o
+    cliente já pré-selecionado (etapa de busca pulada) — e também pelo
+    atalho global "+ Novo Lançamento" (``app.views.novo_lancamento_dialog``),
+    sem cliente pré-selecionado (``cliente_id``/``nome_principal``
+    omitidos), caso em que a própria :class:`AdicionarCompraView` cuida
+    da busca.
     """
 
     def __init__(
         self,
         usuario_logado: UsuarioAutenticado,
-        cliente_id: str,
-        nome_principal: str,
+        cliente_id: str | None = None,
+        nome_principal: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Adicionar Compra — {nome_principal}")
+        self.setWindowTitle(f"Adicionar Compra — {nome_principal}" if nome_principal else "Adicionar Compra")
         self.setMinimumSize(380, 420)
 
-        self._view = AdicionarCompraView(usuario_logado, cliente_pre_selecionado=(cliente_id, nome_principal))
+        pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
+        self._view = AdicionarCompraView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))

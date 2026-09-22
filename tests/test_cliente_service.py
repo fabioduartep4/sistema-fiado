@@ -223,6 +223,32 @@ def test_contar_clientes_ativos_reflete_novo_cadastro(usuario_admin_teste) -> No
     assert apos_exclusao == antes
 
 
+def test_listar_clientes_com_status_marca_cliente_pendente_de_confirmacao(usuario_admin_teste) -> None:
+    from app.database.connection import session_scope
+    from app.repositories import cliente_repository as _cliente_repository
+
+    with session_scope() as session:
+        cliente_pendente = _cliente_repository.criar_cliente_pendente(
+            session, "Teste Automatizado Status Pendente Confirmacao"
+        )
+        cliente_id = str(cliente_pendente.id)
+
+    resultado = cliente_service.listar_clientes_com_status(
+        termo="Teste Automatizado Status Pendente Confirmacao"
+    )
+    status = next(r for r in resultado if r.id == cliente_id)
+    assert status.confirmado is False
+
+    cliente_service.confirmar_cliente(usuario_admin_teste, cliente_id)
+    resultado_depois = cliente_service.listar_clientes_com_status(
+        termo="Teste Automatizado Status Pendente Confirmacao"
+    )
+    status_depois = next(r for r in resultado_depois if r.id == cliente_id)
+    assert status_depois.confirmado is True
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente_id)
+
+
 def test_listar_clientes_com_status_filtra_por_termo(usuario_admin_teste) -> None:
     cliente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Status Filtro Unico", [], [], []

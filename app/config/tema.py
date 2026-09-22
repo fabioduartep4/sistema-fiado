@@ -135,6 +135,12 @@ QLabel[papel="aviso"] {{
     font-weight: 600;
 }}
 
+QFrame[papel="sidebar"] {{
+    background-color: {c["fundo_alt"]};
+    border: none;
+    border-right: 1px solid {c["borda"]};
+}}
+
 QFrame[papel="card"] {{
     background-color: {c["fundo_alt"]};
     border: 1px solid {c["borda"]};

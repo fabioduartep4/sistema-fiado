@@ -254,6 +254,7 @@ class ClienteStatusResumo:
     limite_fiado: Optional[Decimal]
     atrasado: bool
     excedido: bool
+    confirmado: bool
 
 
 @tratar_erros
@@ -304,6 +305,7 @@ def listar_clientes_com_status(termo: str = "", dias_atraso: int = 30) -> list[C
                     limite_fiado=cliente.limite_fiado,
                     atrasado=saldo_atrasado > 0,
                     excedido=cliente.limite_fiado is not None and saldo_total > cliente.limite_fiado,
+                    confirmado=cliente.confirmado,
                 )
             )
         return resultado

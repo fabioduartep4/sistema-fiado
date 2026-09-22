@@ -241,21 +241,25 @@ class ReceberContaDialog(QDialog):
     """Abre :class:`ReceberContaView` como um diálogo modal.
 
     Usado pelo botão "Receber Conta" da Ficha do Cliente, com o cliente já
-    pré-selecionado (etapa de busca pulada).
+    pré-selecionado (etapa de busca pulada) — e também pelo atalho global
+    "+ Novo Lançamento" (``app.views.novo_lancamento_dialog``), sem
+    cliente pré-selecionado (``cliente_id``/``nome_principal`` omitidos),
+    caso em que a própria :class:`ReceberContaView` cuida da busca.
     """
 
     def __init__(
         self,
         usuario_logado: UsuarioAutenticado,
-        cliente_id: str,
-        nome_principal: str,
+        cliente_id: str | None = None,
+        nome_principal: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Receber Conta — {nome_principal}")
+        self.setWindowTitle(f"Receber Conta — {nome_principal}" if nome_principal else "Receber Conta")
         self.setMinimumSize(400, 560)
 
-        self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=(cliente_id, nome_principal))
+        pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
+        self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))

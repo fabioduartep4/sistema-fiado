@@ -3,7 +3,9 @@
 Contém ``ListaDinamicaWidget``, usado nos campos multivalorados e opcionais
 do cadastro de cliente (nomes alternativos, telefones e compradores), e
 ``CampoBuscaClienteWidget``, usado em toda tela que precisa escolher um
-cliente por nome (Buscar Cliente, Adicionar Compra, Receber Conta).
+cliente por nome só pelo nome, sem tabela (Adicionar Compra, Receber
+Conta — a tela "Clientes" tem sua própria busca com tabela de status,
+ver ``app.views.clientes_view``).
 """
 
 from __future__ import annotations
@@ -107,8 +109,8 @@ class ListaDinamicaWidget(QWidget):
 class CampoBuscaClienteWidget(QWidget):
     """Campo de busca de cliente por nome, com debounce, thread própria e resultados.
 
-    Reúne o padrão usado em três telas (Buscar Cliente, Adicionar Compra,
-    Receber Conta): campo de texto com *debounce* de
+    Reúne o padrão usado em Adicionar Compra e Receber Conta (quando
+    abertas sem cliente pré-selecionado): campo de texto com *debounce* de
     ``_INTERVALO_DEBOUNCE_MS``, busca executada em uma
     :class:`~app.views.busca_cliente_worker.BuscaClienteWorker` (fora da
     thread da UI), contador de sequência para descartar resultados

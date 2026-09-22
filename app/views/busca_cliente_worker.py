@@ -1,12 +1,12 @@
 """Worker de busca de cliente compartilhado (PySide6).
 
 Contém a ``QThread`` usada para buscar clientes em segundo plano, sem
-travar a interface. Fica em um módulo próprio (em vez de dentro de
-``app.views.buscar_cliente_view``) para evitar import circular: as telas
-Adicionar Compra e Receber Conta também usam esse worker para o próprio
-seletor de cliente, e a Ficha do Cliente importa essas duas telas — um
-worker definido dentro de ``buscar_cliente_view`` faria esse módulo
-importar (indiretamente, via Ficha do Cliente) a si mesmo.
+travar a interface. Fica em um módulo próprio (em vez de dentro da tela
+que a usa, ex.: ``app.views.clientes_view``) para evitar import
+circular: as telas Adicionar Compra e Receber Conta também usam esse
+worker para o próprio seletor de cliente, e a Ficha do Cliente importa
+essas duas telas — um worker definido dentro de uma dessas telas faria
+esse módulo importar (indiretamente, via Ficha do Cliente) a si mesmo.
 """
 
 from __future__ import annotations
