@@ -42,7 +42,7 @@ from app.services.relatorio_service import SaldoClienteResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas
+from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
 from app.views.ficha_cliente_view import FichaClienteView
 
 # Altura mínima da tabela de "Saldo em Aberto", calculada para caber pelo
@@ -192,10 +192,16 @@ class SaldosView(QWidget):
         self._tabela_saldos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
         self._tabela_saldos.cellDoubleClicked.connect(self._abrir_ficha_da_linha)
         ajustar_colunas(self._tabela_saldos, 1)  # Cliente
+
+        self._label_saldos_vazio = QLabel("Nenhum cliente com saldo em aberto.")
+        self._label_saldos_vazio.setProperty("papel", "secundario")
+        self._label_saldos_vazio.setVisible(False)
+
         self._preencher_tabela(saldos)
 
         layout_caixa.addLayout(layout_botoes_exportar)
         layout_caixa.addWidget(self._tabela_saldos)
+        layout_caixa.addWidget(self._label_saldos_vazio)
         self._layout_conteudo.addWidget(caixa_saldo_em_aberto)
 
         self._layout_conteudo.addStretch()
@@ -208,6 +214,7 @@ class SaldosView(QWidget):
             self._tabela_saldos.setItem(linha, 0, item_codigo)
             self._tabela_saldos.setItem(linha, 1, QTableWidgetItem(saldo.nome_principal))
             self._tabela_saldos.setItem(linha, 2, QTableWidgetItem(f"R$ {saldo.total_em_aberto:.2f}"))
+        aplicar_estado_vazio(self._tabela_saldos, self._label_saldos_vazio)
 
     def _filtrar_tabela(self, termo: str) -> None:
         termo_normalizado = termo.strip().lower()

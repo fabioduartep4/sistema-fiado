@@ -63,7 +63,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas
+from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
 from app.views.ficha_cliente_view import FichaClienteView
 
 # Altura mínima das tabelas de "Clientes com Maior Atraso" e "Clientes
@@ -367,6 +367,10 @@ class PainelInicioView(QWidget):
         )
         ajustar_colunas(self._tabela_atrasos, 0)  # Cliente
 
+        self._label_atrasos_vazio = QLabel("Nenhum cliente com saldo atrasado no momento.")
+        self._label_atrasos_vazio.setProperty("papel", "secundario")
+        self._label_atrasos_vazio.setVisible(False)
+
         layout_caixa = QVBoxLayout(caixa)
         layout_caixa.addLayout(layout_filtro)
         layout_caixa.addWidget(QLabel(
@@ -374,6 +378,7 @@ class PainelInicioView(QWidget):
             "referência: quanto mais antiga uma compra ainda em aberto, mais atrasada conta."
         ))
         layout_caixa.addWidget(self._tabela_atrasos)
+        layout_caixa.addWidget(self._label_atrasos_vazio)
         return caixa
 
     def _carregar_maiores_atrasos(self) -> None:
@@ -412,6 +417,8 @@ class PainelInicioView(QWidget):
             botao_ver.clicked.connect(lambda _checked=False, s=saldo: self._abrir_ficha(s.id))
             self._tabela_atrasos.setCellWidget(linha, 5, botao_ver)
 
+        aplicar_estado_vazio(self._tabela_atrasos, self._label_atrasos_vazio)
+
     # -- Clientes Acima do Limite de Fiado -----------------------------------
     #
     # Mesmo raciocínio da caixa de maior atraso: fora do ciclo de
@@ -445,9 +452,14 @@ class PainelInicioView(QWidget):
         )
         ajustar_colunas(self._tabela_acima_do_limite, 0)  # Cliente
 
+        self._label_acima_limite_vazio = QLabel("Nenhum cliente acima do limite no momento.")
+        self._label_acima_limite_vazio.setProperty("papel", "secundario")
+        self._label_acima_limite_vazio.setVisible(False)
+
         layout_caixa = QVBoxLayout(caixa)
         layout_caixa.addLayout(layout_topo)
         layout_caixa.addWidget(self._tabela_acima_do_limite)
+        layout_caixa.addWidget(self._label_acima_limite_vazio)
         return caixa
 
     def _carregar_acima_do_limite(self) -> None:
@@ -485,6 +497,8 @@ class PainelInicioView(QWidget):
             botao_ver.setToolTip("Abrir ficha do cliente")
             botao_ver.clicked.connect(lambda _checked=False, i=item: self._abrir_ficha(i.id))
             self._tabela_acima_do_limite.setCellWidget(linha, 5, botao_ver)
+
+        aplicar_estado_vazio(self._tabela_acima_do_limite, self._label_acima_limite_vazio)
 
     # -- Gráficos dependentes do período --------------------------------------
 

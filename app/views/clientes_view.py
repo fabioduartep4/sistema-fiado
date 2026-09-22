@@ -34,7 +34,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteStatusResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas
+from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
 from app.views.cadastrar_cliente_view import CadastrarClienteDialog
 from app.views.ficha_cliente_view import FichaClienteView
 
@@ -162,8 +162,7 @@ class ClientesView(QWidget):
             self._tabela.setItem(linha, 4, item_status)
             self._tabela.item(linha, 0).setData(Qt.ItemDataRole.UserRole, cliente.id)
 
-        self._tabela.setVisible(bool(clientes))
-        self._label_vazio.setVisible(not clientes)
+        aplicar_estado_vazio(self._tabela, self._label_vazio)
 
     def _aplicar_filtro(self, clientes: list[ClienteStatusResumo]) -> list[ClienteStatusResumo]:
         if self._filtro_atual == "Com saldo":

@@ -50,7 +50,7 @@ from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas
+from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
 from app.utils.text_normalizer import normalizar_telefone
 from app.utils.whatsapp import montar_link_whatsapp
 
@@ -185,9 +185,14 @@ class RelatorioView(QWidget):
         self._tabela_movimentacoes.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         ajustar_colunas(self._tabela_movimentacoes, 1)  # Cliente
 
+        self._label_movimentacoes_vazio = QLabel("Nenhuma movimentação encontrada para esse filtro.")
+        self._label_movimentacoes_vazio.setProperty("papel", "secundario")
+        self._label_movimentacoes_vazio.setVisible(False)
+
         layout = QVBoxLayout(pagina)
         layout.addLayout(layout_filtro)
         layout.addWidget(self._tabela_movimentacoes)
+        layout.addWidget(self._label_movimentacoes_vazio)
 
         self._carregar_movimentacoes()
         return pagina
@@ -225,6 +230,8 @@ class RelatorioView(QWidget):
                 linha, 3, QTableWidgetItem(f"R$ {registro.valor:.2f}{marca_estorno}")
             )
             self._tabela_movimentacoes.setItem(linha, 4, QTableWidgetItem(registro.usuario_nome))
+
+        aplicar_estado_vazio(self._tabela_movimentacoes, self._label_movimentacoes_vazio)
 
     # -- Sub-aba: Alterações ---------------------------------------------------
 
