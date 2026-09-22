@@ -1,5 +1,45 @@
 # Sistema de Gestão de Fiado — Etapas 1 e 2: Fundação + Login
 
+## Redesign completo de interface: sidebar, tema, tela Clientes unificada (novidade)
+
+Redesign de UI/UX aprovado ponto a ponto antes de qualquer código —
+sistema mais rápido de entender e operar, número em destaque, menos
+telas pra fazer a mesma coisa.
+
+- **Navegação em sidebar** — substitui a barra de abas horizontal.
+  Administrador vê Início/Clientes/Saldos/Histórico/Backups/
+  Configurações; Funcionário só Clientes (as outras exigem admin).
+  Usuário logado + botão Sair ficam no rodapé da sidebar.
+- **Tema novo** (`app/config/tema.py`): paleta clara/escura atualizada,
+  tokens semânticos `sucesso`/`aviso`/`perigo` (verde/amarelo/vermelho)
+  e classes novas `papel="card"` (cartões de estatística) e
+  `papel="item_sidebar"` (itens de navegação).
+- **"Clientes" unificado** — reúne busca + tabela + "+ Novo Cliente"
+  (agora um diálogo) numa tela só, com filtros rápidos (Todos/Com
+  saldo/Em atraso/Acima do limite) e coluna de status. Desfaz o split
+  "Buscar Cliente"/"Cadastrar Cliente" de uma leva anterior.
+- **Ficha do Cliente**: cartão de saldo/limite/disponível + histórico
+  combinado (compras `+`, pagamentos `-`) no lugar das duas listas
+  separadas de antes. Ganhou o botão "Enviar Lembrete" (saiu das
+  tabelas do dashboard).
+- **Início**: 4 cartões (Em Aberto, Vendas Hoje, Clientes, Acima do
+  Limite), gráficos menores, nova seção "Movimentações Recentes". As
+  tabelas de Acima do Limite/Maior Atraso perderam o botão de lembrete
+  por linha — agora é clicar (ou duplo clique) pra abrir a ficha.
+- **Saldos**: 3 cartões + busca por nome + linha clicável.
+- **Histórico**: "Vendas" e "Recebimentos" viraram uma sub-aba só
+  ("Vendas e Recebimentos"), com filtros de período/cliente/tipo.
+- **"+ Novo Lançamento"** — atalho global no cabeçalho (Compra ou
+  Pagamento, sem precisar abrir a ficha de um cliente específico
+  primeiro).
+- Estados vazios amigáveis nas tabelas principais ("Nenhum cliente
+  encontrado.", etc.).
+
+Não entrou nesta leva (por decisão explícita durante o planejamento):
+fonte "Inter" (sem como baixar o arquivo aqui — fica em Segoe UI por
+enquanto), sininho de notificações (só visual, sem função ainda) e
+"Meu perfil" (autoatendimento de conta).
+
 ## "Clientes com Maior Atraso": total em aberto na tabela e lembrete mais completo (novidade)
 
 - **Nova coluna "Total em Aberto"** na tabela de "Clientes com Maior
