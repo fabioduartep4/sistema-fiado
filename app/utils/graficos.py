@@ -18,8 +18,15 @@ from PySide6.QtCharts import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter
 
+# Altura padrão dos gráficos — reduzida no redesign (antes 280px): um
+# gráfico não deve dominar a tela, é só um complemento visual aos
+# números que já aparecem nos cartões/tabelas ao redor dele.
+_ALTURA_PADRAO = 160
 
-def construir_grafico_barras(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
+
+def construir_grafico_barras(
+    titulo_serie: str, rotulos: list[str], valores: list[float], altura: int = _ALTURA_PADRAO
+) -> QChartView:
     """Monta um gráfico de barras verticais simples (uma série)."""
     conjunto = QBarSet(titulo_serie)
     conjunto.append(valores)
@@ -42,11 +49,13 @@ def construir_grafico_barras(titulo_serie: str, rotulos: list[str], valores: lis
 
     view = QChartView(grafico)
     view.setRenderHint(QPainter.RenderHint.Antialiasing)
-    view.setMinimumHeight(280)
+    view.setMinimumHeight(altura)
     return view
 
 
-def construir_grafico_linha(titulo_serie: str, rotulos: list[str], valores: list[float]) -> QChartView:
+def construir_grafico_linha(
+    titulo_serie: str, rotulos: list[str], valores: list[float], altura: int = _ALTURA_PADRAO
+) -> QChartView:
     """Monta um gráfico de linha simples (uma série), para séries temporais."""
     serie = QLineSeries()
     serie.setName(titulo_serie)
@@ -68,5 +77,5 @@ def construir_grafico_linha(titulo_serie: str, rotulos: list[str], valores: list
 
     view = QChartView(grafico)
     view.setRenderHint(QPainter.RenderHint.Antialiasing)
-    view.setMinimumHeight(280)
+    view.setMinimumHeight(altura)
     return view
