@@ -6,6 +6,7 @@ Gravam de verdade no banco configurado em ``.env``. Só rodam com
 
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -162,3 +163,77 @@ def test_listar_grupos_duplicados_encontra_o_grupo_criado(usuario_admin_teste) -
 
     cliente_service.mesclar_clientes(usuario_admin_teste, c1.id, [c2.id])
     cliente_service.excluir_cliente(usuario_admin_teste, c1.id)
+
+
+def test_listar_clientes_com_status_inclui_cliente_sem_nenhuma_compra(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Status Sem Saldo", [], [], []
+    )
+
+    resultado = cliente_service.listar_clientes_com_status(termo="Teste Automatizado Status Sem Saldo")
+    status = next((r for r in resultado if r.id == cliente.id), None)
+
+    assert status is not None
+    assert status.saldo == Decimal("0")
+    assert status.atrasado is False
+    assert status.excedido is False
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_clientes_com_status_calcula_saldo_atraso_e_excesso(usuario_admin_teste) -> None:
+    hoje = obter_data_padrao()
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste,
+        "Teste Automatizado Status Atrasado Excedido",
+        [],
+        [],
+        [],
+        limite_fiado=Decimal("50.00"),
+    )
+    compra_service.registrar_compra(
+        usuario_admin_teste, cliente.id, Decimal("90.00"), hoje - timedelta(days=40), None
+    )
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("15.00"), hoje, None)
+
+    resultado = cliente_service.listar_clientes_com_status(
+        termo="Teste Automatizado Status Atrasado Excedido", dias_atraso=30
+    )
+    status = next(r for r in resultado if r.id == cliente.id)
+
+    assert status.saldo == Decimal("105.00")
+    assert status.limite_fiado == Decimal("50.00")
+    assert status.atrasado is True
+    assert status.excedido is True
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_contar_clientes_ativos_reflete_novo_cadastro(usuario_admin_teste) -> None:
+    antes = cliente_service.contar_clientes_ativos()
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Contagem Ativos", [], [], []
+    )
+    depois = cliente_service.contar_clientes_ativos()
+    assert depois == antes + 1
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+    apos_exclusao = cliente_service.contar_clientes_ativos()
+    assert apos_exclusao == antes
+
+
+def test_listar_clientes_com_status_filtra_por_termo(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Status Filtro Unico", [], [], []
+    )
+
+    resultado_encontra = cliente_service.listar_clientes_com_status(termo="Status Filtro Unico")
+    resultado_nao_encontra = cliente_service.listar_clientes_com_status(
+        termo="Nome Que Certamente Nao Existe Em Nenhum Cliente"
+    )
+
+    assert any(r.id == cliente.id for r in resultado_encontra)
+    assert not any(r.id == cliente.id for r in resultado_nao_encontra)
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

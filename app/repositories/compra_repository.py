@@ -11,7 +11,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.comprador import Comprador
@@ -54,6 +54,44 @@ def calcular_total_em_aberto(session: Session, cliente_id: uuid.UUID) -> Decimal
     )
     total = session.execute(stmt).scalar_one()
     return Decimal(total)
+
+
+def listar_saldos_e_atrasos(
+    session: Session, data_limite_atraso: date
+) -> dict[uuid.UUID, tuple[Decimal, Decimal]]:
+    """Soma o saldo em aberto (total e atrasado) de todos os clientes de uma vez.
+
+    Usado pela listagem de Clientes (``app.services.cliente_service.listar_clientes_com_status``)
+    pra trazer o status de todo mundo sem uma consulta por cliente — mesma
+    ideia de ``app.repositories.relatorio_repository.listar_saldos_em_atraso``,
+    só que sem o JOIN com ``Cliente`` (aqui quem lista os clientes, ativos
+    ou não, é o chamador).
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        data_limite_atraso: Só conta como "atrasada" (pra fins de
+            ``saldo_atrasado``) uma compra com ``data <= data_limite_atraso``.
+
+    Returns:
+        Dict ``cliente_id -> (saldo_total, saldo_atrasado)``. Um cliente
+        sem nenhuma compra em aberto simplesmente não aparece na dict
+        (equivalente a ``(Decimal("0"), Decimal("0"))`` pra quem não
+        estiver presente).
+    """
+    esta_atrasada = Compra.data <= data_limite_atraso
+    stmt = (
+        select(
+            Compra.cliente_id,
+            func.sum(Compra.valor),
+            func.sum(case((esta_atrasada, Compra.valor), else_=0)),
+        )
+        .where(Compra.ativo.is_(True), Compra.status != StatusCompra.QUITADA)
+        .group_by(Compra.cliente_id)
+    )
+    return {
+        cliente_id: (Decimal(total), Decimal(atrasado))
+        for cliente_id, total, atrasado in session.execute(stmt).all()
+    }
 
 
 def listar_compradores_do_cliente(session: Session, cliente_id: uuid.UUID) -> list[Comprador]:

@@ -6,6 +6,7 @@ e a regra de negócio (``app.services.relatorio_service``).
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
 from app.services import relatorio_service
@@ -37,13 +38,42 @@ class RelatorioController:
         """Lista o histórico de alterações do sistema."""
         return relatorio_service.listar_historico(self.usuario_logado, entidade, limite)
 
-    def listar_historico_vendas(self, limite: int = 200) -> list[HistoricoFinanceiroResumo]:
+    def listar_historico_vendas(
+        self,
+        limite: int = 200,
+        data_inicio: Optional[date] = None,
+        data_fim: Optional[date] = None,
+        cliente_nome: Optional[str] = None,
+    ) -> list[HistoricoFinanceiroResumo]:
         """Lista as compras lançadas no sistema (histórico de Vendas)."""
-        return relatorio_service.listar_historico_vendas(self.usuario_logado, limite)
+        return relatorio_service.listar_historico_vendas(
+            self.usuario_logado, limite, data_inicio, data_fim, cliente_nome
+        )
 
-    def listar_historico_recebimentos(self, limite: int = 200) -> list[HistoricoFinanceiroResumo]:
+    def listar_historico_recebimentos(
+        self,
+        limite: int = 200,
+        data_inicio: Optional[date] = None,
+        data_fim: Optional[date] = None,
+        cliente_nome: Optional[str] = None,
+    ) -> list[HistoricoFinanceiroResumo]:
         """Lista os pagamentos recebidos no sistema (histórico de Recebimentos)."""
-        return relatorio_service.listar_historico_recebimentos(self.usuario_logado, limite)
+        return relatorio_service.listar_historico_recebimentos(
+            self.usuario_logado, limite, data_inicio, data_fim, cliente_nome
+        )
+
+    def listar_movimentacoes(
+        self,
+        limite: int = 200,
+        data_inicio: Optional[date] = None,
+        data_fim: Optional[date] = None,
+        cliente_nome: Optional[str] = None,
+        tipo: Optional[str] = None,
+    ) -> list[HistoricoFinanceiroResumo]:
+        """Lista Vendas + Recebimentos combinados numa lista só, mais recente primeiro."""
+        return relatorio_service.listar_movimentacoes(
+            self.usuario_logado, limite, data_inicio, data_fim, cliente_nome, tipo
+        )
 
     def listar_log_erros(self, limite: int = 200) -> list[LogErroResumo]:
         """Lista os erros registrados pelo sistema."""

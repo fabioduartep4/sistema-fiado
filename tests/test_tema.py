@@ -31,3 +31,15 @@ def test_temas_suportam_classes_de_titulo_e_botao_primario() -> None:
         css = obter_stylesheet(tema)
         assert 'papel="titulo"' in css
         assert 'importancia="primaria"' in css
+
+
+def test_temas_suportam_classes_do_redesign_sidebar_card_e_status() -> None:
+    """item_sidebar/card (navegação em sidebar) e sucesso/aviso/perigo
+    (regra de cor: verde/amarelo/vermelho) fazem parte do redesign."""
+    for tema in (ModoTema.CLARO, ModoTema.ESCURO):
+        css = obter_stylesheet(tema)
+        assert 'papel="item_sidebar"' in css
+        assert 'papel="card"' in css
+        assert 'papel="sucesso"' in css
+        assert 'papel="aviso"' in css
+        assert 'papel="perigo"' in css

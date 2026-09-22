@@ -12,7 +12,13 @@ from typing import Optional
 
 from app.services import cliente_service
 from app.services.auth_service import UsuarioAutenticado
-from app.services.cliente_service import ClienteBusca, ClienteFicha, ClienteResumo, GrupoDuplicados
+from app.services.cliente_service import (
+    ClienteBusca,
+    ClienteFicha,
+    ClienteResumo,
+    ClienteStatusResumo,
+    GrupoDuplicados,
+)
 
 
 class ClienteController:
@@ -47,6 +53,14 @@ class ClienteController:
     def buscar(self, termo: str) -> list[ClienteBusca]:
         """Busca clientes por nome principal ou nome alternativo."""
         return cliente_service.buscar_clientes(termo)
+
+    def listar_com_status(self, termo: str = "", dias_atraso: int = 30) -> list[ClienteStatusResumo]:
+        """Lista todos os clientes ativos com saldo/limite/status já calculados."""
+        return cliente_service.listar_clientes_com_status(termo, dias_atraso)
+
+    def contar_ativos(self) -> int:
+        """Conta quantos clientes ativos existem no sistema."""
+        return cliente_service.contar_clientes_ativos()
 
     def ficha(self, cliente_id: str) -> ClienteFicha:
         """Obtém a ficha completa de um cliente."""

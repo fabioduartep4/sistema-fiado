@@ -11,7 +11,7 @@ import uuid
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
@@ -79,6 +79,44 @@ def buscar_por_id(session: Session, cliente_id: uuid.UUID) -> Cliente | None:
         O :class:`Cliente` encontrado, ou None se não existir.
     """
     return session.get(Cliente, cliente_id)
+
+
+def contar_ativos(session: Session) -> int:
+    """Conta quantos clientes ativos existem no sistema (card "Clientes" do Início).
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+
+    Returns:
+        Quantidade de clientes ativos.
+    """
+    stmt = select(func.count()).select_from(Cliente).where(Cliente.ativo.is_(True))
+    return session.execute(stmt).scalar_one()
+
+
+def listar_ativos(session: Session, termo_normalizado: Optional[str] = None) -> list[Cliente]:
+    """Lista clientes ativos, opcionalmente filtrados por nome, ordenados por nome.
+
+    Diferente de ``buscar_por_nome_principal``/``buscar_por_nome_alternativo``
+    (usadas na busca com ranking de ``cliente_service.buscar_clientes``),
+    esta é uma listagem "completa" — usada pela tela "Clientes", que
+    precisa mostrar todo mundo (com um filtro de status aplicado depois,
+    na camada de serviço) e não só os resultados de uma busca pontual.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        termo_normalizado: Filtro opcional por nome principal (contém, já
+            normalizado — ver ``app.utils.text_normalizer.normalizar_texto``).
+            ``None``/vazio lista todos os clientes ativos.
+
+    Returns:
+        Lista de :class:`Cliente` ativos, ordenada por nome principal.
+    """
+    stmt = select(Cliente).where(Cliente.ativo.is_(True))
+    if termo_normalizado:
+        stmt = stmt.where(Cliente.nome_principal_normalizado.like(f"%{termo_normalizado}%"))
+    stmt = stmt.order_by(Cliente.nome_principal)
+    return list(session.execute(stmt).scalars().all())
 
 
 def buscar_por_nome_principal(session: Session, termo_normalizado: str) -> list[Cliente]:
