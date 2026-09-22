@@ -1,14 +1,20 @@
 """Tela de Histórico (PySide6).
 
-Visível apenas para Administrador. Reúne quatro sub-abas, nesta ordem:
-Vendas (compras lançadas, uma por linha — quem, quando, pra qual conta,
-quanto), Recebimentos (pagamentos recebidos, mesmo formato — inclui
-pagamentos já estornados, marcados como tal), Alterações (auditoria
-genérica do resto do sistema: cadastro/edição/exclusão de cliente,
-gestão de usuários, estorno de pagamento — com uma descrição em texto já
-pronta pra cada ação, ver ``app.services.relatorio_service._descrever_acao``)
-e Log de Erros. A antiga sub-aba "Saldo em Aberto" foi movida para a aba
-"Saldos" — ver ``app.views.saldos_view``.
+Visível apenas para Administrador. Reúne três sub-abas, nesta ordem:
+
+- "Vendas e Recebimentos" — compras e pagamentos combinados numa tabela
+  só (Data/Cliente/Tipo/Valor/Usuário), com filtros de período, cliente
+  e tipo (antes eram duas sub-abas separadas, "Vendas" e
+  "Recebimentos" — ver ``app.services.relatorio_service.listar_movimentacoes``,
+  que já normaliza os dois formatos num só).
+- "Alterações" — auditoria genérica do resto do sistema:
+  cadastro/edição/exclusão de cliente, gestão de usuários, estorno de
+  pagamento — com uma descrição em texto já pronta pra cada ação (ver
+  ``app.services.relatorio_service._descrever_acao``).
+- "Log de Erros".
+
+A antiga sub-aba "Saldo em Aberto" foi movida para a aba "Saldos" — ver
+``app.views.saldos_view``.
 
 ``LembreteWhatsAppDialog`` continua definido aqui (usado também pela tela
 de Início, que reaproveita esta classe) mesmo com a antiga sub-aba
@@ -18,13 +24,17 @@ seção "Clientes com Maior Atraso".
 
 from __future__ import annotations
 
-from PySide6.QtCore import QUrl
+from datetime import date, timedelta
+
+from PySide6.QtCore import QDate, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
+    QDateEdit,
     QDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -38,7 +48,6 @@ from PySide6.QtWidgets import (
 from app.config.logging_config import logger
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
-from app.services.relatorio_service import HistoricoFinanceiroResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.tabelas import ajustar_colunas
@@ -46,9 +55,16 @@ from app.utils.text_normalizer import normalizar_telefone
 from app.utils.whatsapp import montar_link_whatsapp
 
 # "Compra" não entra aqui: toda entrada de histórico com essa entidade
-# vira a aba "Vendas" (ver app.repositories.historico_repository.listar),
+# vira a aba "Vendas e Recebimentos" (ver app.repositories.historico_repository.listar),
 # então o filtro nunca teria nada pra mostrar.
 _ENTIDADES_FILTRO = ["Todas", "Cliente", "Pagamento", "Usuario"]
+
+_TIPOS_FILTRO = ["Todos", "Venda", "Recebimento"]
+
+# Janela padrão da aba "Vendas e Recebimentos" ao abrir — os campos de
+# data continuam editáveis pra ampliar a busca; mesma ideia do período
+# padrão (mês atual) já usado no seletor de período do Início.
+_DIAS_PADRAO_MOVIMENTACOES = 30
 
 
 class LembreteWhatsAppDialog(QDialog):
@@ -113,8 +129,7 @@ class RelatorioView(QWidget):
         self._controller = RelatorioController(usuario_logado)
 
         abas = QTabWidget()
-        abas.addTab(self._construir_aba_vendas(), "Vendas")
-        abas.addTab(self._construir_aba_recebimentos(), "Recebimentos")
+        abas.addTab(self._construir_aba_movimentacoes(), "Vendas e Recebimentos")
         abas.addTab(self._construir_aba_historico(), "Alterações")
         abas.addTab(self._construir_aba_log_erros(), "Log de Erros")
 
@@ -126,95 +141,90 @@ class RelatorioView(QWidget):
         layout.addWidget(abas)
         self.setLayout(layout)
 
-    # -- Sub-aba: Vendas -------------------------------------------------------
+    # -- Sub-aba: Vendas e Recebimentos ------------------------------------------
     #
-    # Uma linha por compra lançada (manual ou via XML) — quem lançou, pra
-    # qual conta, quando e quanto. Sem filtro: é um extrato simples, mais
-    # recentes primeiro.
+    # Compras e pagamentos combinados numa tabela só (mais recente
+    # primeiro), com filtros de período, cliente e tipo — ver
+    # RelatorioController.listar_movimentacoes.
 
-    def _construir_aba_vendas(self) -> QWidget:
+    def _construir_aba_movimentacoes(self) -> QWidget:
         pagina = QWidget()
+
+        hoje = date.today()
+        self._campo_data_inicio_mov = QDateEdit(QDate(hoje - timedelta(days=_DIAS_PADRAO_MOVIMENTACOES)))
+        self._campo_data_inicio_mov.setCalendarPopup(True)
+        self._campo_data_inicio_mov.setDisplayFormat("dd/MM/yyyy")
+
+        self._campo_data_fim_mov = QDateEdit(QDate(hoje))
+        self._campo_data_fim_mov.setCalendarPopup(True)
+        self._campo_data_fim_mov.setDisplayFormat("dd/MM/yyyy")
+
+        self._campo_cliente_mov = QLineEdit()
+        self._campo_cliente_mov.setPlaceholderText("Todos os clientes")
+
+        self._campo_tipo_mov = QComboBox()
+        self._campo_tipo_mov.addItems(_TIPOS_FILTRO)
 
         botao_atualizar = QPushButton("Atualizar")
         botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_vendas)
+        botao_atualizar.clicked.connect(self._carregar_movimentacoes)
 
-        self._tabela_vendas = QTableWidget(0, 4)
-        self._tabela_vendas.setHorizontalHeaderLabels(["Data", "Conta", "Valor", "Usuário"])
-        self._tabela_vendas.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        ajustar_colunas(self._tabela_vendas, 1)  # Conta
+        layout_filtro = QHBoxLayout()
+        layout_filtro.addWidget(QLabel("De:"))
+        layout_filtro.addWidget(self._campo_data_inicio_mov)
+        layout_filtro.addWidget(QLabel("Até:"))
+        layout_filtro.addWidget(self._campo_data_fim_mov)
+        layout_filtro.addWidget(QLabel("Cliente:"))
+        layout_filtro.addWidget(self._campo_cliente_mov)
+        layout_filtro.addWidget(QLabel("Tipo:"))
+        layout_filtro.addWidget(self._campo_tipo_mov)
+        layout_filtro.addWidget(botao_atualizar)
 
-        layout = QVBoxLayout(pagina)
-        layout.addWidget(botao_atualizar)
-        layout.addWidget(self._tabela_vendas)
-
-        self._carregar_vendas()
-        return pagina
-
-    def _carregar_vendas(self) -> None:
-        try:
-            registros = self._controller.listar_historico_vendas()
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar o histórico de vendas", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao carregar o histórico de vendas.")
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o histórico de vendas.")
-            return
-
-        self._preencher_tabela_financeira(self._tabela_vendas, registros)
-
-    # -- Sub-aba: Recebimentos --------------------------------------------------
-    #
-    # Mesmo formato de Vendas, uma linha por pagamento recebido. Pagamentos
-    # já estornados continuam aparecendo (o dinheiro entrou naquele dia),
-    # só marcados como "[Estornado]" na coluna Valor.
-
-    def _construir_aba_recebimentos(self) -> QWidget:
-        pagina = QWidget()
-
-        botao_atualizar = QPushButton("Atualizar")
-        botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_recebimentos)
-
-        self._tabela_recebimentos = QTableWidget(0, 4)
-        self._tabela_recebimentos.setHorizontalHeaderLabels(["Data", "Conta", "Valor", "Usuário"])
-        self._tabela_recebimentos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        ajustar_colunas(self._tabela_recebimentos, 1)  # Conta
+        self._tabela_movimentacoes = QTableWidget(0, 5)
+        self._tabela_movimentacoes.setHorizontalHeaderLabels(["Data", "Cliente", "Tipo", "Valor", "Usuário"])
+        self._tabela_movimentacoes.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        ajustar_colunas(self._tabela_movimentacoes, 1)  # Cliente
 
         layout = QVBoxLayout(pagina)
-        layout.addWidget(botao_atualizar)
-        layout.addWidget(self._tabela_recebimentos)
+        layout.addLayout(layout_filtro)
+        layout.addWidget(self._tabela_movimentacoes)
 
-        self._carregar_recebimentos()
+        self._carregar_movimentacoes()
         return pagina
 
-    def _carregar_recebimentos(self) -> None:
+    def _carregar_movimentacoes(self) -> None:
+        data_inicio = self._campo_data_inicio_mov.date().toPython()
+        data_fim = self._campo_data_fim_mov.date().toPython()
+        cliente_nome = self._campo_cliente_mov.text().strip() or None
+        tipo_selecionado = self._campo_tipo_mov.currentText()
+        tipo = None if tipo_selecionado == "Todos" else tipo_selecionado
+
         try:
-            registros = self._controller.listar_historico_recebimentos()
+            registros = self._controller.listar_movimentacoes(
+                data_inicio=data_inicio, data_fim=data_fim, cliente_nome=cliente_nome, tipo=tipo
+            )
         except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar o histórico de recebimentos", str(exc))
+            QMessageBox.warning(self, "Não foi possível carregar as movimentações", str(exc))
             return
         except Exception:
-            logger.exception("Falha inesperada ao carregar o histórico de recebimentos.")
+            logger.exception("Falha inesperada ao carregar vendas e recebimentos.")
             QMessageBox.critical(
-                self, "Erro inesperado", "Não foi possível carregar o histórico de recebimentos."
+                self, "Erro inesperado", "Não foi possível carregar vendas e recebimentos."
             )
             return
 
-        self._preencher_tabela_financeira(self._tabela_recebimentos, registros)
-
-    @staticmethod
-    def _preencher_tabela_financeira(
-        tabela: QTableWidget, registros: list[HistoricoFinanceiroResumo]
-    ) -> None:
-        tabela.setRowCount(len(registros))
+        self._tabela_movimentacoes.setRowCount(len(registros))
         for linha, registro in enumerate(registros):
             marca_estorno = " [Estornado]" if registro.estornado else ""
-            tabela.setItem(linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M")))
-            tabela.setItem(linha, 1, QTableWidgetItem(registro.cliente_nome))
-            tabela.setItem(linha, 2, QTableWidgetItem(f"R$ {registro.valor:.2f}{marca_estorno}"))
-            tabela.setItem(linha, 3, QTableWidgetItem(registro.usuario_nome))
+            self._tabela_movimentacoes.setItem(
+                linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M"))
+            )
+            self._tabela_movimentacoes.setItem(linha, 1, QTableWidgetItem(registro.cliente_nome))
+            self._tabela_movimentacoes.setItem(linha, 2, QTableWidgetItem(registro.tipo))
+            self._tabela_movimentacoes.setItem(
+                linha, 3, QTableWidgetItem(f"R$ {registro.valor:.2f}{marca_estorno}")
+            )
+            self._tabela_movimentacoes.setItem(linha, 4, QTableWidgetItem(registro.usuario_nome))
 
     # -- Sub-aba: Alterações ---------------------------------------------------
 
