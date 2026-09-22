@@ -61,6 +61,7 @@ a_app = Analysis(
     datas=[
         ("alembic.ini", "."),
         ("app/database/migrations", "app/database/migrations"),
+        ("app/assets", "app/assets"),
     ],
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -113,6 +114,7 @@ exe_app = EXE(
     codesign_identity=None,
     entitlements_file=None,
     uac_admin=True,
+    icon="app/assets/icon.ico",
 )
 
 exe_admin = EXE(

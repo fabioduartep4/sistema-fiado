@@ -10,7 +10,9 @@ from __future__ import annotations
 
 
 import sys
+from pathlib import Path
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.config.logging_config import logger
@@ -32,6 +34,9 @@ def main() -> int:
     registrar_listeners()
 
     app = QApplication(sys.argv)
+
+    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    app.setWindowIcon(QIcon(str(base_dir / "app" / "assets" / "icon.ico")))
 
     if not testar_conexao():
         QMessageBox.critical(
