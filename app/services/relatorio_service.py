@@ -96,6 +96,7 @@ class LogErroResumo:
 class SaldoClienteResumo:
     """Saldo em aberto de um cliente, para o relatório."""
 
+    id: str
     id_visivel: int
     nome_principal: str
     total_em_aberto: Decimal
@@ -452,6 +453,7 @@ def listar_saldos_em_aberto(usuario_logado: UsuarioAutenticado) -> list[SaldoCli
         linhas = relatorio_repository.listar_saldos_em_aberto(session)
         return [
             SaldoClienteResumo(
+                id=str(cliente.id),
                 id_visivel=cliente.id_visivel,
                 nome_principal=cliente.nome_principal,
                 total_em_aberto=Decimal(total),
