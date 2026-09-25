@@ -413,3 +413,52 @@ def test_obter_produtos_chave_inexistente_levanta_erro(
 ) -> None:
     with pytest.raises(ValueError):
         xml_importacao_service.obter_produtos("chave-que-nao-existe-em-nenhum-xml-desta-pasta")
+
+
+def test_historico_de_vendas_mostra_hora_de_emissao_da_nota(
+    usuario_admin_teste, _pasta_xml_configurada
+) -> None:
+    from datetime import datetime
+
+    from app.services import relatorio_service
+
+    chave = _gerar_chave()
+    nome_cliente = f"Teste Automatizado XML Emissao {uuid.uuid4().hex[:8]}"
+    caminho = _escrever_xml_teste(_pasta_xml_configurada, "nota_emissao.xml", chave, nome_cliente)
+
+    resultados = xml_importacao_service.importar_xmls(
+        usuario_admin_teste, [EscolhaImportacao(caminho_arquivo=str(caminho), cliente_id=None)]
+    )
+    try:
+        vendas = relatorio_service.listar_historico_vendas(usuario_admin_teste, cliente_nome=nome_cliente)
+        assert len(vendas) == 1
+        assert vendas[0].data_hora == datetime.fromisoformat("2026-01-15T10:30:00-03:00")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, resultados[0].cliente_id)
+
+
+def test_preenche_data_hora_emissao_de_compras_importadas_antes_da_coluna(
+    usuario_admin_teste, _pasta_xml_configurada
+) -> None:
+    from datetime import datetime
+
+    from app.models.compra import Compra
+
+    chave = _gerar_chave()
+    nome_cliente = f"Teste Automatizado XML Backfill {uuid.uuid4().hex[:8]}"
+    caminho = _escrever_xml_teste(_pasta_xml_configurada, "nota_backfill.xml", chave, nome_cliente)
+    xml_importacao_service.listar_candidatos_importacao(usuario_admin_teste)  # indexa o arquivo
+    resultados = xml_importacao_service.importar_xmls(
+        usuario_admin_teste, [EscolhaImportacao(caminho_arquivo=str(caminho), cliente_id=None)]
+    )
+    try:
+        with session_scope() as session:
+            session.get(Compra, uuid.UUID(resultados[0].compra_id)).data_hora_emissao = None
+
+        assert xml_importacao_service.preencher_data_hora_emissao_faltante() >= 1
+
+        with session_scope() as session:
+            compra = session.get(Compra, uuid.UUID(resultados[0].compra_id))
+            assert compra.data_hora_emissao == datetime.fromisoformat("2026-01-15T10:30:00-03:00")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, resultados[0].cliente_id)

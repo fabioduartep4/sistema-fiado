@@ -14,6 +14,7 @@ from typing import Optional
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from app.models.cliente import Cliente
 from app.models.comprador import Comprador
 from app.models.compra import Compra, StatusCompra
 
@@ -260,6 +261,24 @@ def buscar_por_origem_nfe(session: Session, chave: str) -> Optional[Compra]:
     """
     stmt = select(Compra).where(Compra.origem_nfe_xml == chave)
     return session.execute(stmt).scalar_one_or_none()
+
+
+def listar_importadas_sem_data_hora_emissao(session: Session) -> list[Compra]:
+    """Compras vindas de XML que ainda não têm a data/hora de emissão gravada.
+
+    São as importadas antes de essa coluna existir. Ignora clientes
+    excluídos, pra não reler a cada abertura XMLs que ninguém mais vê.
+    """
+    stmt = (
+        select(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(
+            Compra.origem_nfe_xml.is_not(None),
+            Compra.data_hora_emissao.is_(None),
+            Cliente.ativo.is_(True),
+        )
+    )
+    return list(session.execute(stmt).scalars().all())
 
 
 def reatribuir_cliente(session: Session, cliente_origem_id: uuid.UUID, cliente_destino_id: uuid.UUID) -> None:

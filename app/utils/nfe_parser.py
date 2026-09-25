@@ -90,6 +90,7 @@ class NotaFiscalXml:
     valor_fiado: Decimal
     produtos: list[ProdutoXml]
     formas_pagamento: list[str]
+    data_hora_emissao: datetime | None = None
 
     @property
     def eh_venda_a_prazo(self) -> bool:
@@ -271,9 +272,11 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
         raise NfeXmlInvalidoError(f"Não é uma NF-e válida: {caminho_arquivo.name}")
 
     data_emissao: date | None = None
+    data_hora_emissao: datetime | None = None
     if dh_emi_texto:
         try:
-            data_emissao = datetime.fromisoformat(dh_emi_texto).date()
+            data_hora_emissao = datetime.fromisoformat(dh_emi_texto)
+            data_emissao = data_hora_emissao.date()
         except ValueError:
             data_emissao = None
 
@@ -298,6 +301,7 @@ def ler_nfe(caminho_arquivo: Path) -> NotaFiscalXml:
         valor_fiado=valor_fiado,
         produtos=produtos,
         formas_pagamento=formas_pagamento,
+        data_hora_emissao=data_hora_emissao,
     )
 
 

@@ -73,6 +73,12 @@ class _VerificarXmlWorker(QThread):
             logger.exception("Falha ao verificar XMLs pendentes de importação.")
             self.candidatos_encontrados.emit(0)
 
+        # Depois da listagem acima, que já atualizou o índice de XMLs.
+        try:
+            xml_importacao_service.preencher_data_hora_emissao_faltante()
+        except Exception:
+            logger.exception("Falha ao preencher a data/hora de emissão de compras importadas de XML.")
+
 
 class MainWindow(QMainWindow):
     """Janela principal do sistema, exibida após login bem-sucedido."""

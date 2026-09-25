@@ -322,15 +322,19 @@ def listar_historico_vendas(
 
     Returns:
         Lista de tuplas (data_hora, nome_cliente, valor, nome_usuario), da
-        mais recente para a mais antiga.
+        mais recente para a mais antiga. ``data_hora`` é a emissão da nota
+        para compras importadas de XML, e o momento do lançamento para as
+        demais — os filtros de data e a ordenação usam esse mesmo valor.
     """
+    data_hora = func.coalesce(Compra.data_hora_emissao, HistoricoAlteracao.data_hora)
     stmt = (
         select(
-            HistoricoAlteracao.data_hora,
+            data_hora,
             Cliente.nome_principal,
             Compra.valor,
             Usuario.nome,
         )
+        .select_from(HistoricoAlteracao)
         .join(Compra, Compra.id == HistoricoAlteracao.entidade_id)
         .join(Cliente, Cliente.id == Compra.cliente_id)
         .join(Usuario, Usuario.id == HistoricoAlteracao.usuario_id)
@@ -340,12 +344,12 @@ def listar_historico_vendas(
         )
     )
     if data_inicio is not None:
-        stmt = stmt.where(func.date(HistoricoAlteracao.data_hora) >= data_inicio)
+        stmt = stmt.where(func.date(data_hora) >= data_inicio)
     if data_fim is not None:
-        stmt = stmt.where(func.date(HistoricoAlteracao.data_hora) <= data_fim)
+        stmt = stmt.where(func.date(data_hora) <= data_fim)
     if cliente_nome:
         stmt = stmt.where(Cliente.nome_principal.ilike(f"%{cliente_nome}%"))
-    stmt = stmt.order_by(HistoricoAlteracao.data_hora.desc()).limit(limite)
+    stmt = stmt.order_by(data_hora.desc()).limit(limite)
     return list(session.execute(stmt).all())
 
 

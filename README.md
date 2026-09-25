@@ -33,6 +33,11 @@ telas pra fazer a mesma coisa.
 - **Saldos**: 3 cartões + busca por nome + linha clicável.
 - **Histórico**: "Vendas" e "Recebimentos" viraram uma sub-aba só
   ("Vendas e Recebimentos"), com filtros de período/cliente/tipo.
+  Vendas importadas de XML mostram a data/hora de **emissão** da nota
+  (`<dhEmi>`, guardada em `compras.data_hora_emissao`), não a hora da
+  importação; vendas lançadas à mão continuam com a hora do lançamento.
+  Compras importadas antes disso são preenchidas automaticamente ao
+  abrir o sistema, relendo o XML original.
 - **"+ Novo Lançamento"** — atalho global no cabeçalho (Compra ou
   Pagamento, sem precisar abrir a ficha de um cliente específico
   primeiro).
