@@ -18,6 +18,10 @@ telas pra fazer a mesma coisa.
   (agora um diálogo) numa tela só, com filtros rápidos (Todos/Com
   saldo/Em atraso/Acima do limite) e coluna de status. Desfaz o split
   "Buscar Cliente"/"Cadastrar Cliente" de uma leva anterior.
+  Funcionário vê só a busca (sem filtros nem lista de saldos): os
+  resultados mostram nome e código, e o saldo só aparece ao abrir a
+  ficha do cliente. A listagem com saldos (`listar_clientes_com_status`)
+  é restrita a Administrador também no serviço.
 - **Ficha do Cliente**: cartão de saldo/limite/disponível + histórico
   combinado (compras `+`, pagamentos `-`) no lugar das duas listas
   separadas de antes. Ganhou o botão "Enviar Lembrete" (saiu das

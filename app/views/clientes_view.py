@@ -9,6 +9,10 @@ rápidos por situação da conta.
 
 Clicar numa linha abre a Ficha do Cliente (``app.views.ficha_cliente_view``,
 continua diálogo modal).
+
+Funcionário vê uma versão reduzida: só a busca, sem filtros e sem a lista
+de saldos — os resultados mostram apenas código e nome, e o saldo só
+aparece ao abrir a ficha do cliente.
 """
 
 from __future__ import annotations
@@ -55,10 +59,15 @@ class ClientesView(QWidget):
         self._usuario_logado = usuario_logado
         self._controller = ClienteController(usuario_logado)
         self._filtro_atual = "Todos"
+        self._eh_administrador = usuario_logado.eh_administrador
 
         titulo = QLabel("Clientes")
         titulo.setProperty("papel", "titulo")
-        subtitulo = QLabel("Gerencie clientes, limites e saldos.")
+        subtitulo = QLabel(
+            "Gerencie clientes, limites e saldos."
+            if self._eh_administrador
+            else "Busque o cliente e abra a ficha para ver o saldo."
+        )
         subtitulo.setProperty("papel", "secundario")
 
         self._campo_busca = QLineEdit()
@@ -80,7 +89,11 @@ class ClientesView(QWidget):
         layout_busca.addWidget(self._campo_busca)
         layout_busca.addWidget(botao_novo_cliente)
 
-        layout_filtros = QHBoxLayout()
+        barra_filtros = QWidget()
+        if not self._eh_administrador:
+            barra_filtros.hide()
+        layout_filtros = QHBoxLayout(barra_filtros)
+        layout_filtros.setContentsMargins(0, 0, 0, 0)
         self._grupo_filtros = QButtonGroup(self)
         self._grupo_filtros.setExclusive(True)
         for filtro in _FILTROS:
@@ -103,8 +116,12 @@ class ClientesView(QWidget):
         layout_filtros.addWidget(self._campo_dias_atraso)
         layout_filtros.addStretch()
 
-        self._tabela = QTableWidget(0, 5)
-        self._tabela.setHorizontalHeaderLabels(["Cliente", "Telefone", "Saldo", "Limite", "Status"])
+        if self._eh_administrador:
+            self._tabela = QTableWidget(0, 5)
+            self._tabela.setHorizontalHeaderLabels(["Cliente", "Telefone", "Saldo", "Limite", "Status"])
+        else:
+            self._tabela = QTableWidget(0, 2)
+            self._tabela.setHorizontalHeaderLabels(["Cliente", "Código"])
         self._tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._tabela.cellDoubleClicked.connect(self._abrir_ficha_da_linha)
@@ -119,7 +136,7 @@ class ClientesView(QWidget):
         layout.addWidget(titulo)
         layout.addWidget(subtitulo)
         layout.addLayout(layout_busca)
-        layout.addLayout(layout_filtros)
+        layout.addWidget(barra_filtros)
         layout.addWidget(self._tabela)
         layout.addWidget(self._label_vazio)
         self.setLayout(layout)
@@ -134,6 +151,10 @@ class ClientesView(QWidget):
         self._carregar()
 
     def _carregar(self) -> None:
+        if not self._eh_administrador:
+            self._carregar_busca_funcionario()
+            return
+
         try:
             clientes = self._controller.listar_com_status(
                 termo=self._campo_busca.text(), dias_atraso=self._campo_dias_atraso.value()
@@ -162,6 +183,40 @@ class ClientesView(QWidget):
             self._tabela.setItem(linha, 4, item_status)
             self._tabela.item(linha, 0).setData(Qt.ItemDataRole.UserRole, cliente.id)
 
+        self._label_vazio.setText("Nenhum cliente encontrado.")
+        aplicar_estado_vazio(self._tabela, self._label_vazio)
+
+    def _carregar_busca_funcionario(self) -> None:
+        termo = self._campo_busca.text().strip()
+        if not termo:
+            self._tabela.setRowCount(0)
+            self._label_vazio.setText("Digite o nome do cliente para buscar.")
+            aplicar_estado_vazio(self._tabela, self._label_vazio)
+            return
+
+        try:
+            clientes = self._controller.buscar(termo)
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível buscar os clientes", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao buscar clientes.")
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível buscar os clientes.")
+            return
+
+        self._tabela.setRowCount(len(clientes))
+        for linha, cliente in enumerate(clientes):
+            nome = cliente.nome_principal
+            if cliente.nome_alternativo_encontrado:
+                nome += f" (também: {cliente.nome_alternativo_encontrado})"
+            if not cliente.confirmado:
+                nome += " (pendente de confirmação)"
+            item_nome = QTableWidgetItem(nome)
+            item_nome.setData(Qt.ItemDataRole.UserRole, cliente.id)
+            self._tabela.setItem(linha, 0, item_nome)
+            self._tabela.setItem(linha, 1, QTableWidgetItem(str(cliente.id_visivel)))
+
+        self._label_vazio.setText("Nenhum cliente encontrado.")
         aplicar_estado_vazio(self._tabela, self._label_vazio)
 
     def _aplicar_filtro(self, clientes: list[ClienteStatusResumo]) -> list[ClienteStatusResumo]:

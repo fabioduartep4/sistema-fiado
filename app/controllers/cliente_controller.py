@@ -56,7 +56,7 @@ class ClienteController:
 
     def listar_com_status(self, termo: str = "", dias_atraso: int = 30) -> list[ClienteStatusResumo]:
         """Lista todos os clientes ativos com saldo/limite/status já calculados."""
-        return cliente_service.listar_clientes_com_status(termo, dias_atraso)
+        return cliente_service.listar_clientes_com_status(self.usuario_logado, termo, dias_atraso)
 
     def contar_ativos(self) -> int:
         """Conta quantos clientes ativos existem no sistema."""

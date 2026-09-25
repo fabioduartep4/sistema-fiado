@@ -265,14 +265,16 @@ def contar_clientes_ativos() -> int:
 
 
 @tratar_erros
-def listar_clientes_com_status(termo: str = "", dias_atraso: int = 30) -> list[ClienteStatusResumo]:
+def listar_clientes_com_status(
+    usuario_logado: UsuarioAutenticado, termo: str = "", dias_atraso: int = 30
+) -> list[ClienteStatusResumo]:
     """Lista todos os clientes ativos com saldo/limite/status já calculados.
 
-    Disponível para qualquer usuário autenticado — é uma consulta, igual a
-    ``buscar_clientes`` (não uma ação restrita a Administrador), já que a
-    tela "Clientes" que a usa é aberta a qualquer perfil.
+    Restrita a Administrador: Funcionário não vê a lista de saldos, só
+    busca o cliente (``buscar_clientes``) e vê o saldo dentro da ficha.
 
     Args:
+        usuario_logado: Usuário que está consultando (precisa ser Administrador).
         termo: Filtro opcional por nome (contém, ignora acento/maiúscula).
             Vazio lista todos.
         dias_atraso: Quantos dias sem pagamento pra uma compra em aberto
@@ -281,7 +283,13 @@ def listar_clientes_com_status(termo: str = "", dias_atraso: int = 30) -> list[C
 
     Returns:
         Lista de :class:`ClienteStatusResumo`, ordenada por nome principal.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
     """
+    if not usuario_logado.eh_administrador:
+        raise PermissaoNegadaError("Apenas administradores podem ver a lista de saldos dos clientes.")
+
     termo_normalizado = normalizar_texto(termo.strip()) if termo.strip() else None
     data_limite = date.today() - timedelta(days=dias_atraso)
 
