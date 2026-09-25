@@ -129,7 +129,8 @@ class ClientesView(QWidget):
 
         self._label_vazio = QLabel("Nenhum cliente encontrado.")
         self._label_vazio.setProperty("papel", "secundario")
-        self._label_vazio.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label_vazio.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        self._label_vazio.setContentsMargins(0, 24, 0, 0)
         self._label_vazio.setVisible(False)
 
         layout = QVBoxLayout()
@@ -137,8 +138,10 @@ class ClientesView(QWidget):
         layout.addWidget(subtitulo)
         layout.addLayout(layout_busca)
         layout.addWidget(barra_filtros)
-        layout.addWidget(self._tabela)
-        layout.addWidget(self._label_vazio)
+        # Tabela e mensagem de vazio nunca aparecem juntas; quem estiver visível
+        # absorve o espaço sobrando, pra busca não descer quando a tabela some.
+        layout.addWidget(self._tabela, 1)
+        layout.addWidget(self._label_vazio, 1)
         self.setLayout(layout)
 
         self._carregar()
