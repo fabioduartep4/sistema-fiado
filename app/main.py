@@ -33,6 +33,13 @@ def main() -> int:
     """
     registrar_listeners()
 
+    if sys.platform == "win32":
+        # Sem um ID próprio, o Windows agrupa a janela sob o python.exe e
+        # mostra o ícone do Python na barra de tarefas.
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SistemaFiado.App")
+
     app = QApplication(sys.argv)
 
     base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
