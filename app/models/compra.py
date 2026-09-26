@@ -14,10 +14,11 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import date as date_
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Date, Enum, ForeignKey, Numeric, String
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -80,6 +81,10 @@ class Compra(Base, ColunasComunsMixin):
 
     # Reservado para futura integração com NF-e/NFC-e (não usado ainda).
     origem_nfe_xml: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Data/hora de emissão da nota (<dhEmi>), só em compras importadas de XML.
+    data_hora_emissao: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     cliente: Mapped["Cliente"] = relationship(back_populates="compras")
     comprador: Mapped[Optional["Comprador"]] = relationship()

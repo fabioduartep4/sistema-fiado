@@ -16,7 +16,22 @@ faz o botão esticar de forma estranha e o nome ficar sem espaço garantido.
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHeaderView, QTableWidget
+from PySide6.QtWidgets import QHeaderView, QLabel, QTableWidget
+
+
+def aplicar_estado_vazio(tabela: QTableWidget, label_vazio: QLabel) -> None:
+    """Alterna entre mostrar a tabela e uma mensagem amigável, conforme ela
+    tem linhas ou não (ex.: "Nenhum cliente encontrado.").
+
+    Chame depois de popular a tabela (``setRowCount``/``setItem`` já
+    feitos). ``label_vazio`` é um ``QLabel`` (normalmente
+    ``papel="secundario"``) que fica no lugar da tabela quando vazia —
+    quem constrói a tela é responsável por criá-lo e colocá-lo no
+    layout, logo abaixo ou no lugar da tabela.
+    """
+    vazia = tabela.rowCount() == 0
+    tabela.setVisible(not vazia)
+    label_vazio.setVisible(vazia)
 
 
 def ajustar_colunas(tabela: QTableWidget, *colunas_para_esticar: int) -> None:

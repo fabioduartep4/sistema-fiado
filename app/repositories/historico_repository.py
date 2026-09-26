@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.models.cliente import Cliente
+from app.models.compra import Compra
 from app.models.historico_alteracao import HistoricoAlteracao
 
 
@@ -52,3 +55,21 @@ def listar(
     if entidade:
         stmt = stmt.where(HistoricoAlteracao.entidade == entidade)
     return list(session.execute(stmt).scalars().all())
+
+
+def obter_data_ultima_importacao_xml(session: Session) -> Optional[datetime]:
+    """Momento em que a compra mais recente foi importada de XML (None se nunca houve).
+
+    Ignora compras de clientes excluídos.
+    """
+    stmt = (
+        select(func.max(HistoricoAlteracao.data_hora))
+        .join(Compra, Compra.id == HistoricoAlteracao.entidade_id)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(
+            HistoricoAlteracao.entidade == "Compra",
+            HistoricoAlteracao.acao == "criacao_via_xml",
+            Cliente.ativo.is_(True),
+        )
+    )
+    return session.execute(stmt).scalar_one_or_none()

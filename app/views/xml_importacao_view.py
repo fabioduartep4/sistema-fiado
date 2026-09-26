@@ -28,6 +28,7 @@ from app.controllers.xml_importacao_controller import XmlImportacaoController
 from app.services.auth_service import UsuarioAutenticado
 from app.services.xml_importacao_service import CandidatoImportacao, EscolhaImportacao
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.nfe_parser import ProdutoXml
 from app.utils.tabelas import ajustar_colunas
@@ -136,7 +137,7 @@ class ProdutosXmlDialog(QDialog):
         for linha, produto in enumerate(produtos):
             tabela.setItem(linha, 0, QTableWidgetItem(produto.nome))
             tabela.setItem(linha, 1, QTableWidgetItem(str(produto.quantidade)))
-            tabela.setItem(linha, 2, QTableWidgetItem(f"R$ {produto.valor:.2f}"))
+            tabela.setItem(linha, 2, QTableWidgetItem(f"{formatar_reais(produto.valor)}"))
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))
@@ -237,7 +238,7 @@ class ImportarXmlDialog(QDialog):
 
         for linha, candidato in enumerate(self._candidatos):
             self._tabela.setItem(linha, 0, QTableWidgetItem(candidato.nome_cliente_xml))
-            self._tabela.setItem(linha, 1, QTableWidgetItem(f"R$ {candidato.valor:.2f}"))
+            self._tabela.setItem(linha, 1, QTableWidgetItem(f"{formatar_reais(candidato.valor)}"))
             self._tabela.setItem(linha, 2, QTableWidgetItem(candidato.data.strftime("%d/%m/%Y")))
 
             combo = QComboBox()

@@ -39,6 +39,7 @@ from app.repositories import (
 from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
+from app.utils.formatacao import formatar_reais
 
 _ROTULOS_PERFIL = {
     PerfilUsuario.ADMINISTRADOR: "Administrador",
@@ -63,6 +64,11 @@ class HistoricoResumo:
 class HistoricoFinanceiroResumo:
     """Uma entrada do histórico de Vendas ou de Recebimentos, para exibição.
 
+    ``tipo`` ("Venda"/"Recebimento") existe pra quando as duas listas são
+    combinadas numa tabela só (aba "Histórico" > "Vendas e Recebimentos",
+    ou "Movimentações Recentes" no Início) — cada função que monta uma
+    lista já sabe o próprio tipo, não precisa vir do banco.
+
     ``estornado`` só é usado pelo histórico de Recebimentos — um
     pagamento estornado continua aparecendo (o dinheiro foi recebido
     naquele dia), só marcado para deixar claro que foi desfeito depois.
@@ -73,6 +79,7 @@ class HistoricoFinanceiroResumo:
     cliente_nome: str
     valor: Decimal
     usuario_nome: str
+    tipo: str
     estornado: bool = False
 
 
@@ -90,6 +97,7 @@ class LogErroResumo:
 class SaldoClienteResumo:
     """Saldo em aberto de um cliente, para o relatório."""
 
+    id: str
     id_visivel: int
     nome_principal: str
     total_em_aberto: Decimal
@@ -220,14 +228,15 @@ def _descrever_acao(
             return f'Inativou o usuário "{nome}".'
 
     if entidade == "Pagamento" and acao == "estorno":
-        valor = _extrair_campo(valor_antigo, "valor_pago") or "?"
+        valor_texto = _extrair_campo(valor_antigo, "valor_pago")
+        valor = formatar_reais(Decimal(valor_texto)) if valor_texto else "R$ ?"
         pagamento = pagamento_repository.buscar_por_id(session, entidade_id)
         nome_cliente = "?"
         if pagamento is not None:
             cliente = cliente_repository.buscar_por_id(session, pagamento.cliente_id)
             if cliente is not None:
                 nome_cliente = cliente.nome_principal
-        return f'Estornou um recebimento de R$ {valor} do cliente "{nome_cliente}".'
+        return f'Estornou um recebimento de {valor} do cliente "{nome_cliente}".'
 
     return f"{acao.replace('_', ' ').capitalize()} ({entidade})."
 
@@ -271,37 +280,55 @@ def listar_historico(
 
 @tratar_erros
 def listar_historico_vendas(
-    usuario_logado: UsuarioAutenticado, limite: int = 200
+    usuario_logado: UsuarioAutenticado,
+    limite: int = 200,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
+    cliente_nome: Optional[str] = None,
 ) -> list[HistoricoFinanceiroResumo]:
-    """Lista as compras lançadas no sistema (aba "Histórico" > "Vendas").
+    """Lista as compras lançadas no sistema (aba "Histórico" > "Vendas e Recebimentos").
 
     Args:
         usuario_logado: Usuário autenticado que está consultando.
         limite: Número máximo de registros retornados.
+        data_inicio: Filtro opcional — só a partir desta data.
+        data_fim: Filtro opcional — só até esta data.
+        cliente_nome: Filtro opcional por nome do cliente (contém).
 
     Returns:
-        Lista de :class:`HistoricoFinanceiroResumo`, mais recente primeiro
-        (``estornado`` sempre False aqui — compra não tem estorno).
+        Lista de :class:`HistoricoFinanceiroResumo` (``tipo="Venda"``),
+        mais recente primeiro (``estornado`` sempre False aqui — compra
+        não tem estorno).
 
     Raises:
         PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
     """
     _exigir_administrador(usuario_logado)
     with session_scope() as session:
-        registros = relatorio_repository.listar_historico_vendas(session, limite)
+        registros = relatorio_repository.listar_historico_vendas(
+            session, limite, data_inicio, data_fim, cliente_nome
+        )
         return [
             HistoricoFinanceiroResumo(
-                data_hora=data_hora, cliente_nome=cliente_nome, valor=Decimal(valor), usuario_nome=usuario_nome
+                data_hora=data_hora,
+                cliente_nome=cliente_nome_registro,
+                valor=Decimal(valor),
+                usuario_nome=usuario_nome,
+                tipo="Venda",
             )
-            for data_hora, cliente_nome, valor, usuario_nome in registros
+            for data_hora, cliente_nome_registro, valor, usuario_nome in registros
         ]
 
 
 @tratar_erros
 def listar_historico_recebimentos(
-    usuario_logado: UsuarioAutenticado, limite: int = 200
+    usuario_logado: UsuarioAutenticado,
+    limite: int = 200,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
+    cliente_nome: Optional[str] = None,
 ) -> list[HistoricoFinanceiroResumo]:
-    """Lista os pagamentos recebidos no sistema (aba "Histórico" > "Recebimentos").
+    """Lista os pagamentos recebidos no sistema (aba "Histórico" > "Vendas e Recebimentos").
 
     Inclui pagamentos já estornados (``estornado=True``) — o dinheiro foi
     recebido naquele dia, então continua aparecendo aqui, só marcado.
@@ -309,6 +336,62 @@ def listar_historico_recebimentos(
     Args:
         usuario_logado: Usuário autenticado que está consultando.
         limite: Número máximo de registros retornados.
+        data_inicio: Filtro opcional — só a partir desta data.
+        data_fim: Filtro opcional — só até esta data.
+        cliente_nome: Filtro opcional por nome do cliente (contém).
+
+    Returns:
+        Lista de :class:`HistoricoFinanceiroResumo` (``tipo="Recebimento"``),
+        mais recente primeiro.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    _exigir_administrador(usuario_logado)
+    with session_scope() as session:
+        registros = relatorio_repository.listar_historico_recebimentos(
+            session, limite, data_inicio, data_fim, cliente_nome
+        )
+        return [
+            HistoricoFinanceiroResumo(
+                data_hora=data_hora,
+                cliente_nome=cliente_nome_registro,
+                valor=Decimal(valor),
+                usuario_nome=usuario_nome,
+                tipo="Recebimento",
+                estornado=not ativo,
+            )
+            for data_hora, cliente_nome_registro, valor, usuario_nome, ativo in registros
+        ]
+
+
+def listar_movimentacoes(
+    usuario_logado: UsuarioAutenticado,
+    limite: int = 200,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
+    cliente_nome: Optional[str] = None,
+    tipo: Optional[str] = None,
+) -> list[HistoricoFinanceiroResumo]:
+    """Combina Vendas + Recebimentos numa lista só, mais recente primeiro.
+
+    Usado tanto pela aba "Histórico" > "Vendas e Recebimentos" (com os
+    filtros preenchidos pelo usuário) quanto pela seção "Movimentações
+    Recentes" do Início (sem filtro, só ``limite`` menor) — mesma lógica
+    de combinar+ordenar, sem duplicar isso em cada view. Não tem
+    ``@tratar_erros`` próprio: as duas funções que chama já são
+    decoradas e já checam permissão.
+
+    Args:
+        usuario_logado: Usuário autenticado que está consultando.
+        limite: Número máximo de registros retornados (aplicado depois de
+            combinar — cada consulta individual já busca até ``limite``
+            registros do próprio tipo antes de cortar).
+        data_inicio: Filtro opcional — só a partir desta data.
+        data_fim: Filtro opcional — só até esta data.
+        cliente_nome: Filtro opcional por nome do cliente (contém).
+        tipo: ``"Venda"`` ou ``"Recebimento"`` pra listar só um tipo;
+            ``None`` (padrão) traz os dois combinados.
 
     Returns:
         Lista de :class:`HistoricoFinanceiroResumo`, mais recente primeiro.
@@ -316,19 +399,17 @@ def listar_historico_recebimentos(
     Raises:
         PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
     """
-    _exigir_administrador(usuario_logado)
-    with session_scope() as session:
-        registros = relatorio_repository.listar_historico_recebimentos(session, limite)
-        return [
-            HistoricoFinanceiroResumo(
-                data_hora=data_hora,
-                cliente_nome=cliente_nome,
-                valor=Decimal(valor),
-                usuario_nome=usuario_nome,
-                estornado=not ativo,
-            )
-            for data_hora, cliente_nome, valor, usuario_nome, ativo in registros
-        ]
+    itens: list[HistoricoFinanceiroResumo] = []
+    if tipo != "Recebimento":
+        itens.extend(
+            listar_historico_vendas(usuario_logado, limite, data_inicio, data_fim, cliente_nome)
+        )
+    if tipo != "Venda":
+        itens.extend(
+            listar_historico_recebimentos(usuario_logado, limite, data_inicio, data_fim, cliente_nome)
+        )
+    itens.sort(key=lambda item: item.data_hora, reverse=True)
+    return itens[:limite]
 
 
 @tratar_erros
@@ -374,6 +455,7 @@ def listar_saldos_em_aberto(usuario_logado: UsuarioAutenticado) -> list[SaldoCli
         linhas = relatorio_repository.listar_saldos_em_aberto(session)
         return [
             SaldoClienteResumo(
+                id=str(cliente.id),
                 id_visivel=cliente.id_visivel,
                 nome_principal=cliente.nome_principal,
                 total_em_aberto=Decimal(total),
@@ -562,11 +644,13 @@ class VendasHojeResumo:
 
     Attributes:
         total_vendido_hoje: Soma de tudo que foi vendido no fiado hoje.
+        quantidade_vendida_hoje: Quantidade de compras lançadas hoje.
         vendas_ultimos_7_dias: Total vendido por dia, últimos 7 dias
             (janela fixa, incluindo hoje).
     """
 
     total_vendido_hoje: Decimal
+    quantidade_vendida_hoje: int
     vendas_ultimos_7_dias: list[PontoVendaDiaria]
 
 
@@ -589,10 +673,11 @@ def obter_vendas_hoje(usuario_logado: UsuarioAutenticado) -> VendasHojeResumo:
 
     hoje = date.today()
     with session_scope() as session:
-        total_hoje = relatorio_repository.calcular_total_vendido_no_dia(session, hoje)
+        total_hoje, quantidade_hoje = relatorio_repository.calcular_total_vendido_no_dia(session, hoje)
         vendas_diarias = relatorio_repository.listar_vendas_ultimos_dias(session, dias=7)
         return VendasHojeResumo(
             total_vendido_hoje=total_hoje,
+            quantidade_vendida_hoje=quantidade_hoje,
             vendas_ultimos_7_dias=[
                 PontoVendaDiaria(dia=dia.strftime("%d/%m"), total=total) for dia, total in vendas_diarias
             ],

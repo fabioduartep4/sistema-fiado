@@ -37,8 +37,9 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.compra_service import CompradorOpcao
 from app.utils.date_utils import obter_data_padrao
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.views.componentes import CampoBuscaClienteWidget
+from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
 
 _ID_NENHUM_COMPRADOR = "__nenhum__"
 
@@ -66,8 +67,9 @@ class AdicionarCompraView(QWidget):
         titulo = QLabel("Adicionar Compra")
         titulo.setProperty("papel", "titulo")
         layout.addWidget(titulo)
-        layout.addWidget(self._paginas)
-        layout.addStretch()
+        # Ocupa o diálogo todo: sem isso, a área pega a altura da maior página
+        # e a lista de busca fica com tamanho diferente em cada diálogo.
+        layout.addWidget(self._paginas, 1)
         self.setLayout(layout)
 
         if cliente_pre_selecionado is not None:
@@ -129,6 +131,7 @@ class AdicionarCompraView(QWidget):
         layout.addWidget(QLabel("Comprador (opcional):"))
         layout.addWidget(self._campo_comprador)
         layout.addWidget(botao_salvar)
+        layout.addStretch()
         return pagina
 
     def _selecionar_cliente(self, cliente_id: str, nome_principal: str) -> None:
@@ -188,7 +191,7 @@ class AdicionarCompraView(QWidget):
         QMessageBox.information(
             self,
             "Compra registrada",
-            f"Compra de R$ {compra.valor:.2f} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
+            f"Compra de {formatar_reais(compra.valor)} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
         )
         self._campo_valor.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
@@ -198,22 +201,28 @@ class AdicionarCompraView(QWidget):
 class AdicionarCompraDialog(QDialog):
     """Abre :class:`AdicionarCompraView` como um diálogo modal.
 
-    Usado pelo botão "Adicionar Compra" da Ficha do Cliente, com o cliente
-    já pré-selecionado (etapa de busca pulada).
+    Usado pelo botão "Adicionar Compra" da Ficha do Cliente, com o
+    cliente já pré-selecionado (etapa de busca pulada) — e também pelo
+    atalho global "+ Novo Lançamento" (``app.views.novo_lancamento_dialog``),
+    sem cliente pré-selecionado (``cliente_id``/``nome_principal``
+    omitidos), caso em que a própria :class:`AdicionarCompraView` cuida
+    da busca.
     """
 
     def __init__(
         self,
         usuario_logado: UsuarioAutenticado,
-        cliente_id: str,
-        nome_principal: str,
+        cliente_id: str | None = None,
+        nome_principal: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Adicionar Compra — {nome_principal}")
-        self.setMinimumSize(380, 420)
+        self.setWindowTitle(f"Adicionar Compra — {nome_principal}" if nome_principal else "Adicionar Compra")
+        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
-        self._view = AdicionarCompraView(usuario_logado, cliente_pre_selecionado=(cliente_id, nome_principal))
+        pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
+        self._view = AdicionarCompraView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))

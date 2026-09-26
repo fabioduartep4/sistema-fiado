@@ -23,13 +23,18 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from app.database.connection import session_scope
-from app.repositories import cliente_repository, compra_repository, xml_indexado_repository
+from app.repositories import (
+    cliente_repository,
+    compra_repository,
+    historico_repository,
+    xml_indexado_repository,
+)
 from app.services import cliente_service, configuracao_service, historico_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteBusca
@@ -285,6 +290,7 @@ def importar_xmls(
                 session, cliente_id=cliente.id, valor=nota.valor_fiado, data=nota.data_emissao
             )
             compra.origem_nfe_xml = nota.chave
+            compra.data_hora_emissao = nota.data_hora_emissao
             session.flush()
 
             historico_service.registrar_historico(
@@ -305,6 +311,54 @@ def importar_xmls(
             )
 
     return resultados
+
+
+@tratar_erros
+def obter_data_ultima_importacao() -> Optional[datetime]:
+    """Quando foi importada a compra de XML mais recente (None se nunca houve)."""
+    with session_scope() as session:
+        return historico_repository.obter_data_ultima_importacao_xml(session)
+
+
+@tratar_erros
+def preencher_data_hora_emissao_faltante() -> int:
+    """Grava a data/hora de emissão nas compras importadas antes dessa coluna existir.
+
+    Relê o XML original de cada uma (localizado pelo índice permanente).
+    Compras cujo arquivo não está mais acessível ficam como estão e são
+    tentadas de novo na próxima vez.
+
+    Returns:
+        Quantas compras foram atualizadas.
+    """
+    with session_scope() as session:
+        pendentes = [
+            (compra.id, compra.origem_nfe_xml)
+            for compra in compra_repository.listar_importadas_sem_data_hora_emissao(session)
+        ]
+        caminhos: dict[uuid.UUID, str] = {}
+        for compra_id, chave in pendentes:
+            entrada = xml_indexado_repository.buscar_por_chave(session, chave)
+            if entrada is not None:
+                caminhos[compra_id] = entrada.caminho_arquivo
+
+    datas: dict[uuid.UUID, Any] = {}
+    for compra_id, caminho in caminhos.items():
+        if not Path(caminho).exists():
+            continue
+        try:
+            nota = nfe_parser.ler_nfe(Path(caminho))
+        except nfe_parser.NfeXmlInvalidoError:
+            continue
+        if nota.data_hora_emissao is not None:
+            datas[compra_id] = nota.data_hora_emissao
+
+    if datas:
+        with session_scope() as session:
+            for compra in compra_repository.listar_importadas_sem_data_hora_emissao(session):
+                if compra.id in datas:
+                    compra.data_hora_emissao = datas[compra.id]
+    return len(datas)
 
 
 @tratar_erros

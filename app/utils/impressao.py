@@ -17,7 +17,7 @@ Linux).
 from __future__ import annotations
 
 from PySide6.QtCore import QMarginsF, QSizeF
-from PySide6.QtGui import QPageLayout, QPageSize, QTextDocument
+from PySide6.QtGui import QPageLayout, QPageSize, QPainter, QTextDocument
 from PySide6.QtPrintSupport import QPrinter, QPrintPreviewDialog
 from PySide6.QtWidgets import QWidget
 
@@ -41,6 +41,16 @@ def _montar_impressora_termica() -> QPrinter:
     return impressora
 
 
+def _montar_documento(impressora: QPrinter, html: str) -> QTextDocument:
+    """Diagrama o HTML na resolução da impressora, ocupando toda a largura útil."""
+    documento = QTextDocument()
+    documento.documentLayout().setPaintDevice(impressora)
+    documento.setDocumentMargin(0)
+    documento.setHtml(html)
+    documento.setTextWidth(impressora.pageRect(QPrinter.Unit.DevicePixel).width())
+    return documento
+
+
 def _ajustar_altura_ao_conteudo(impressora: QPrinter, documento: QTextDocument) -> None:
     """Recalcula a altura da página para caber exatamente o conteúdo.
 
@@ -48,8 +58,6 @@ def _ajustar_altura_ao_conteudo(impressora: QPrinter, documento: QTextDocument) 
     pré-visualização mostraria uma folha gigante quase toda em branco, e a
     impressão real avançaria bobina vazia desnecessariamente.
     """
-    largura_util_px = impressora.pageRect(QPrinter.Unit.DevicePixel).width()
-    documento.setTextWidth(largura_util_px)
     altura_conteudo_px = documento.size().height()
 
     dpi = impressora.resolution()
@@ -70,16 +78,19 @@ def exibir_pre_visualizacao_impressao(parent: QWidget, titulo_janela: str, html:
             formatado para a largura estreita da impressora térmica).
     """
     impressora = _montar_impressora_termica()
-
-    documento = QTextDocument()
-    documento.setHtml(html)
+    documento = _montar_documento(impressora, html)
     _ajustar_altura_ao_conteudo(impressora, documento)
 
     dialogo = QPrintPreviewDialog(impressora, parent)
     dialogo.setWindowTitle(titulo_janela)
 
     def _renderizar(impressora_alvo: QPrinter) -> None:
-        documento.print_(impressora_alvo)
+        # Não usar documento.print_(): sem tamanho de página definido no
+        # documento, o Qt acrescenta 2 cm de margem de cada lado, o que
+        # numa bobina de 80mm deixava o texto espremido no meio.
+        pintor = QPainter(impressora_alvo)
+        documento.drawContents(pintor)
+        pintor.end()
 
     dialogo.paintRequested.connect(_renderizar)
     dialogo.exec()

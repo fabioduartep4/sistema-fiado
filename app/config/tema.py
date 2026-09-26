@@ -15,6 +15,18 @@ visual mais clara (não é automático — precisa marcar o widget):
   de uma tela/diálogo (ex.: "Salvar", "Confirmar") se destacar das
   secundárias (ex.: "Cancelar").
 
+Convenções do redesign (sidebar/cards/status), adicionadas junto com a
+paleta nova:
+
+- ``botao.setProperty("papel", "item_sidebar")`` + ``setProperty("selecionado", True/False)``
+  para os itens de navegação da sidebar (ver ``app.views.main_window``).
+- ``frame.setProperty("papel", "card")`` para os cartões de estatística
+  do dashboard/Saldos (fundo levemente destacado do resto da tela).
+- ``label.setProperty("papel", "sucesso"/"aviso"/"perigo")`` — mesma ideia
+  de ``"erro"`` (que continua existindo, é sinônimo de ``"perigo"``),
+  seguindo a regra de cor do redesign: verde = positivo, amarelo =
+  atenção, vermelho = problema/excedido.
+
 Chame ``widget.style().unpolish(widget); widget.style().polish(widget)``
 se precisar trocar uma dessas propriedades depois que o widget já foi
 exibido (definir antes de mostrar, o caso mais comum, não precisa disso).
@@ -26,35 +38,45 @@ from app.services.configuracao_service import ModoTema
 
 # Fonte do sistema no Windows (a maioria das instalações já usa isso por
 # padrão via "MS Shell Dlg 2", mas fixar explicitamente evita variação e
-# garante o fallback numa instalação sem Segoe UI).
+# garante o fallback numa instalação sem Segoe UI). O redesign pediu a
+# fonte "Inter", mas sem um jeito de baixar o arquivo da fonte neste
+# ambiente — fica pendente pra quando os arquivos .ttf forem fornecidos
+# (bastaria registrá-los via QFontDatabase em app/main.py e trocar o
+# primeiro nome desta pilha).
 _FAMILIA_FONTE = '"Segoe UI", "Century Gothic", sans-serif'
 
 _CORES_ESCURO = {
-    "fundo": "#1e1e1e",
-    "fundo_alt": "#2b2b2b",
-    "fundo_hover": "#333a45",
-    "borda": "#3f3f3f",
-    "texto": "#e5e5e5",
+    "fundo": "#151515",
+    "fundo_alt": "#202020",
+    "fundo_hover": "#2a2a2a",
+    "borda": "#333333",
+    "texto": "#f3f4f6",
     "texto_secundario": "#9ca3af",
     "texto_desativado": "#6b7280",
     "destaque": "#3b82f6",
     "destaque_hover": "#2563eb",
     "destaque_texto": "#ffffff",
+    "sucesso": "#22c55e",
+    "aviso": "#f59e0b",
     "erro": "#ef4444",
+    "perigo": "#ef4444",
 }
 
 _CORES_CLARO = {
-    "fundo": "#f5f6f8",
+    "fundo": "#f6f7f9",
     "fundo_alt": "#ffffff",
     "fundo_hover": "#eef2ff",
-    "borda": "#d7dbe1",
-    "texto": "#1f2328",
-    "texto_secundario": "#667085",
+    "borda": "#e5e7eb",
+    "texto": "#1f2937",
+    "texto_secundario": "#6b7280",
     "texto_desativado": "#9aa1ab",
     "destaque": "#2563eb",
     "destaque_hover": "#1d4ed8",
     "destaque_texto": "#ffffff",
+    "sucesso": "#16a34a",
+    "aviso": "#d97706",
     "erro": "#dc2626",
+    "perigo": "#dc2626",
 }
 
 
@@ -98,9 +120,52 @@ QLabel[papel="secundario"] {{
     color: {c["texto_secundario"]};
 }}
 
-QLabel[papel="erro"] {{
-    color: {c["erro"]};
+QLabel[papel="erro"], QLabel[papel="perigo"] {{
+    color: {c["perigo"]};
     font-weight: 600;
+}}
+
+QLabel[papel="sucesso"] {{
+    color: {c["sucesso"]};
+    font-weight: 600;
+}}
+
+QLabel[papel="aviso"] {{
+    color: {c["aviso"]};
+    font-weight: 600;
+}}
+
+QFrame[papel="sidebar"] {{
+    background-color: {c["fundo_alt"]};
+    border: none;
+    border-right: 1px solid {c["borda"]};
+}}
+
+QFrame[papel="card"] {{
+    background-color: {c["fundo_alt"]};
+    border: 1px solid {c["borda"]};
+    border-radius: 10px;
+}}
+
+QPushButton[papel="item_sidebar"] {{
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: left;
+    color: {c["texto_secundario"]};
+    font-weight: 500;
+}}
+
+QPushButton[papel="item_sidebar"]:hover {{
+    background-color: {c["fundo_hover"]};
+    color: {c["texto"]};
+}}
+
+QPushButton[papel="item_sidebar"][selecionado="true"] {{
+    background-color: {c["fundo_hover"]};
+    color: {c["destaque"]};
+    font-weight: 700;
 }}
 
 QPushButton {{

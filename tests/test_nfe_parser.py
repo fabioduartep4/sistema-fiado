@@ -24,6 +24,7 @@ def test_ler_nfe_extrai_todos_os_dados_corretamente() -> None:
     assert nota.natureza_operacao == "Venda a prazo"
     assert nota.valor_total == Decimal("35.50")
     assert nota.data_emissao.isoformat() == "2026-01-15"
+    assert nota.data_hora_emissao.isoformat() == "2026-01-15T10:30:00-03:00"
 
 
 def test_ler_nfe_reconhece_venda_a_prazo() -> None:

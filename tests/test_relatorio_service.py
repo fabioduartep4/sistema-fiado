@@ -307,6 +307,7 @@ def test_obter_vendas_hoje_total_reflete_nova_compra(usuario_admin_teste) -> Non
     resumo_depois = relatorio_service.obter_vendas_hoje(usuario_admin_teste)
 
     assert resumo_depois.total_vendido_hoje - resumo_antes.total_vendido_hoje == Decimal("42.00")
+    assert resumo_depois.quantidade_vendida_hoje - resumo_antes.quantidade_vendida_hoje == 1
     assert len(resumo_depois.vendas_ultimos_7_dias) == 7
     assert resumo_depois.vendas_ultimos_7_dias[-1].dia == hoje.strftime("%d/%m")
     assert (
@@ -338,7 +339,46 @@ def test_listar_historico_vendas_reflete_compra_registrada(usuario_admin_teste) 
     assert entrada is not None
     assert entrada.valor == Decimal("63.50")
     assert entrada.usuario_nome == usuario_admin_teste.nome
+    assert entrada.tipo == "Venda"
     assert entrada.estornado is False
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_historico_vendas_filtra_por_data_e_por_cliente(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Historico Vendas Filtro", [], [], []
+    )
+    hoje = date.today()
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("10.00"), hoje, None)
+
+    amanha = hoje + timedelta(days=1)
+    depois_de_amanha = hoje + timedelta(days=2)
+    fora_do_periodo = relatorio_service.listar_historico_vendas(
+        usuario_admin_teste, data_inicio=amanha, data_fim=depois_de_amanha
+    )
+    assert not any(
+        h.cliente_nome == "Teste Automatizado Historico Vendas Filtro" for h in fora_do_periodo
+    )
+
+    dentro_do_periodo = relatorio_service.listar_historico_vendas(
+        usuario_admin_teste, data_inicio=hoje, data_fim=hoje
+    )
+    assert any(
+        h.cliente_nome == "Teste Automatizado Historico Vendas Filtro" for h in dentro_do_periodo
+    )
+
+    por_nome = relatorio_service.listar_historico_vendas(
+        usuario_admin_teste, cliente_nome="Historico Vendas Filtro"
+    )
+    assert any(h.cliente_nome == "Teste Automatizado Historico Vendas Filtro" for h in por_nome)
+
+    por_nome_errado = relatorio_service.listar_historico_vendas(
+        usuario_admin_teste, cliente_nome="Nome Que Nao Bate Com Nada"
+    )
+    assert not any(
+        h.cliente_nome == "Teste Automatizado Historico Vendas Filtro" for h in por_nome_errado
+    )
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
 
@@ -368,6 +408,7 @@ def test_listar_historico_recebimentos_reflete_pagamento_registrado(usuario_admi
     assert entrada is not None
     assert entrada.valor == Decimal("40.00")
     assert entrada.usuario_nome == usuario_admin_teste.nome
+    assert entrada.tipo == "Recebimento"
     assert entrada.estornado is False
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
@@ -394,5 +435,30 @@ def test_listar_historico_recebimentos_marca_pagamento_estornado(usuario_admin_t
 
     assert entrada is not None
     assert entrada.estornado is True
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_movimentacoes_combina_vendas_e_recebimentos_ordenado(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Movimentacoes Combinadas", [], [], []
+    )
+    hoje = date.today()
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("70.00"), hoje, None)
+    pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("25.00"), hoje)
+
+    movimentacoes = relatorio_service.listar_movimentacoes(usuario_admin_teste)
+    do_cliente = [
+        m for m in movimentacoes if m.cliente_nome == "Teste Automatizado Movimentacoes Combinadas"
+    ]
+
+    assert {m.tipo for m in do_cliente} == {"Venda", "Recebimento"}
+    # mais recente primeiro: o pagamento (registrado por último) vem antes da compra.
+    assert do_cliente[0].tipo == "Recebimento"
+    assert do_cliente[1].tipo == "Venda"
+
+    apenas_vendas = relatorio_service.listar_movimentacoes(usuario_admin_teste, tipo="Venda")
+    assert all(m.tipo == "Venda" for m in apenas_vendas)
+    assert any(m.cliente_nome == "Teste Automatizado Movimentacoes Combinadas" for m in apenas_vendas)
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

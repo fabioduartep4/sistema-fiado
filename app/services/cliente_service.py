@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -240,6 +240,83 @@ def buscar_clientes(termo: str, limite: int = 30) -> list[ClienteBusca]:
 
         resultados_ordenados = sorted(candidatos.values(), key=lambda item: (item[0], item[1]))
         return [item[2] for item in resultados_ordenados[:limite]]
+
+
+@dataclass(frozen=True)
+class ClienteStatusResumo:
+    """Um cliente com saldo/limite/atraso já calculados, para a tela "Clientes"."""
+
+    id: str
+    id_visivel: int
+    nome_principal: str
+    telefone: Optional[str]
+    saldo: Decimal
+    limite_fiado: Optional[Decimal]
+    atrasado: bool
+    excedido: bool
+    confirmado: bool
+
+
+@tratar_erros
+def contar_clientes_ativos() -> int:
+    """Conta quantos clientes ativos existem no sistema (card "Clientes" do Início)."""
+    with session_scope() as session:
+        return cliente_repository.contar_ativos(session)
+
+
+@tratar_erros
+def listar_clientes_com_status(
+    usuario_logado: UsuarioAutenticado, termo: str = "", dias_atraso: int = 30
+) -> list[ClienteStatusResumo]:
+    """Lista todos os clientes ativos com saldo/limite/status já calculados.
+
+    Restrita a Administrador: Funcionário não vê a lista de saldos, só
+    busca o cliente (``buscar_clientes``) e vê o saldo dentro da ficha.
+
+    Args:
+        usuario_logado: Usuário que está consultando (precisa ser Administrador).
+        termo: Filtro opcional por nome (contém, ignora acento/maiúscula).
+            Vazio lista todos.
+        dias_atraso: Quantos dias sem pagamento pra uma compra em aberto
+            contar como atrasada (mesmo critério de
+            ``relatorio_service.listar_saldos_em_atraso``).
+
+    Returns:
+        Lista de :class:`ClienteStatusResumo`, ordenada por nome principal.
+
+    Raises:
+        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
+    """
+    if not usuario_logado.eh_administrador:
+        raise PermissaoNegadaError("Apenas administradores podem ver a lista de saldos dos clientes.")
+
+    termo_normalizado = normalizar_texto(termo.strip()) if termo.strip() else None
+    data_limite = date.today() - timedelta(days=dias_atraso)
+
+    with session_scope() as session:
+        clientes = cliente_repository.listar_ativos(session, termo_normalizado)
+        saldos_por_cliente = compra_repository.listar_saldos_e_atrasos(session, data_limite)
+
+        resultado = []
+        for cliente in clientes:
+            saldo_total, saldo_atrasado = saldos_por_cliente.get(
+                cliente.id, (Decimal("0"), Decimal("0"))
+            )
+            telefone = cliente.telefones[0].numero if cliente.telefones else None
+            resultado.append(
+                ClienteStatusResumo(
+                    id=str(cliente.id),
+                    id_visivel=cliente.id_visivel,
+                    nome_principal=cliente.nome_principal,
+                    telefone=telefone,
+                    saldo=saldo_total,
+                    limite_fiado=cliente.limite_fiado,
+                    atrasado=saldo_atrasado > 0,
+                    excedido=cliente.limite_fiado is not None and saldo_total > cliente.limite_fiado,
+                    confirmado=cliente.confirmado,
+                )
+            )
+        return resultado
 
 
 def _montar_ficha(cliente_id_str: str, session) -> ClienteFicha:  # type: ignore[no-untyped-def]

@@ -34,9 +34,10 @@ from app.services.auth_service import UsuarioAutenticado
 from app.utils.date_utils import obter_data_padrao
 from app.utils.documentos import montar_html_recibo_pagamento
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
-from app.views.componentes import CampoBuscaClienteWidget
+from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
 
 
 class ReceberContaView(QWidget):
@@ -63,8 +64,9 @@ class ReceberContaView(QWidget):
         titulo = QLabel("Receber Conta")
         titulo.setProperty("papel", "titulo")
         layout.addWidget(titulo)
-        layout.addWidget(self._paginas)
-        layout.addStretch()
+        # Ocupa o diálogo todo: sem isso, a área pega a altura da maior página
+        # e a lista de busca fica com tamanho diferente em cada diálogo.
+        layout.addWidget(self._paginas, 1)
         self.setLayout(layout)
 
         if cliente_pre_selecionado is not None:
@@ -172,10 +174,10 @@ class ReceberContaView(QWidget):
             rotulo_resto = " [Resto]" if compra.eh_resto else ""
             data_formatada = compra.data.strftime("%d/%m")
             self._lista_compras_abertas.addItem(
-                f"R$ {compra.valor:.2f} — {data_formatada}{rotulo_resto}"
+                f"{formatar_reais(compra.valor)} — {data_formatada}{rotulo_resto}"
             )
 
-        self._label_total_em_aberto.setText(f"Total em aberto: R$ {ficha.total_em_aberto:.2f}")
+        self._label_total_em_aberto.setText(f"Total em aberto: {formatar_reais(ficha.total_em_aberto)}")
 
     def _confirmar_pagamento(self) -> None:
         if self._cliente_id is None:
@@ -206,11 +208,11 @@ class ReceberContaView(QWidget):
 
         if resultado.valor_resto_gerado > 0:
             mensagem = (
-                f"Pagamento de R$ {resultado.valor_pago:.2f} registrado.\n\n"
-                f"Foi gerada uma nova conta 'Resto' de R$ {resultado.valor_resto_gerado:.2f}."
+                f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado.\n\n"
+                f"Foi gerada uma nova conta 'Resto' de {formatar_reais(resultado.valor_resto_gerado)}."
             )
         else:
-            mensagem = f"Pagamento de R$ {resultado.valor_pago:.2f} registrado. Conta quitada."
+            mensagem = f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado. Conta quitada."
 
         caixa = QMessageBox(self)
         caixa.setWindowTitle("Pagamento registrado")
@@ -241,21 +243,26 @@ class ReceberContaDialog(QDialog):
     """Abre :class:`ReceberContaView` como um diálogo modal.
 
     Usado pelo botão "Receber Conta" da Ficha do Cliente, com o cliente já
-    pré-selecionado (etapa de busca pulada).
+    pré-selecionado (etapa de busca pulada) — e também pelo atalho global
+    "+ Novo Lançamento" (``app.views.novo_lancamento_dialog``), sem
+    cliente pré-selecionado (``cliente_id``/``nome_principal`` omitidos),
+    caso em que a própria :class:`ReceberContaView` cuida da busca.
     """
 
     def __init__(
         self,
         usuario_logado: UsuarioAutenticado,
-        cliente_id: str,
-        nome_principal: str,
+        cliente_id: str | None = None,
+        nome_principal: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Receber Conta — {nome_principal}")
-        self.setMinimumSize(400, 560)
+        self.setWindowTitle(f"Receber Conta — {nome_principal}" if nome_principal else "Receber Conta")
+        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
-        self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=(cliente_id, nome_principal))
+        pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
+        self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))

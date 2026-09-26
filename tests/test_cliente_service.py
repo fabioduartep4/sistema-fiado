@@ -6,6 +6,7 @@ Gravam de verdade no banco configurado em ``.env``. Só rodam com
 
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -162,3 +163,123 @@ def test_listar_grupos_duplicados_encontra_o_grupo_criado(usuario_admin_teste) -
 
     cliente_service.mesclar_clientes(usuario_admin_teste, c1.id, [c2.id])
     cliente_service.excluir_cliente(usuario_admin_teste, c1.id)
+
+
+def test_listar_clientes_com_status_inclui_cliente_sem_nenhuma_compra(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Status Sem Saldo", [], [], []
+    )
+
+    resultado = cliente_service.listar_clientes_com_status(usuario_admin_teste, termo="Teste Automatizado Status Sem Saldo")
+    status = next((r for r in resultado if r.id == cliente.id), None)
+
+    assert status is not None
+    assert status.saldo == Decimal("0")
+    assert status.atrasado is False
+    assert status.excedido is False
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_listar_clientes_com_status_calcula_saldo_atraso_e_excesso(usuario_admin_teste) -> None:
+    hoje = obter_data_padrao()
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste,
+        "Teste Automatizado Status Atrasado Excedido",
+        [],
+        [],
+        [],
+        limite_fiado=Decimal("50.00"),
+    )
+    compra_service.registrar_compra(
+        usuario_admin_teste, cliente.id, Decimal("90.00"), hoje - timedelta(days=40), None
+    )
+    compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("15.00"), hoje, None)
+
+    resultado = cliente_service.listar_clientes_com_status(
+        usuario_admin_teste, termo="Teste Automatizado Status Atrasado Excedido", dias_atraso=30
+    )
+    status = next(r for r in resultado if r.id == cliente.id)
+
+    assert status.saldo == Decimal("105.00")
+    assert status.limite_fiado == Decimal("50.00")
+    assert status.atrasado is True
+    assert status.excedido is True
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_contar_clientes_ativos_reflete_novo_cadastro(usuario_admin_teste) -> None:
+    antes = cliente_service.contar_clientes_ativos()
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Contagem Ativos", [], [], []
+    )
+    depois = cliente_service.contar_clientes_ativos()
+    assert depois == antes + 1
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+    apos_exclusao = cliente_service.contar_clientes_ativos()
+    assert apos_exclusao == antes
+
+
+def test_listar_clientes_com_status_marca_cliente_pendente_de_confirmacao(usuario_admin_teste) -> None:
+    from app.database.connection import session_scope
+    from app.repositories import cliente_repository as _cliente_repository
+
+    with session_scope() as session:
+        cliente_pendente = _cliente_repository.criar_cliente_pendente(
+            session, "Teste Automatizado Status Pendente Confirmacao"
+        )
+        cliente_id = str(cliente_pendente.id)
+
+    resultado = cliente_service.listar_clientes_com_status(
+        usuario_admin_teste, termo="Teste Automatizado Status Pendente Confirmacao"
+    )
+    status = next(r for r in resultado if r.id == cliente_id)
+    assert status.confirmado is False
+
+    cliente_service.confirmar_cliente(usuario_admin_teste, cliente_id)
+    resultado_depois = cliente_service.listar_clientes_com_status(
+        usuario_admin_teste, termo="Teste Automatizado Status Pendente Confirmacao"
+    )
+    status_depois = next(r for r in resultado_depois if r.id == cliente_id)
+    assert status_depois.confirmado is True
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente_id)
+
+
+def test_listar_clientes_com_status_filtra_por_termo(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Status Filtro Unico", [], [], []
+    )
+
+    resultado_encontra = cliente_service.listar_clientes_com_status(usuario_admin_teste, termo="Status Filtro Unico")
+    resultado_nao_encontra = cliente_service.listar_clientes_com_status(
+        usuario_admin_teste, termo="Nome Que Certamente Nao Existe Em Nenhum Cliente"
+    )
+
+    assert any(r.id == cliente.id for r in resultado_encontra)
+    assert not any(r.id == cliente.id for r in resultado_nao_encontra)
+
+    cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_funcionario_nao_pode_listar_clientes_com_status(usuario_admin_teste) -> None:
+    import uuid
+
+    from app.models.usuario import PerfilUsuario
+    from app.services import auth_service, usuario_service
+    from app.services.usuario_service import PermissaoNegadaError
+
+    login = f"teste_func_status_{uuid.uuid4().hex[:10]}"
+    funcionario = usuario_service.criar_usuario(
+        usuario_admin_teste, "Funcionário de Teste Status", login, "senha-func-123",
+        PerfilUsuario.FUNCIONARIO,
+    )
+    try:
+        usuario_funcionario = auth_service.autenticar(login, "senha-func-123")
+        with pytest.raises(PermissaoNegadaError):
+            cliente_service.listar_clientes_com_status(usuario_funcionario)
+    finally:
+        usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)

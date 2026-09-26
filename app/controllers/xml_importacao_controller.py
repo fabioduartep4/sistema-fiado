@@ -7,6 +7,7 @@ Faz a ponte entre as telas de importação
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from app.services import configuracao_service, xml_importacao_service
@@ -35,6 +36,10 @@ class XmlImportacaoController:
     ) -> list[CandidatoImportacao]:
         """Lista os XMLs de venda a prazo pendentes de importação."""
         return xml_importacao_service.listar_candidatos_importacao(self.usuario_logado, progresso)
+
+    def data_ultima_importacao(self) -> Optional[datetime]:
+        """Quando foi importada a compra de XML mais recente (None se nunca houve)."""
+        return xml_importacao_service.obter_data_ultima_importacao()
 
     def importar(self, escolhas: list[EscolhaImportacao]) -> list[ResultadoImportacao]:
         """Importa os XMLs escolhidos."""

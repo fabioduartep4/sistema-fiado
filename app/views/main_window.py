@@ -1,14 +1,16 @@
 """Janela principal da aplicação (PySide6).
 
-Mostra quem está logado, o perfil de acesso e as abas do sistema (Buscar
-Cliente, Cadastrar Cliente e, para Administradores, Início, Saldos,
-Histórico, Backup e Configurações — esta última reúne também a gestão de
-Usuários, numa sub-aba). "Adicionar Compra" e "Receber Conta" não são
-mais abas próprias: os mesmos formulários já abrem, com o cliente
-pré-selecionado, pelos botões da Ficha do Cliente (aberta a partir de
-Buscar Cliente) — ver ``app.views.ficha_cliente_view``. Também dispara,
-em segundo plano, a verificação do backup automático diário, e registra
-os atalhos de teclado globais do sistema.
+Navegação em sidebar lateral fixa (substitui as antigas abas horizontais):
+Início, Clientes, Saldos, Histórico, Backups e Configurações para
+Administrador — Funcionário só vê Clientes (que já reúne busca e
+cadastro, ver ``app.views.clientes_view``; "Adicionar Compra"/"Receber
+Conta" não são mais telas próprias — abrem, com o cliente já
+pré-selecionado, pelos botões da Ficha do Cliente, ou sem cliente
+pré-selecionado através do atalho global "+ Novo Lançamento" no
+cabeçalho, ver ``app.views.novo_lancamento_dialog``).
+
+Também dispara, em segundo plano, a verificação do backup automático
+diário, e registra os atalhos de teclado globais do sistema.
 """
 
 from __future__ import annotations
@@ -16,11 +18,13 @@ from __future__ import annotations
 from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QTabWidget,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -29,9 +33,9 @@ from app.config.logging_config import logger
 from app.services import auth_service, backup_service, xml_importacao_service
 from app.services.auth_service import UsuarioAutenticado
 from app.views.backup_view import BackupView
-from app.views.buscar_cliente_view import BuscarClienteView
-from app.views.cadastrar_cliente_view import CadastrarClienteView
+from app.views.clientes_view import ClientesView
 from app.views.configuracoes_view import ConfiguracoesView
+from app.views.novo_lancamento_dialog import NovoLancamentoDialog
 from app.views.painel_inicio_view import PainelInicioView
 from app.views.relatorio_view import RelatorioView
 from app.views.saldos_view import SaldosView
@@ -39,6 +43,7 @@ from app.views.xml_importacao_view import ImportarXmlDialog
 from app.utils.icons import icone
 
 _INTERVALO_VERIFICACAO_BACKUP_MS = 60 * 60 * 1000  # verifica a cada hora
+_LARGURA_SIDEBAR = 230
 
 
 class _BackupAutomaticoWorker(QThread):
@@ -68,6 +73,12 @@ class _VerificarXmlWorker(QThread):
             logger.exception("Falha ao verificar XMLs pendentes de importação.")
             self.candidatos_encontrados.emit(0)
 
+        # Depois da listagem acima, que já atualizou o índice de XMLs.
+        try:
+            xml_importacao_service.preencher_data_hora_emissao_faltante()
+        except Exception:
+            logger.exception("Falha ao preencher a data/hora de emissão de compras importadas de XML.")
+
 
 class MainWindow(QMainWindow):
     """Janela principal do sistema, exibida após login bem-sucedido."""
@@ -76,43 +87,34 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._usuario = usuario
         self._sessao_encerrada = False
+        self._botoes_nav: list[QPushButton] = []
 
         self.setWindowTitle("Sistema de Gestão de Fiado")
-        self.resize(1024, 700)
+        self.resize(1100, 720)
 
-        cabecalho = QLabel(
-            f"Logado como: {usuario.nome}  —  Perfil: {usuario.perfil.value.capitalize()}"
-        )
-        cabecalho.setProperty("papel", "subtitulo")
-        cabecalho.setStyleSheet("padding: 6px;")
+        self._stack = QStackedWidget()
 
-        botao_sair = QPushButton("Sair")
-        botao_sair.setIcon(icone("LOGOUT"))
-        botao_sair.clicked.connect(self._sair)
+        # Guardadas em variáveis (não por índice) pros atalhos de teclado e
+        # pra troca de página no clique de cada botão da sidebar.
+        view_clientes = ClientesView(usuario)
 
-        abas = QTabWidget()
-        # Guardadas em variáveis (em vez de índice fixo) porque a posição
-        # de cada uma muda conforme o perfil — Administrador tem "Início"
-        # inserida antes de tudo (ver abaixo), o que empurraria qualquer
-        # índice fixo pro atalho de teclado errado.
-        view_buscar_cliente = BuscarClienteView(usuario)
-        view_cadastrar_cliente = CadastrarClienteView(usuario)
-        abas.addTab(view_buscar_cliente, icone("SEARCH"), "Buscar Cliente")
-        abas.addTab(view_cadastrar_cliente, icone("USER_PLUS"), "Cadastrar Cliente")
+        sidebar = self._construir_sidebar(usuario, view_clientes)
 
-        if usuario.eh_administrador:
-            abas.addTab(SaldosView(usuario), icone("REPORT_MONEY"), "Saldos")
-            abas.addTab(RelatorioView(usuario), icone("CHART_BAR"), "Histórico")
-            abas.addTab(BackupView(usuario), icone("DATABASE"), "Backup")
-            abas.addTab(ConfiguracoesView(usuario), icone("SETTINGS"), "Configurações")
-            abas.insertTab(0, PainelInicioView(usuario), icone("HOME"), "Início")
-            abas.setCurrentIndex(0)
+        cabecalho = self._construir_cabecalho()
+
+        area_conteudo = QWidget()
+        layout_conteudo = QVBoxLayout(area_conteudo)
+        layout_conteudo.setContentsMargins(0, 0, 0, 0)
+        layout_conteudo.setSpacing(0)
+        layout_conteudo.addWidget(cabecalho)
+        layout_conteudo.addWidget(self._stack)
 
         container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.addWidget(cabecalho)
-        layout.addWidget(abas)
-        layout.addWidget(botao_sair)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(sidebar)
+        layout.addWidget(area_conteudo, stretch=1)
         self.setCentralWidget(container)
 
         self._worker_backup_automatico: _BackupAutomaticoWorker | None = None
@@ -123,10 +125,10 @@ class MainWindow(QMainWindow):
         self._verificar_backup_automatico()  # também verifica logo ao abrir o sistema
 
         self._atalho_novo_cliente = QShortcut(QKeySequence("Ctrl+N"), self)
-        self._atalho_novo_cliente.activated.connect(lambda: abas.setCurrentWidget(view_cadastrar_cliente))
+        self._atalho_novo_cliente.activated.connect(view_clientes.abrir_novo_cliente)
 
         self._atalho_buscar_cliente = QShortcut(QKeySequence("Ctrl+F"), self)
-        self._atalho_buscar_cliente.activated.connect(lambda: abas.setCurrentWidget(view_buscar_cliente))
+        self._atalho_buscar_cliente.activated.connect(lambda: self._focar_clientes(view_clientes))
 
         self._atalho_sair = QShortcut(QKeySequence("Ctrl+Q"), self)
         self._atalho_sair.activated.connect(self.close)
@@ -134,16 +136,125 @@ class MainWindow(QMainWindow):
         self._worker_verificar_xml: _VerificarXmlWorker | None = None
         self._verificar_xmls_pendentes()
 
-    @staticmethod
-    def _aba_em_construcao(nome: str) -> QWidget:
-        """Cria um widget placeholder para uma aba ainda não implementada."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        label = QLabel(f"'{nome}' será implementada em uma próxima etapa.")
-        label.setProperty("papel", "secundario")
-        label.setStyleSheet("padding: 24px;")
-        layout.addWidget(label)
-        return widget
+    # -- Sidebar ---------------------------------------------------------------
+
+    def _construir_sidebar(self, usuario: UsuarioAutenticado, view_clientes: ClientesView) -> QFrame:
+        sidebar = QFrame()
+        sidebar.setProperty("papel", "sidebar")
+        sidebar.setFixedWidth(_LARGURA_SIDEBAR)
+
+        logo = QLabel("FIADO")
+        logo.setProperty("papel", "titulo")
+        logo.setStyleSheet("padding: 16px 14px 8px 14px;")
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(10, 0, 10, 14)
+        layout.setSpacing(2)
+        layout.addWidget(logo)
+
+        # Início exige Administrador (ver PainelController.obter_painel) —
+        # a própria PainelInicioView só pode ser CONSTRUÍDA por um admin,
+        # então nem o widget é criado se o perfil for Funcionário (ao
+        # contrário dos outros itens, aqui não basta só esconder o botão
+        # depois: construir a view já dispara a consulta e derrubaria
+        # com PermissaoNegadaError pra quem não é admin).
+        if usuario.eh_administrador:
+            self._adicionar_item_nav(layout, "HOME", "Início", PainelInicioView(usuario))
+
+        self._botao_clientes = self._adicionar_item_nav(layout, "USERS", "Clientes", view_clientes)
+
+        if usuario.eh_administrador:
+            self._adicionar_item_nav(layout, "REPORT_MONEY", "Saldos", SaldosView(usuario))
+            self._adicionar_item_nav(layout, "CHART_BAR", "Histórico", RelatorioView(usuario))
+            self._adicionar_item_nav(layout, "DATABASE", "Backups", BackupView(usuario))
+            self._adicionar_item_nav(layout, "SETTINGS", "Configurações", ConfiguracoesView(usuario))
+
+        layout.addStretch()
+
+        separador = QFrame()
+        separador.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(separador)
+
+        usuario_nome = QLabel(usuario.nome)
+        usuario_nome.setStyleSheet("padding: 10px 6px 0 6px; font-weight: 600;")
+        usuario_perfil = QLabel(usuario.perfil.value.capitalize())
+        usuario_perfil.setProperty("papel", "secundario")
+        usuario_perfil.setStyleSheet("padding: 0 6px 8px 6px;")
+        layout.addWidget(usuario_nome)
+        layout.addWidget(usuario_perfil)
+
+        botao_sair = QPushButton("Sair")
+        botao_sair.setIcon(icone("LOGOUT"))
+        botao_sair.clicked.connect(self._sair)
+        layout.addWidget(botao_sair)
+
+        # A primeira aba disponível abre selecionada (Início pra
+        # Administrador, Clientes pra Funcionário — não há Início pra
+        # quem não é admin).
+        if self._botoes_nav:
+            self._selecionar_item_nav(self._botoes_nav[0])
+
+        return sidebar
+
+    def _adicionar_item_nav(
+        self, layout: QVBoxLayout, nome_icone: str, rotulo: str, pagina: QWidget
+    ) -> QPushButton:
+        """Adiciona uma página ao stack e seu botão correspondente na sidebar.
+
+        Quem chama decide se/quando a página deve ser construída (ex.:
+        só dentro de ``if usuario.eh_administrador:``) — construir o
+        widget já pode disparar consultas que exigem permissão, então
+        não adianta filtrar só aqui dentro.
+        """
+        indice = self._stack.addWidget(pagina)
+        botao = QPushButton(rotulo)
+        botao.setIcon(icone(nome_icone))
+        botao.setProperty("papel", "item_sidebar")
+        botao.setProperty("selecionado", False)
+        botao.clicked.connect(lambda _checked=False, i=indice: self._ir_para_pagina(i))
+        layout.addWidget(botao)
+        self._botoes_nav.append(botao)
+        return botao
+
+    def _ir_para_pagina(self, indice: int) -> None:
+        self._stack.setCurrentIndex(indice)
+        for i, botao in enumerate(self._botoes_nav):
+            botao.setProperty("selecionado", i == indice)
+            botao.style().unpolish(botao)
+            botao.style().polish(botao)
+
+    def _selecionar_item_nav(self, botao: QPushButton) -> None:
+        self._ir_para_pagina(self._botoes_nav.index(botao))
+
+    def _focar_clientes(self, view_clientes: ClientesView) -> None:
+        self._selecionar_item_nav(self._botao_clientes)
+        view_clientes.focar_busca()
+
+    # -- Cabeçalho (ações globais) ----------------------------------------------
+
+    def _construir_cabecalho(self) -> QWidget:
+        cabecalho = QWidget()
+        layout = QHBoxLayout(cabecalho)
+        layout.setContentsMargins(20, 14, 20, 14)
+
+        botao_novo_lancamento = QPushButton("+ Novo Lançamento")
+        botao_novo_lancamento.setProperty("importancia", "primaria")
+        botao_novo_lancamento.clicked.connect(self._abrir_novo_lancamento)
+
+        botao_sino = QPushButton()
+        botao_sino.setIcon(icone("BELL"))
+        botao_sino.setToolTip("Notificações (em breve)")
+        botao_sino.setEnabled(False)
+        botao_sino.setFlat(True)
+
+        layout.addStretch()
+        layout.addWidget(botao_novo_lancamento)
+        layout.addWidget(botao_sino)
+        return cabecalho
+
+    def _abrir_novo_lancamento(self) -> None:
+        dialogo = NovoLancamentoDialog(self._usuario, self)
+        dialogo.exec()
 
     def _sair(self) -> None:
         """Fecha a janela principal (o logout é registrado em ``closeEvent``,

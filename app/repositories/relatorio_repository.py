@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
@@ -233,8 +234,8 @@ def calcular_total_em_aberto_geral(session: Session) -> Decimal:
     return Decimal(total)
 
 
-def calcular_total_vendido_no_dia(session: Session, dia: date) -> Decimal:
-    """Soma o valor de todas as vendas no fiado lançadas em um dia específico.
+def calcular_total_vendido_no_dia(session: Session, dia: date) -> tuple[Decimal, int]:
+    """Soma o valor (e conta a quantidade) de vendas no fiado lançadas num dia.
 
     Diferente do total em aberto, aqui conta toda venda feita naquele dia,
     já paga ou não — é sobre o que foi vendido, não sobre o que ainda
@@ -245,13 +246,14 @@ def calcular_total_vendido_no_dia(session: Session, dia: date) -> Decimal:
         dia: Data a considerar.
 
     Returns:
-        Soma do valor de todas as compras ativas lançadas em ``dia``.
+        Tupla (soma_do_valor, quantidade_de_compras) das compras ativas
+        lançadas em ``dia``.
     """
-    stmt = select(func.coalesce(func.sum(Compra.valor), 0)).where(
+    stmt = select(func.coalesce(func.sum(Compra.valor), 0), func.count(Compra.id)).where(
         Compra.ativo.is_(True), Compra.data == dia
     )
-    total = session.execute(stmt).scalar_one()
-    return Decimal(total)
+    total, quantidade = session.execute(stmt).one()
+    return Decimal(total), quantidade
 
 
 def listar_vendas_ultimos_dias(session: Session, dias: int = 7) -> list[tuple[date, Decimal]]:
@@ -290,7 +292,13 @@ def listar_vendas_ultimos_dias(session: Session, dias: int = 7) -> list[tuple[da
     ]
 
 
-def listar_historico_vendas(session: Session, limite: int = 200) -> list[tuple]:
+def listar_historico_vendas(
+    session: Session,
+    limite: int = 200,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
+    cliente_nome: Optional[str] = None,
+) -> list[tuple]:
     """Lista as compras lançadas no sistema, uma por linha (aba "Vendas").
 
     Vem do histórico de alterações (não direto da tabela de compras),
@@ -304,18 +312,29 @@ def listar_historico_vendas(session: Session, limite: int = 200) -> list[tuple]:
     Args:
         session: Sessão SQLAlchemy ativa.
         limite: Número máximo de registros retornados.
+        data_inicio: Filtro opcional — só compras lançadas a partir desta
+            data (inclusive), comparando pelo dia do registro de
+            auditoria (não pela data da compra, que pode ser retroativa).
+        data_fim: Filtro opcional — só compras lançadas até esta data
+            (inclusive).
+        cliente_nome: Filtro opcional por nome do cliente (contém,
+            case-insensitive).
 
     Returns:
         Lista de tuplas (data_hora, nome_cliente, valor, nome_usuario), da
-        mais recente para a mais antiga.
+        mais recente para a mais antiga. ``data_hora`` é a emissão da nota
+        para compras importadas de XML, e o momento do lançamento para as
+        demais — os filtros de data e a ordenação usam esse mesmo valor.
     """
+    data_hora = func.coalesce(Compra.data_hora_emissao, HistoricoAlteracao.data_hora)
     stmt = (
         select(
-            HistoricoAlteracao.data_hora,
+            data_hora,
             Cliente.nome_principal,
             Compra.valor,
             Usuario.nome,
         )
+        .select_from(HistoricoAlteracao)
         .join(Compra, Compra.id == HistoricoAlteracao.entidade_id)
         .join(Cliente, Cliente.id == Compra.cliente_id)
         .join(Usuario, Usuario.id == HistoricoAlteracao.usuario_id)
@@ -323,13 +342,24 @@ def listar_historico_vendas(session: Session, limite: int = 200) -> list[tuple]:
             HistoricoAlteracao.entidade == "Compra",
             HistoricoAlteracao.acao.in_(("criacao", "criacao_via_xml")),
         )
-        .order_by(HistoricoAlteracao.data_hora.desc())
-        .limit(limite)
     )
+    if data_inicio is not None:
+        stmt = stmt.where(func.date(data_hora) >= data_inicio)
+    if data_fim is not None:
+        stmt = stmt.where(func.date(data_hora) <= data_fim)
+    if cliente_nome:
+        stmt = stmt.where(Cliente.nome_principal.ilike(f"%{cliente_nome}%"))
+    stmt = stmt.order_by(data_hora.desc()).limit(limite)
     return list(session.execute(stmt).all())
 
 
-def listar_historico_recebimentos(session: Session, limite: int = 200) -> list[tuple]:
+def listar_historico_recebimentos(
+    session: Session,
+    limite: int = 200,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
+    cliente_nome: Optional[str] = None,
+) -> list[tuple]:
     """Lista os pagamentos recebidos no sistema, um por linha (aba "Recebimentos").
 
     Ao contrário de Vendas, vem direto da tabela de pagamentos — ela já
@@ -341,6 +371,12 @@ def listar_historico_recebimentos(session: Session, limite: int = 200) -> list[t
     Args:
         session: Sessão SQLAlchemy ativa.
         limite: Número máximo de registros retornados.
+        data_inicio: Filtro opcional — só pagamentos recebidos a partir
+            desta data (inclusive), comparando pelo dia do registro.
+        data_fim: Filtro opcional — só pagamentos recebidos até esta data
+            (inclusive).
+        cliente_nome: Filtro opcional por nome do cliente (contém,
+            case-insensitive).
 
     Returns:
         Lista de tuplas (criado_em, nome_cliente, valor_pago, nome_usuario,
@@ -356,7 +392,12 @@ def listar_historico_recebimentos(session: Session, limite: int = 200) -> list[t
         )
         .join(Cliente, Cliente.id == Pagamento.cliente_id)
         .join(Usuario, Usuario.id == Pagamento.recebido_por_usuario_id)
-        .order_by(Pagamento.criado_em.desc())
-        .limit(limite)
     )
+    if data_inicio is not None:
+        stmt = stmt.where(func.date(Pagamento.criado_em) >= data_inicio)
+    if data_fim is not None:
+        stmt = stmt.where(func.date(Pagamento.criado_em) <= data_fim)
+    if cliente_nome:
+        stmt = stmt.where(Cliente.nome_principal.ilike(f"%{cliente_nome}%"))
+    stmt = stmt.order_by(Pagamento.criado_em.desc()).limit(limite)
     return list(session.execute(stmt).all())
