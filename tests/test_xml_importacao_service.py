@@ -462,3 +462,22 @@ def test_preenche_data_hora_emissao_de_compras_importadas_antes_da_coluna(
             assert compra.data_hora_emissao == datetime.fromisoformat("2026-01-15T10:30:00-03:00")
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, resultados[0].cliente_id)
+
+
+def test_data_ultima_importacao_reflete_importacao_recente(
+    usuario_admin_teste, _pasta_xml_configurada
+) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    chave = _gerar_chave()
+    nome_cliente = f"Teste Automatizado XML Ultima {uuid.uuid4().hex[:8]}"
+    caminho = _escrever_xml_teste(_pasta_xml_configurada, "nota_ultima.xml", chave, nome_cliente)
+    antes = datetime.now(timezone.utc) - timedelta(seconds=5)
+
+    resultados = xml_importacao_service.importar_xmls(
+        usuario_admin_teste, [EscolhaImportacao(caminho_arquivo=str(caminho), cliente_id=None)]
+    )
+    try:
+        assert xml_importacao_service.obter_data_ultima_importacao() >= antes
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, resultados[0].cliente_id)

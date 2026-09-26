@@ -115,9 +115,13 @@ class ConfiguracoesView(QWidget):
         botao_escolher_pasta_xml.clicked.connect(self._escolher_pasta_xml)
 
         botao_importar_xml_agora = QPushButton("Importar XMLs Agora")
-        botao_importar_xml_agora.setIcon(icone("UPLOAD"))
+        botao_importar_xml_agora.setIcon(icone("UPLOAD", cor="#ffffff"))
         botao_importar_xml_agora.setMinimumHeight(42)
+        botao_importar_xml_agora.setProperty("importancia", "primaria")
         botao_importar_xml_agora.clicked.connect(self._importar_xml_agora)
+
+        self._label_ultima_importacao = QLabel()
+        self._label_ultima_importacao.setProperty("papel", "secundario")
 
         botao_mesclar_duplicados = QPushButton("Verificar Clientes Duplicados")
         botao_mesclar_duplicados.setIcon(icone("GIT_MERGE"))
@@ -145,12 +149,14 @@ class ConfiguracoesView(QWidget):
         layout.addWidget(self._campo_pasta_xml)
         layout.addWidget(botao_escolher_pasta_xml)
         layout.addWidget(botao_importar_xml_agora)
+        layout.addWidget(self._label_ultima_importacao)
         layout.addWidget(botao_mesclar_duplicados)
         layout.addStretch()
 
         self._carregar_modo_data_atual()
         self._carregar_tema_atual()
         self._carregar_pasta_xml_atual()
+        self._carregar_ultima_importacao()
         return pagina
 
     def _carregar_tema_atual(self) -> None:
@@ -229,9 +235,24 @@ class ConfiguracoesView(QWidget):
 
         self._campo_pasta_xml.setText(pasta)
 
+    def _carregar_ultima_importacao(self) -> None:
+        try:
+            data_hora = self._xml_controller.data_ultima_importacao()
+        except Exception:
+            logger.exception("Falha ao carregar a data da última importação de XML.")
+            self._label_ultima_importacao.setText("")
+            return
+        if data_hora is None:
+            self._label_ultima_importacao.setText("Nenhuma importação feita ainda.")
+        else:
+            self._label_ultima_importacao.setText(
+                f"Última importação: {data_hora:%d/%m/%Y} às {data_hora:%H:%M}"
+            )
+
     def _importar_xml_agora(self) -> None:
         dialogo = ImportarXmlDialog(self._usuario_logado, self)
         dialogo.exec()
+        self._carregar_ultima_importacao()
 
     def _verificar_duplicados(self) -> None:
         dialogo = MesclarClientesDialog(self._usuario_logado, self)

@@ -23,13 +23,18 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from app.database.connection import session_scope
-from app.repositories import cliente_repository, compra_repository, xml_indexado_repository
+from app.repositories import (
+    cliente_repository,
+    compra_repository,
+    historico_repository,
+    xml_indexado_repository,
+)
 from app.services import cliente_service, configuracao_service, historico_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteBusca
@@ -306,6 +311,13 @@ def importar_xmls(
             )
 
     return resultados
+
+
+@tratar_erros
+def obter_data_ultima_importacao() -> Optional[datetime]:
+    """Quando foi importada a compra de XML mais recente (None se nunca houve)."""
+    with session_scope() as session:
+        return historico_repository.obter_data_ultima_importacao_xml(session)
 
 
 @tratar_erros
