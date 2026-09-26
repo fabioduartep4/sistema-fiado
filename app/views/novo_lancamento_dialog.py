@@ -11,7 +11,7 @@ o formulário são as telas que já existem (``AdicionarCompraDialog``/
 from __future__ import annotations
 
 from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QWidget
 
 from app.services.auth_service import UsuarioAutenticado
 from app.utils.icons import icone
@@ -26,31 +26,27 @@ class NovoLancamentoDialog(QDialog):
         super().__init__(parent)
         self._usuario_logado = usuario_logado
         self.setWindowTitle("Novo Lançamento")
-        self.setMinimumSize(420, 200)
+        self.setMinimumSize(460, 150)
 
-        titulo = QLabel("O que deseja registrar?")
-        titulo.setProperty("papel", "subtitulo")
-
-        botao_compra = QPushButton("Compra\nRegistrar fiado")
-        botao_compra.setIcon(icone("SHOPPING_CART_PLUS"))
-        botao_compra.setIconSize(QSize(32, 32))
-        botao_compra.setMinimumHeight(96)
+        botao_compra = self._criar_botao("Compra", "SHOPPING_CART_PLUS")
         botao_compra.clicked.connect(self._abrir_compra)
 
-        botao_pagamento = QPushButton("Pagamento\nRegistrar valor recebido")
-        botao_pagamento.setIcon(icone("CASH_BANKNOTE"))
-        botao_pagamento.setIconSize(QSize(32, 32))
-        botao_pagamento.setMinimumHeight(96)
+        botao_pagamento = self._criar_botao("Pagamento", "CASH_BANKNOTE")
         botao_pagamento.clicked.connect(self._abrir_pagamento)
 
-        layout_botoes = QHBoxLayout()
-        layout_botoes.addWidget(botao_compra)
-        layout_botoes.addWidget(botao_pagamento)
-
-        layout = QVBoxLayout()
-        layout.addWidget(titulo)
-        layout.addLayout(layout_botoes)
+        layout = QHBoxLayout()
+        layout.addWidget(botao_compra)
+        layout.addWidget(botao_pagamento)
         self.setLayout(layout)
+
+    @staticmethod
+    def _criar_botao(texto: str, nome_icone: str) -> QPushButton:
+        botao = QPushButton(texto)
+        botao.setIcon(icone(nome_icone, tamanho=40))
+        botao.setIconSize(QSize(40, 40))
+        botao.setMinimumHeight(120)
+        botao.setStyleSheet("font-size: 24px; font-weight: 700;")
+        return botao
 
     def _abrir_compra(self) -> None:
         self.accept()
