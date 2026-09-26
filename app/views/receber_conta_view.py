@@ -34,6 +34,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.utils.date_utils import obter_data_padrao
 from app.utils.documentos import montar_html_recibo_pagamento
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
 from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
@@ -173,10 +174,10 @@ class ReceberContaView(QWidget):
             rotulo_resto = " [Resto]" if compra.eh_resto else ""
             data_formatada = compra.data.strftime("%d/%m")
             self._lista_compras_abertas.addItem(
-                f"R$ {compra.valor:.2f} — {data_formatada}{rotulo_resto}"
+                f"{formatar_reais(compra.valor)} — {data_formatada}{rotulo_resto}"
             )
 
-        self._label_total_em_aberto.setText(f"Total em aberto: R$ {ficha.total_em_aberto:.2f}")
+        self._label_total_em_aberto.setText(f"Total em aberto: {formatar_reais(ficha.total_em_aberto)}")
 
     def _confirmar_pagamento(self) -> None:
         if self._cliente_id is None:
@@ -207,11 +208,11 @@ class ReceberContaView(QWidget):
 
         if resultado.valor_resto_gerado > 0:
             mensagem = (
-                f"Pagamento de R$ {resultado.valor_pago:.2f} registrado.\n\n"
-                f"Foi gerada uma nova conta 'Resto' de R$ {resultado.valor_resto_gerado:.2f}."
+                f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado.\n\n"
+                f"Foi gerada uma nova conta 'Resto' de {formatar_reais(resultado.valor_resto_gerado)}."
             )
         else:
-            mensagem = f"Pagamento de R$ {resultado.valor_pago:.2f} registrado. Conta quitada."
+            mensagem = f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado. Conta quitada."
 
         caixa = QMessageBox(self)
         caixa.setWindowTitle("Pagamento registrado")

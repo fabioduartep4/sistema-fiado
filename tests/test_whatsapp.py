@@ -35,6 +35,7 @@ def test_lembrete_em_atraso_fala_do_atraso_e_do_total() -> None:
     mensagem = montar_mensagem_lembrete_saldo("Maria da Silva", "10/10/2026", "R$ 3.000,00", atrasado=True)
 
     assert "Maria da Silva" in mensagem
+    assert "sistema automático do Mercado Duarte" in mensagem
     assert "em atraso" in mensagem
     assert "10/10/2026" in mensagem
     assert "R$ 3.000,00" in mensagem

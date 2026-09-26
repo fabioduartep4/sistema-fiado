@@ -29,6 +29,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 
 
 @dataclass(frozen=True)
@@ -94,8 +95,8 @@ def registrar_pagamento(
         total_em_aberto = sum((compra.valor for compra in compras_abertas), Decimal("0"))
         if valor_pago > total_em_aberto:
             raise ValueError(
-                f"O valor pago (R$ {valor_pago:.2f}) é maior que o total em aberto "
-                f"(R$ {total_em_aberto:.2f})."
+                f"O valor pago ({formatar_reais(valor_pago)}) é maior que o total em aberto "
+                f"({formatar_reais(total_em_aberto)})."
             )
 
         pagamento = pagamento_repository.criar_pagamento(

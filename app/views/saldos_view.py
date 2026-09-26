@@ -40,6 +40,7 @@ from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.services.relatorio_service import SaldoClienteResumo
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
 from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
@@ -128,7 +129,7 @@ class SaldosView(QWidget):
 
         # -- Cartões ----------------------------------------------------------
         card_total, label_total = self._criar_card("TOTAL EM ABERTO")
-        label_total.setText(f"R$ {painel.total_em_aberto_geral:.2f}")
+        label_total.setText(f"{formatar_reais(painel.total_em_aberto_geral)}")
         card_clientes, label_clientes = self._criar_card("CLIENTES COM SALDO")
         label_clientes.setText(str(len(saldos)))
         card_limite, label_limite = self._criar_card("ACIMA DO LIMITE")
@@ -213,7 +214,7 @@ class SaldosView(QWidget):
             item_codigo.setData(Qt.ItemDataRole.UserRole, saldo.id)
             self._tabela_saldos.setItem(linha, 0, item_codigo)
             self._tabela_saldos.setItem(linha, 1, QTableWidgetItem(saldo.nome_principal))
-            self._tabela_saldos.setItem(linha, 2, QTableWidgetItem(f"R$ {saldo.total_em_aberto:.2f}"))
+            self._tabela_saldos.setItem(linha, 2, QTableWidgetItem(f"{formatar_reais(saldo.total_em_aberto)}"))
         aplicar_estado_vazio(self._tabela_saldos, self._label_saldos_vazio)
 
     def _filtrar_tabela(self, termo: str) -> None:

@@ -37,6 +37,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.compra_service import CompradorOpcao
 from app.utils.date_utils import obter_data_padrao
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
 
@@ -190,7 +191,7 @@ class AdicionarCompraView(QWidget):
         QMessageBox.information(
             self,
             "Compra registrada",
-            f"Compra de R$ {compra.valor:.2f} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
+            f"Compra de {formatar_reais(compra.valor)} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
         )
         self._campo_valor.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))

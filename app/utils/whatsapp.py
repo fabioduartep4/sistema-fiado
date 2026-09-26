@@ -67,7 +67,7 @@ def montar_mensagem_lembrete_saldo(
     """
     if not atrasado:
         return (
-            f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Passando para lembrar que "
+            f"Olá, {nome_cliente}! Aqui é o sistema automático do Mercado Duarte. Passando para lembrar que "
             f"sua conta está no valor total de {total_em_aberto}. Qualquer dúvida, "
             "estamos à disposição!"
         )
@@ -78,7 +78,7 @@ def montar_mensagem_lembrete_saldo(
         else "ainda não identificamos nenhum pagamento seu registrado"
     )
     return (
-        f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Seu pagamento está em atraso, "
+        f"Olá, {nome_cliente}! Aqui é o sistema automático do Mercado Duarte. Seu pagamento está em atraso, "
         f"{frase_ultimo_pagamento}. Atualmente sua conta está no valor total de "
         f"{total_em_aberto}. Pedimos que regularize assim que possível. Qualquer dúvida, "
         "estamos à disposição!"
@@ -97,7 +97,7 @@ def montar_mensagem_lembrete_limite(nome_cliente: str, total_em_aberto: str, lim
         Mensagem pronta, editável pelo usuário antes do envio.
     """
     return (
-        f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Seu saldo em aberto está em "
+        f"Olá, {nome_cliente}! Aqui é o sistema automático do Mercado Duarte. Seu saldo em aberto está em "
         f"{total_em_aberto}, passando do limite combinado de {limite_fiado}. Pedimos que "
         "regularize assim que possível para continuar comprando fiado. Qualquer dúvida, "
         "estamos à disposição!"

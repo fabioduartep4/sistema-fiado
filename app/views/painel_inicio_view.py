@@ -61,6 +61,7 @@ from app.controllers.painel_controller import PainelController
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
 from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
@@ -267,10 +268,10 @@ class PainelInicioView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar os indicadores.")
             return
 
-        self._label_em_aberto_valor.setText(f"R$ {saldos_painel.total_em_aberto_geral:.2f}")
+        self._label_em_aberto_valor.setText(f"{formatar_reais(saldos_painel.total_em_aberto_geral)}")
         self._label_em_aberto_sub.setText(f"{len(saldos_em_aberto)} clientes")
 
-        self._label_vendas_hoje_valor.setText(f"R$ {vendas_hoje.total_vendido_hoje:.2f}")
+        self._label_vendas_hoje_valor.setText(f"{formatar_reais(vendas_hoje.total_vendido_hoje)}")
         self._label_vendas_hoje_sub.setText(f"{vendas_hoje.quantidade_vendida_hoje} lançamentos")
 
         self._label_clientes_valor.setText(str(total_clientes))
@@ -404,10 +405,10 @@ class PainelInicioView(QWidget):
                 linha, 2, QTableWidgetItem(f"{saldo.dias_desde_a_compra_mais_antiga} dias")
             )
             self._tabela_atrasos.setItem(
-                linha, 3, QTableWidgetItem(f"R$ {saldo.total_em_atraso:.2f}")
+                linha, 3, QTableWidgetItem(f"{formatar_reais(saldo.total_em_atraso)}")
             )
             self._tabela_atrasos.setItem(
-                linha, 4, QTableWidgetItem(f"R$ {saldo.total_em_aberto:.2f}")
+                linha, 4, QTableWidgetItem(f"{formatar_reais(saldo.total_em_aberto)}")
             )
 
             botao_ver = QPushButton()
@@ -482,13 +483,13 @@ class PainelInicioView(QWidget):
             self._tabela_acima_do_limite.setItem(linha, 0, item_nome)
             self._tabela_acima_do_limite.setItem(linha, 1, QTableWidgetItem(item.telefone or "-"))
             self._tabela_acima_do_limite.setItem(
-                linha, 2, QTableWidgetItem(f"R$ {item.limite_fiado:.2f}")
+                linha, 2, QTableWidgetItem(f"{formatar_reais(item.limite_fiado)}")
             )
             self._tabela_acima_do_limite.setItem(
-                linha, 3, QTableWidgetItem(f"R$ {item.total_em_aberto:.2f}")
+                linha, 3, QTableWidgetItem(f"{formatar_reais(item.total_em_aberto)}")
             )
             self._tabela_acima_do_limite.setItem(
-                linha, 4, QTableWidgetItem(f"R$ {item.excesso:.2f}")
+                linha, 4, QTableWidgetItem(f"{formatar_reais(item.excesso)}")
             )
 
             botao_ver = QPushButton()
@@ -590,6 +591,6 @@ class PainelInicioView(QWidget):
             marca_estorno = " [Estornado]" if item.estornado else ""
             texto = (
                 f"{item.data_hora.strftime('%d/%m %H:%M')} — {item.cliente_nome} — "
-                f"{item.tipo}: {sinal} R$ {item.valor:.2f}{marca_estorno}"
+                f"{item.tipo}: {sinal} {formatar_reais(item.valor)}{marca_estorno}"
             )
             self._lista_movimentacoes.addItem(texto)

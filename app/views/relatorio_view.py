@@ -49,6 +49,7 @@ from app.config.logging_config import logger
 from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
 from app.utils.text_normalizer import normalizar_telefone
@@ -227,7 +228,7 @@ class RelatorioView(QWidget):
             self._tabela_movimentacoes.setItem(linha, 1, QTableWidgetItem(registro.cliente_nome))
             self._tabela_movimentacoes.setItem(linha, 2, QTableWidgetItem(registro.tipo))
             self._tabela_movimentacoes.setItem(
-                linha, 3, QTableWidgetItem(f"R$ {registro.valor:.2f}{marca_estorno}")
+                linha, 3, QTableWidgetItem(f"{formatar_reais(registro.valor)}{marca_estorno}")
             )
             self._tabela_movimentacoes.setItem(linha, 4, QTableWidgetItem(registro.usuario_nome))
 

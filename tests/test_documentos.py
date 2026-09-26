@@ -25,7 +25,7 @@ def test_montar_html_recibo_pagamento_inclui_dados_principais() -> None:
     )
 
     assert "Maria da Silva" in html
-    assert "R$ 50.00" in html
+    assert "R$ 50,00" in html
     assert "10/03/2026" in html
     assert "Administrador" in html
     assert "Pagamento parcial" in html
@@ -42,7 +42,7 @@ def test_montar_html_recibo_pagamento_menciona_resto_quando_gerado() -> None:
         valor_resto_gerado=Decimal("15.50"),
     )
 
-    assert "R$ 15.50" in html
+    assert "R$ 15,50" in html
     assert "Resto" in html
 
 

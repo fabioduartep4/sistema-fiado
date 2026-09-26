@@ -211,10 +211,10 @@ class FichaClienteView(QDialog):
         self._label_compradores.setText("Compradores: " + (", ".join(ficha.compradores) or "-"))
 
         excedido = ficha.limite_fiado is not None and ficha.total_em_aberto > ficha.limite_fiado
-        self._label_saldo_valor.setText(f"R$ {ficha.total_em_aberto:.2f}")
+        self._label_saldo_valor.setText(f"{formatar_reais(ficha.total_em_aberto)}")
         if ficha.limite_fiado is not None:
             disponivel = ficha.limite_fiado - ficha.total_em_aberto
-            texto_limite = f"Limite: R$ {ficha.limite_fiado:.2f}  •  Disponível: R$ {disponivel:.2f}"
+            texto_limite = f"Limite: {formatar_reais(ficha.limite_fiado)}  •  Disponível: {formatar_reais(disponivel)}"
             if excedido:
                 texto_limite += "  ⚠ Acima do limite"
         else:
@@ -240,13 +240,13 @@ class FichaClienteView(QDialog):
         for compra in ficha.compras:
             marca_resto = " [Resto]" if compra.eh_resto else ""
             marca_xml = " 📄" if compra.origem_nfe_xml else ""
-            texto = f"{compra.data.strftime('%d/%m')} — Compra: + R$ {compra.valor:.2f}{marca_resto}{marca_xml}"
+            texto = f"{compra.data.strftime('%d/%m')} — Compra: + {formatar_reais(compra.valor)}{marca_resto}{marca_xml}"
             itens.append((compra.data, texto, _TIPO_COMPRA, compra))
         for pagamento in pagamentos:
             marca_estorno = " [Estornado]" if not pagamento.ativo else ""
             texto = (
                 f"{pagamento.data_pagamento.strftime('%d/%m')} — Pagamento: "
-                f"- R$ {pagamento.valor_pago:.2f}{marca_estorno}"
+                f"- {formatar_reais(pagamento.valor_pago)}{marca_estorno}"
             )
             itens.append((pagamento.data_pagamento, texto, _TIPO_PAGAMENTO, pagamento))
         itens.sort(key=lambda item: item[0], reverse=True)

@@ -33,6 +33,7 @@ from app.controllers.xml_importacao_controller import XmlImportacaoController
 from app.services.auth_service import UsuarioAutenticado
 from app.services.pagamento_service import PagamentoResumo
 from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.tabelas import ajustar_colunas
 from app.views.xml_importacao_view import ObterProdutosWorker, ProdutosXmlDialog
@@ -122,7 +123,7 @@ class HistoricoPagamentosDialog(QDialog):
             self._tabela.setItem(
                 linha, 0, QTableWidgetItem(pagamento.data_pagamento.strftime("%d/%m/%Y"))
             )
-            self._tabela.setItem(linha, 1, QTableWidgetItem(f"R$ {pagamento.valor_pago:.2f}"))
+            self._tabela.setItem(linha, 1, QTableWidgetItem(f"{formatar_reais(pagamento.valor_pago)}"))
             self._tabela.setItem(linha, 2, QTableWidgetItem(pagamento.recebido_por_nome))
             self._tabela.setItem(linha, 3, QTableWidgetItem(pagamento.observacoes or "-"))
             self._tabela.setItem(
@@ -154,8 +155,8 @@ class HistoricoPagamentosDialog(QDialog):
             rotulo_xml = " 📄" if compra.origem_nfe_xml else ""
             data_formatada = compra.data.strftime("%d/%m")
             item = QListWidgetItem(
-                f"R$ {compra.valor:.2f} — {data_formatada}{rotulo_resto} "
-                f"(aplicado R$ {compra.valor_aplicado:.2f}){rotulo_xml}"
+                f"{formatar_reais(compra.valor)} — {data_formatada}{rotulo_resto} "
+                f"(aplicado {formatar_reais(compra.valor_aplicado)}){rotulo_xml}"
             )
             item.setData(Qt.ItemDataRole.UserRole, compra.origem_nfe_xml)
             self._lista_compras_quitadas.addItem(item)
@@ -174,7 +175,7 @@ class HistoricoPagamentosDialog(QDialog):
         resposta = QMessageBox.question(
             self,
             "Confirmar estorno",
-            f"Deseja realmente estornar o pagamento de R$ {pagamento.valor_pago:.2f} de "
+            f"Deseja realmente estornar o pagamento de {formatar_reais(pagamento.valor_pago)} de "
             f"{pagamento.data_pagamento.strftime('%d/%m/%Y')}?\n\n"
             "As compras quitadas por ele voltarão a ficar em aberto.",
         )

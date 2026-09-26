@@ -57,7 +57,7 @@ def montar_html_recibo_pagamento(
     if valor_resto_gerado > 0:
         linha_resto = (
             f"<p>Pagamento parcial: gerada uma nova conta (\"Resto\") de "
-            f"<strong>R$ {valor_resto_gerado:.2f}</strong>.</p>"
+            f"<strong>{formatar_reais(valor_resto_gerado)}</strong>.</p>"
         )
     linha_obs = f"<p>Obs: {escape(observacoes)}</p>" if observacoes else ""
 
@@ -67,7 +67,7 @@ def montar_html_recibo_pagamento(
       <h2>Comprovante de Pagamento</h2>
       <hr>
       <p>Cliente: {escape(nome_cliente)}</p>
-      <p>Valor pago: R$ {valor_pago:.2f}</p>
+      <p>Valor pago: {formatar_reais(valor_pago)}</p>
       <p>Data: {data_pagamento.strftime('%d/%m/%Y')}</p>
       <p>Recebido por: {escape(recebido_por)}</p>
       {linha_obs}

@@ -39,6 +39,7 @@ from app.repositories import (
 from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
+from app.utils.formatacao import formatar_reais
 
 _ROTULOS_PERFIL = {
     PerfilUsuario.ADMINISTRADOR: "Administrador",
@@ -227,14 +228,15 @@ def _descrever_acao(
             return f'Inativou o usuário "{nome}".'
 
     if entidade == "Pagamento" and acao == "estorno":
-        valor = _extrair_campo(valor_antigo, "valor_pago") or "?"
+        valor_texto = _extrair_campo(valor_antigo, "valor_pago")
+        valor = formatar_reais(Decimal(valor_texto)) if valor_texto else "R$ ?"
         pagamento = pagamento_repository.buscar_por_id(session, entidade_id)
         nome_cliente = "?"
         if pagamento is not None:
             cliente = cliente_repository.buscar_por_id(session, pagamento.cliente_id)
             if cliente is not None:
                 nome_cliente = cliente.nome_principal
-        return f'Estornou um recebimento de R$ {valor} do cliente "{nome_cliente}".'
+        return f'Estornou um recebimento de {valor} do cliente "{nome_cliente}".'
 
     return f"{acao.replace('_', ' ').capitalize()} ({entidade})."
 
