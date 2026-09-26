@@ -50,23 +50,28 @@ def montar_mensagem_lembrete_saldo(
     nome_cliente: str,
     data_ultimo_pagamento: Optional[str],
     total_em_aberto: str,
-    total_em_atraso: str,
+    atrasado: bool,
 ) -> str:
-    """Monta o texto padrão do lembrete de saldo em atraso.
+    """Monta o texto padrão do lembrete de conta.
 
     Args:
         nome_cliente: Nome principal do cliente.
         data_ultimo_pagamento: Data do último pagamento já registrado,
             formatada (ex.: "10/10/2026"). ``None`` se o cliente nunca
-            tiver feito nenhum pagamento (ou todos tiverem sido estornados).
-        total_em_aberto: Saldo total em aberto do cliente (atrasado ou
-            não), já formatado (ex.: "R$ 3.000,00").
-        total_em_atraso: Só a parte atrasada do saldo, já formatada
-            (ex.: "R$ 1.920,00").
+            tiver feito nenhum pagamento. Só usada quando ``atrasado``.
+        total_em_aberto: Saldo total em aberto, já formatado (ex.: "R$ 3.000,00").
+        atrasado: Se a conta tem compra em atraso — muda o tom da mensagem.
 
     Returns:
         Mensagem pronta, editável pelo usuário antes do envio.
     """
+    if not atrasado:
+        return (
+            f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Passando para lembrar que "
+            f"sua conta está no valor total de {total_em_aberto}. Qualquer dúvida, "
+            "estamos à disposição!"
+        )
+
     frase_ultimo_pagamento = (
         f"o último pagamento foi dia {data_ultimo_pagamento}"
         if data_ultimo_pagamento
@@ -75,27 +80,6 @@ def montar_mensagem_lembrete_saldo(
     return (
         f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Seu pagamento está em atraso, "
         f"{frase_ultimo_pagamento}. Atualmente sua conta está no valor total de "
-        f"{total_em_aberto}. Para regularizar, pedimos que realize o pagamento do saldo "
-        f"em atraso de {total_em_atraso}. Qualquer dúvida, estamos à disposição!"
-    )
-
-
-def montar_mensagem_lembrete_limite(nome_cliente: str, total_em_aberto: str, limite_fiado: str) -> str:
-    """Monta o texto padrão do lembrete de limite de fiado excedido.
-
-    Args:
-        nome_cliente: Nome principal do cliente.
-        total_em_aberto: Saldo total em aberto do cliente, já formatado
-            (ex.: "R$ 123,45").
-        limite_fiado: Limite de fiado combinado com o cliente, já
-            formatado (ex.: "R$ 100,00").
-
-    Returns:
-        Mensagem pronta, editável pelo usuário antes do envio.
-    """
-    return (
-        f"Olá, {nome_cliente}! Aqui é do Mercado Duarte. Seu saldo em aberto está em "
-        f"{total_em_aberto}, passando do limite combinado de {limite_fiado}. Pedimos que "
-        "regularize assim que possível para continuar comprando fiado. Qualquer dúvida, "
+        f"{total_em_aberto}. Pedimos que regularize assim que possível. Qualquer dúvida, "
         "estamos à disposição!"
     )

@@ -26,7 +26,6 @@ assim que é aberta.
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import Decimal
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -52,7 +51,7 @@ from app.utils.documentos import montar_html_extrato_cliente
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
-from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
+from app.utils.whatsapp import montar_mensagem_lembrete_saldo
 from app.views.adicionar_compra_view import AdicionarCompraDialog
 from app.views.editar_cliente_dialog import EditarClienteDialog
 from app.views.historico_pagamentos_view import HistoricoPagamentosDialog
@@ -225,8 +224,8 @@ class FichaClienteView(QDialog):
         atrasado = any(
             c.status == "aberta" and c.data <= data_limite_atraso for c in ficha.compras
         )
-        self._botao_lembrete.setVisible(excedido or atrasado)
-        self._excedido, self._atrasado = excedido, atrasado
+        self._botao_lembrete.setVisible(ficha.total_em_aberto > 0)
+        self._atrasado = atrasado
 
         self._preencher_timeline(ficha, pagamentos)
         self._atualizar_botao_ver_produtos()
@@ -266,12 +265,8 @@ class FichaClienteView(QDialog):
         ficha = self._ficha
         telefone = ficha.telefones[0] if ficha.telefones else None
 
-        if self._excedido:
-            mensagem = montar_mensagem_lembrete_limite(
-                ficha.nome_principal, f"R$ {ficha.total_em_aberto:.2f}", f"R$ {ficha.limite_fiado:.2f}"
-            )
-        else:
-            data_ultimo_pagamento = None
+        data_ultimo_pagamento = None
+        if self._atrasado:
             try:
                 pagamentos = self._pagamento_controller.listar_pagamentos(self._cliente_id)
                 ultimo_ativo = next((p for p in pagamentos if p.ativo), None)
@@ -280,18 +275,12 @@ class FichaClienteView(QDialog):
             except Exception:
                 logger.exception("Falha ao buscar o último pagamento do cliente %s.", self._cliente_id)
 
-            hoje = date.today()
-            data_limite = hoje - timedelta(days=_DIAS_ATRASO_PADRAO)
-            total_atrasado = sum(
-                (c.valor for c in ficha.compras if c.status == "aberta" and c.data <= data_limite),
-                start=Decimal("0"),
-            )
-            mensagem = montar_mensagem_lembrete_saldo(
-                ficha.nome_principal,
-                data_ultimo_pagamento,
-                f"R$ {ficha.total_em_aberto:.2f}",
-                f"R$ {total_atrasado:.2f}",
-            )
+        mensagem = montar_mensagem_lembrete_saldo(
+            ficha.nome_principal,
+            data_ultimo_pagamento,
+            f"R$ {ficha.total_em_aberto:.2f}",
+            self._atrasado,
+        )
 
         dialogo = LembreteWhatsAppDialog(ficha.nome_principal, telefone, mensagem, self)
         dialogo.exec()
