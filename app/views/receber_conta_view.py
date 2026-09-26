@@ -63,8 +63,9 @@ class ReceberContaView(QWidget):
         titulo = QLabel("Receber Conta")
         titulo.setProperty("papel", "titulo")
         layout.addWidget(titulo)
-        layout.addWidget(self._paginas)
-        layout.addStretch()
+        # Ocupa o diálogo todo: sem isso, a área pega a altura da maior página
+        # e a lista de busca fica com tamanho diferente em cada diálogo.
+        layout.addWidget(self._paginas, 1)
         self.setLayout(layout)
 
         if cliente_pre_selecionado is not None:

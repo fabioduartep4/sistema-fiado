@@ -66,8 +66,9 @@ class AdicionarCompraView(QWidget):
         titulo = QLabel("Adicionar Compra")
         titulo.setProperty("papel", "titulo")
         layout.addWidget(titulo)
-        layout.addWidget(self._paginas)
-        layout.addStretch()
+        # Ocupa o diálogo todo: sem isso, a área pega a altura da maior página
+        # e a lista de busca fica com tamanho diferente em cada diálogo.
+        layout.addWidget(self._paginas, 1)
         self.setLayout(layout)
 
         if cliente_pre_selecionado is not None:
@@ -129,6 +130,7 @@ class AdicionarCompraView(QWidget):
         layout.addWidget(QLabel("Comprador (opcional):"))
         layout.addWidget(self._campo_comprador)
         layout.addWidget(botao_salvar)
+        layout.addStretch()
         return pagina
 
     def _selecionar_cliente(self, cliente_id: str, nome_principal: str) -> None:
