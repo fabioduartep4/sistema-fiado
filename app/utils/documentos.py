@@ -18,6 +18,7 @@ from html import escape
 from typing import Optional, Sequence
 
 from app.services.cliente_service import CompraResumo
+from app.utils.formatacao import formatar_reais
 
 _ESTILO_BASE = """
 body { font-family: 'Courier New', Consolas, monospace; color: #000000; font-size: 10pt; }
@@ -77,12 +78,6 @@ def montar_html_recibo_pagamento(
     """
 
 
-def _reais(valor: Decimal) -> str:
-    """Formata no padrão brasileiro: R$ 1.234,56."""
-    texto = f"{valor:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
-    return f"R$ {texto}"
-
-
 def montar_html_extrato_cliente(
     nome_cliente: str,
     telefones: Sequence[str],
@@ -101,7 +96,7 @@ def montar_html_extrato_cliente(
         HTML pronto para impressão/pré-visualização (80mm).
     """
     linhas_compras = "".join(
-        f"<p>{c.data.strftime('%d/%m/%Y')} - {_reais(c.valor)}</p>" for c in compras
+        f"<p>{c.data.strftime('%d/%m/%Y')} - {formatar_reais(c.valor)}</p>" for c in compras
     )
     if not linhas_compras:
         linhas_compras = "<p>Nenhuma compra em aberto.</p>"
@@ -116,6 +111,6 @@ def montar_html_extrato_cliente(
       <h3>COMPRAS</h3>
       {linhas_compras}
       <h3>TOTAL</h3>
-      <p><strong>{_reais(total_em_aberto)}</strong></p>
+      <p><strong>{formatar_reais(total_em_aberto)}</strong></p>
     </body></html>
     """

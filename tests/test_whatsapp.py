@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.utils.whatsapp import (
     montar_link_whatsapp,
+    montar_mensagem_lembrete_limite,
     montar_mensagem_lembrete_saldo,
     normalizar_numero_whatsapp,
 )
@@ -53,3 +54,20 @@ def test_lembrete_sem_atraso_so_informa_o_valor_da_conta() -> None:
     assert "R$ 150,00" in mensagem
     assert "atraso" not in mensagem
     assert "10/10/2026" not in mensagem
+
+
+def test_montar_mensagem_lembrete_limite_inclui_dados_do_cliente() -> None:
+    mensagem = montar_mensagem_lembrete_limite("Maria da Silva", "R$ 250,00", "R$ 200,00")
+
+    assert "Maria da Silva" in mensagem
+    assert "R$ 250,00" in mensagem
+    assert "R$ 200,00" in mensagem
+
+
+def test_formatar_reais_usa_virgula_e_ponto_de_milhar() -> None:
+    from decimal import Decimal
+
+    from app.utils.formatacao import formatar_reais
+
+    assert formatar_reais(Decimal("150")) == "R$ 150,00"
+    assert formatar_reais(Decimal("1234.5")) == "R$ 1.234,50"

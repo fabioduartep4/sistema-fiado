@@ -39,10 +39,11 @@ telas pra fazer a mesma coisa.
   Compras importadas antes disso são preenchidas automaticamente ao
   abrir o sistema, relendo o XML original.
 - **Lembrete por WhatsApp** (Ficha do Cliente) disponível para qualquer
-  cliente com saldo. Se tiver compra em atraso, a mensagem avisa do
-  atraso, cita o último pagamento e o valor total da conta; se não, só
-  informa o valor total. Não cita mais o valor em atraso separado, e a
-  mensagem específica de "acima do limite" foi removida.
+  cliente com saldo. Acima do limite: avisa que passou do limite
+  combinado. Senão, em atraso: avisa do atraso, cita o último pagamento
+  e o valor total da conta. Senão: só informa o valor total. Não cita
+  mais o valor em atraso separado. Valores no padrão R$ 1.234,56
+  (`app.utils.formatacao.formatar_reais`, o mesmo do extrato).
 - **Extrato impresso** mostra só o que o cliente deve: nome, telefone,
   compras em aberto (data - valor) e o total. A impressão (extrato e
   recibo) passou a ocupar a largura inteira da bobina — antes o Qt
