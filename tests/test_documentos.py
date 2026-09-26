@@ -11,7 +11,6 @@ from datetime import date
 from decimal import Decimal
 
 from app.services.cliente_service import CompraResumo
-from app.services.pagamento_service import PagamentoResumo
 from app.utils.documentos import montar_html_extrato_cliente, montar_html_recibo_pagamento
 
 
@@ -47,42 +46,32 @@ def test_montar_html_recibo_pagamento_menciona_resto_quando_gerado() -> None:
     assert "Resto" in html
 
 
-def test_montar_html_extrato_cliente_lista_compras_e_pagamentos() -> None:
+def test_montar_html_extrato_cliente_mostra_so_compras_e_total() -> None:
     compras = [
         CompraResumo(
-            id="c1", valor=Decimal("20.00"), data=date(2026, 1, 5),
+            id="c1", valor=Decimal("10.00"), data=date(2026, 9, 23),
             status="aberta", eh_resto=False, origem_nfe_xml=None,
         ),
         CompraResumo(
-            id="c2", valor=Decimal("10.00"), data=date(2026, 1, 10),
-            status="quitada", eh_resto=True, origem_nfe_xml=None,
-        ),
-    ]
-    pagamentos = [
-        PagamentoResumo(
-            id="p1", valor_pago=Decimal("10.00"), data_pagamento=date(2026, 1, 12),
-            recebido_por_nome="Administrador", observacoes=None, ativo=True,
-            compras_quitadas=[],
+            id="c2", valor=Decimal("1234.50"), data=date(2026, 9, 25),
+            status="aberta", eh_resto=True, origem_nfe_xml=None,
         ),
     ]
 
     html = montar_html_extrato_cliente(
-        nome_cliente="Maria da Silva",
-        id_visivel=7,
-        telefones=["35999998888"],
-        total_em_aberto=Decimal("20.00"),
+        nome_cliente="Cida",
+        telefones=["3322444"],
         compras=compras,
-        pagamentos=pagamentos,
+        total_em_aberto=Decimal("1244.50"),
     )
 
-    assert "Maria da Silva" in html
-    assert "cod. 7" in html
-    assert "35999998888" in html
-    assert "R$ 20.00" in html
-    assert "R$ 10.00" in html
-    assert "Em aberto" in html
-    assert "Quitada" in html
-    assert "Ativo" in html
+    assert "Cliente: Cida" in html
+    assert "Tel: 3322444" in html
+    assert "23/09/2026 - R$ 10,00" in html
+    assert "25/09/2026 - R$ 1.234,50" in html
+    assert "R$ 1.244,50" in html
+    assert "PAGAMENTOS" not in html
+    assert "Resto" not in html
 
 
 def test_montar_html_recibo_pagamento_escapa_caracteres_especiais_do_nome() -> None:
@@ -99,15 +88,13 @@ def test_montar_html_recibo_pagamento_escapa_caracteres_especiais_do_nome() -> N
     assert "<Centro>" not in html  # não pode virar uma tag HTML de verdade
 
 
-def test_montar_html_extrato_cliente_sem_compras_nem_pagamentos() -> None:
+def test_montar_html_extrato_cliente_sem_compras_em_aberto() -> None:
     html = montar_html_extrato_cliente(
         nome_cliente="Cliente Novo",
-        id_visivel=1,
         telefones=[],
-        total_em_aberto=Decimal("0"),
         compras=[],
-        pagamentos=[],
+        total_em_aberto=Decimal("0"),
     )
 
-    assert "Nenhuma compra registrada." in html
-    assert "Nenhum pagamento registrado." in html
+    assert "Nenhuma compra em aberto." in html
+    assert "R$ 0,00" in html

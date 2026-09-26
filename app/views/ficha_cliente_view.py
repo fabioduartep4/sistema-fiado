@@ -331,22 +331,14 @@ class FichaClienteView(QDialog):
         if self._ficha is None:
             return
 
-        try:
-            pagamentos = self._pagamento_controller.listar_pagamentos(self._cliente_id)
-        except Exception:
-            logger.exception("Falha ao carregar pagamentos para o extrato do cliente %s.", self._cliente_id)
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível montar o extrato.")
-            return
-
+        compras_em_aberto = sorted(
+            (c for c in self._ficha.compras if c.status == "aberta"), key=lambda c: c.data
+        )
         html = montar_html_extrato_cliente(
             nome_cliente=self._ficha.nome_principal,
-            id_visivel=self._ficha.id_visivel,
             telefones=self._ficha.telefones,
+            compras=compras_em_aberto,
             total_em_aberto=self._ficha.total_em_aberto,
-            # Só as em aberto — as já quitadas ficam no Histórico de
-            # Pagamentos, junto do pagamento que as quitou.
-            compras=[c for c in self._ficha.compras if c.status == "aberta"],
-            pagamentos=pagamentos,
         )
         exibir_pre_visualizacao_impressao(self, f"Extrato — {self._ficha.nome_principal}", html)
 

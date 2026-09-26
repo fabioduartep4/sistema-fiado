@@ -18,7 +18,6 @@ from html import escape
 from typing import Optional, Sequence
 
 from app.services.cliente_service import CompraResumo
-from app.services.pagamento_service import PagamentoResumo
 
 _ESTILO_BASE = """
 body { font-family: 'Courier New', Consolas, monospace; color: #000000; font-size: 10pt; }
@@ -78,69 +77,45 @@ def montar_html_recibo_pagamento(
     """
 
 
-_ROTULOS_STATUS_COMPRA = {"aberta": "Em aberto", "quitada": "Quitada"}
+def _reais(valor: Decimal) -> str:
+    """Formata no padrão brasileiro: R$ 1.234,56."""
+    texto = f"{valor:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+    return f"R$ {texto}"
 
 
 def montar_html_extrato_cliente(
     nome_cliente: str,
-    id_visivel: int,
     telefones: Sequence[str],
-    total_em_aberto: Decimal,
     compras: Sequence[CompraResumo],
-    pagamentos: Sequence[PagamentoResumo],
+    total_em_aberto: Decimal,
 ) -> str:
-    """Monta o HTML do extrato completo de um cliente (compras + pagamentos).
+    """Monta o HTML do extrato do cliente: só o que ele deve hoje.
 
     Args:
         nome_cliente: Nome principal do cliente.
-        id_visivel: Código sequencial exibido do cliente.
         telefones: Telefones de contato cadastrados.
-        total_em_aberto: Total atualmente em aberto na conta.
-        compras: Compras do cliente a listar no extrato — em uso, só as
-            em aberto (compras já quitadas ficam no Histórico de
-            Pagamentos, junto do pagamento que as quitou).
-        pagamentos: Todos os pagamentos do cliente, inclusive estornados.
+        compras: Compras em aberto, uma linha cada (data e valor).
+        total_em_aberto: Total devido.
 
     Returns:
         HTML pronto para impressão/pré-visualização (80mm).
     """
     linhas_compras = "".join(
-        f'<div class="item">'
-        f"{c.data.strftime('%d/%m/%Y')} — R$ {c.valor:.2f}<br>"
-        f"{_ROTULOS_STATUS_COMPRA.get(c.status, c.status)}{' [Resto]' if c.eh_resto else ''}"
-        f"</div>"
-        for c in compras
+        f"<p>{c.data.strftime('%d/%m/%Y')} - {_reais(c.valor)}</p>" for c in compras
     )
     if not linhas_compras:
-        linhas_compras = "<p>Nenhuma compra registrada.</p>"
-
-    linhas_pagamentos = "".join(
-        f'<div class="item">'
-        f"{p.data_pagamento.strftime('%d/%m/%Y')} — R$ {p.valor_pago:.2f}<br>"
-        f"{escape(p.recebido_por_nome)} — {'Ativo' if p.ativo else 'Estornado'}"
-        f"</div>"
-        for p in pagamentos
-    )
-    if not linhas_pagamentos:
-        linhas_pagamentos = "<p>Nenhum pagamento registrado.</p>"
+        linhas_compras = "<p>Nenhuma compra em aberto.</p>"
 
     telefones_texto = escape(", ".join(telefones)) if telefones else "-"
 
     return f"""
     <html><head><style>{_ESTILO_BASE}</style></head>
     <body>
-      <h2>Extrato do Cliente</h2>
-      <hr>
-      <p>{escape(nome_cliente)} (cod. {id_visivel})</p>
+      <p>Cliente: {escape(nome_cliente)}</p>
       <p>Tel: {telefones_texto}</p>
-      <p>Total em aberto: R$ {total_em_aberto:.2f}</p>
-      <hr>
       <h3>COMPRAS</h3>
       {linhas_compras}
-      <hr>
-      <h3>PAGAMENTOS</h3>
-      {linhas_pagamentos}
-      <hr>
-      <p class="rodape">Emitido em {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+      <h3>TOTAL</h3>
+      <p><strong>{_reais(total_em_aberto)}</strong></p>
     </body></html>
     """
