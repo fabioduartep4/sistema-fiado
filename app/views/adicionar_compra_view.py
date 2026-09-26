@@ -38,7 +38,7 @@ from app.services.compra_service import CompradorOpcao
 from app.utils.date_utils import obter_data_padrao
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
-from app.views.componentes import CampoBuscaClienteWidget
+from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
 
 _ID_NENHUM_COMPRADOR = "__nenhum__"
 
@@ -215,7 +215,8 @@ class AdicionarCompraDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Adicionar Compra — {nome_principal}" if nome_principal else "Adicionar Compra")
-        self.setMinimumSize(380, 420)
+        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
         self._view = AdicionarCompraView(usuario_logado, cliente_pre_selecionado=pre_selecionado)

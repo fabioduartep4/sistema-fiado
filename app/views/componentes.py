@@ -30,6 +30,9 @@ from app.views.busca_cliente_worker import BuscaClienteWorker
 
 _INTERVALO_DEBOUNCE_MS = 300
 
+# Adicionar Compra e Receber Conta abrem sempre do mesmo tamanho.
+TAMANHO_DIALOGO_LANCAMENTO = (420, 580)
+
 
 class ListaDinamicaWidget(QWidget):
     """Campo de formulário para uma lista de textos, com adicionar/remover.

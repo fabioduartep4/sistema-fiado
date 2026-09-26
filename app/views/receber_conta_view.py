@@ -36,7 +36,7 @@ from app.utils.documentos import montar_html_recibo_pagamento
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
-from app.views.componentes import CampoBuscaClienteWidget
+from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
 
 
 class ReceberContaView(QWidget):
@@ -256,7 +256,8 @@ class ReceberContaDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Receber Conta — {nome_principal}" if nome_principal else "Receber Conta")
-        self.setMinimumSize(400, 560)
+        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
         self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
