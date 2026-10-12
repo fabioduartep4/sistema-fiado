@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -115,6 +116,10 @@ class AdicionarCompraView(QWidget):
         self._campo_comprador = QComboBox()
         self._campo_comprador.setMinimumHeight(36)
 
+        self._campo_observacoes = QTextEdit()
+        self._campo_observacoes.setPlaceholderText("Observações (opcional)")
+        self._campo_observacoes.setMaximumHeight(60)
+
         botao_salvar = QPushButton("Salvar Compra")
         botao_salvar.setIcon(icone("DEVICE_FLOPPY"))
         botao_salvar.setMinimumHeight(44)
@@ -130,6 +135,8 @@ class AdicionarCompraView(QWidget):
         layout.addWidget(self._campo_data)
         layout.addWidget(QLabel("Comprador (opcional):"))
         layout.addWidget(self._campo_comprador)
+        layout.addWidget(QLabel("Observações:"))
+        layout.addWidget(self._campo_observacoes)
         layout.addWidget(botao_salvar)
         layout.addStretch()
         return pagina
@@ -173,10 +180,11 @@ class AdicionarCompraView(QWidget):
         comprador_id = self._campo_comprador.currentData()
         if comprador_id == _ID_NENHUM_COMPRADOR:
             comprador_id = None
+        observacoes = self._campo_observacoes.toPlainText().strip() or None
 
         try:
             compra = self._compra_controller.registrar(
-                self._cliente_id, valor, data_compra, comprador_id
+                self._cliente_id, valor, data_compra, comprador_id, observacoes
             )
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível registrar a compra", str(exc))
@@ -194,6 +202,7 @@ class AdicionarCompraView(QWidget):
             f"Compra de {formatar_reais(compra.valor)} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
         )
         self._campo_valor.clear()
+        self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._campo_comprador.setCurrentIndex(0)
 

@@ -33,10 +33,11 @@ class PagamentoController:
         valor_pago: Decimal,
         data_pagamento: date,
         observacoes: Optional[str],
+        compra_ids: Optional[list[str]] = None,
     ) -> PagamentoRegistrado:
-        """Registra o recebimento de um pagamento."""
+        """Registra o recebimento de um pagamento (FIFO, ou só as compras escolhidas)."""
         return pagamento_service.registrar_pagamento(
-            self.usuario_logado, cliente_id, valor_pago, data_pagamento, observacoes
+            self.usuario_logado, cliente_id, valor_pago, data_pagamento, observacoes, compra_ids
         )
 
     def listar_pagamentos(self, cliente_id: str) -> list[PagamentoResumo]:

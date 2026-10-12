@@ -241,6 +241,8 @@ class FichaClienteView(QDialog):
             marca_resto = " [Resto]" if compra.eh_resto else ""
             marca_xml = " 📄" if compra.origem_nfe_xml else ""
             texto = f"{compra.data.strftime('%d/%m')} — Compra: + {formatar_reais(compra.valor)}{marca_resto}{marca_xml}"
+            if compra.descricao:
+                texto += f"\n      Obs.: {compra.descricao}"
             itens.append((compra.data, texto, _TIPO_COMPRA, compra))
         for pagamento in pagamentos:
             marca_estorno = " [Estornado]" if not pagamento.ativo else ""

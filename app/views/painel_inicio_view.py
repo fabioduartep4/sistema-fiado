@@ -1,43 +1,29 @@
 """Tela de Início (painel/dashboard), visível apenas para Administrador.
 
-Cabeçalho com uma saudação e quatro cartões de indicador (Em Aberto,
-Vendas Hoje, Clientes, Acima do Limite — nenhum depende de período,
-sempre a situação atual). Clicar num cliente das tabelas "Acima do
-Limite"/"Maior Atraso" abre a Ficha do Cliente (onde mora o botão
-"Enviar Lembrete" agora — ver ``app.views.ficha_cliente_view``), em vez
-do antigo botão de lembrete embutido na própria linha da tabela.
+No topo, uma **data** (padrão: hoje) e o botão "Atualizar". A data
+escolhida define:
 
-Mostra, para um período selecionável (padrão: mês atual): os clientes que
-mais gastaram (maior valor total em compras) e os que mais lançaram
-contas (mais vezes foram ao mercado) — os únicos dois indicadores que
-realmente dependem do período escolhido. "Total em aberto", "Evolução de
-Vendas" e "Clientes com Maior Saldo em Aberto" (situação atual, não
-histórico de um intervalo) ficam na aba "Saldos" — ver
-``app.views.saldos_view``.
+- o cartão de vendas e a tabela "Vendas do Dia" (cada venda daquela data);
+- o gráfico dos 7 dias que terminam nela;
+- os gráficos "Maior Valor Gasto" e "Mais Contas Lançadas", que mostram o
+  **mês** da data escolhida.
 
-Também traz seções fora do ciclo de recarregamento por período (são
-sobre o dia atual ou a situação atual das contas, não histórico de um
-intervalo — cada uma com seu próprio filtro/atualização independente),
-nesta ordem:
+Os demais cartões (Em Aberto, Clientes, Acima do Limite) e as seções
+"Clientes Acima do Limite de Fiado", "Clientes com Maior Atraso" e
+"Movimentações Recentes" são sempre a situação atual.
 
-- "Vendas de Hoje" — gráfico com os últimos 7 dias (o total do dia já
-  aparece no cartão "Vendas Hoje" do cabeçalho, não repetido aqui).
-- "Clientes Acima do Limite de Fiado" — clientes com um limite de compra
-  no fiado definido (``Cliente.limite_fiado``) cujo saldo em aberto já
-  passou desse limite.
-- "Clientes com Maior Atraso" — antes era uma sub-aba pouco visível
-  dentro de "Histórico e Relatórios"; trazida pra cá para ficar visível
-  assim que o sistema abre.
-- "Movimentações Recentes" — últimas vendas e recebimentos do sistema
-  todo, combinados (mesma fonte da aba Histórico unificada, ver
-  ``RelatorioController.listar_movimentacoes``).
+"Atualizar" recarrega a tela inteira e emite ``atualizacao_solicitada``,
+que a janela principal usa para procurar XMLs novos na pasta configurada
+(ver ``app.views.main_window``). Clicar num cliente de qualquer tabela
+abre a Ficha do Cliente.
 """
 
 from __future__ import annotations
 
+import calendar
 from datetime import date, datetime
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
     QDateEdit,
     QFrame,
@@ -94,6 +80,10 @@ def _saudacao() -> str:
 class PainelInicioView(QWidget):
     """Tela de Início: painel de indicadores do negócio (somente Administrador)."""
 
+    # Emitido pelo botão "Atualizar" do topo, para a janela principal
+    # procurar XMLs novos (essa busca mora lá, junto da de abertura).
+    atualizacao_solicitada = Signal()
+
     def __init__(self, usuario_logado: UsuarioAutenticado) -> None:
         super().__init__()
         self._usuario_logado = usuario_logado
@@ -108,27 +98,29 @@ class PainelInicioView(QWidget):
 
         cards = self._construir_cards()
 
-        hoje = date.today()
-        self._campo_data_inicio = QDateEdit(QDate(hoje.replace(day=1)))
-        self._campo_data_inicio.setCalendarPopup(True)
-        self._campo_data_inicio.setDisplayFormat("dd/MM/yyyy")
-
-        self._campo_data_fim = QDateEdit(QDate(hoje))
-        self._campo_data_fim.setCalendarPopup(True)
-        self._campo_data_fim.setDisplayFormat("dd/MM/yyyy")
+        self._campo_data = QDateEdit(QDate(date.today()))
+        self._campo_data.setCalendarPopup(True)
+        self._campo_data.setDisplayFormat("dd/MM/yyyy")
+        self._campo_data.setMinimumWidth(130)
+        # Só recarrega quando a data termina de ser digitada, não a cada tecla.
+        self._campo_data.setKeyboardTracking(False)
+        self._campo_data.dateChanged.connect(lambda _data: self._carregar_dependentes_da_data())
 
         botao_atualizar = QPushButton("Atualizar")
         botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar)
+        botao_atualizar.clicked.connect(self._atualizar_tudo)
+
+        self._label_status_xml = QLabel("")
+        self._label_status_xml.setProperty("papel", "secundario")
 
         layout_periodo = QHBoxLayout()
-        layout_periodo.addWidget(QLabel("Período:"))
-        layout_periodo.addWidget(self._campo_data_inicio)
-        layout_periodo.addWidget(QLabel("até"))
-        layout_periodo.addWidget(self._campo_data_fim)
+        layout_periodo.addWidget(QLabel("Data:"))
+        layout_periodo.addWidget(self._campo_data)
         layout_periodo.addWidget(botao_atualizar)
+        layout_periodo.addWidget(self._label_status_xml)
         layout_periodo.addStretch()
 
+        caixa_vendas_do_dia = self._construir_caixa_vendas_do_dia()
         caixa_vendas_hoje = self._construir_caixa_vendas_hoje()
         caixa_acima_do_limite = self._construir_caixa_acima_do_limite()
         caixa_maior_atraso = self._construir_caixa_maior_atraso()
@@ -152,6 +144,7 @@ class PainelInicioView(QWidget):
         layout_scroll = QVBoxLayout(self._container)
         layout_scroll.setContentsMargins(4, 8, 4, 8)
         layout_scroll.addWidget(cards)
+        layout_scroll.addWidget(caixa_vendas_do_dia)
         layout_scroll.addWidget(caixa_vendas_hoje)
         layout_scroll.addWidget(caixa_acima_do_limite)
         layout_scroll.addWidget(caixa_maior_atraso)
@@ -179,12 +172,36 @@ class PainelInicioView(QWidget):
         layout.addWidget(self._area_scroll)
         self.setLayout(layout)
 
+        self.recarregar()
+
+    def _data_selecionada(self) -> date:
+        return self._campo_data.date().toPython()
+
+    def _carregar_dependentes_da_data(self) -> None:
+        self._carregar_vendas_do_dia()
         self._carregar()
+
+    def recarregar(self) -> None:
+        """Recarrega a tela inteira (sem procurar XMLs novos)."""
         self._carregar_cards()
-        self._carregar_vendas_hoje()
+        self._carregar_dependentes_da_data()
         self._carregar_acima_do_limite()
         self._carregar_maiores_atrasos()
         self._carregar_movimentacoes()
+
+    def _atualizar_tudo(self) -> None:
+        self.recarregar()
+        self._label_status_xml.setText("Procurando XMLs novos...")
+        self.atualizacao_solicitada.emit()
+
+    def informar_resultado_xml(self, quantidade: int) -> None:
+        """Mostra, ao lado do botão Atualizar, o resultado da busca de XMLs."""
+        if quantidade <= 0:
+            self._label_status_xml.setText("Nenhum XML novo.")
+        elif quantidade == 1:
+            self._label_status_xml.setText("1 XML novo encontrado.")
+        else:
+            self._label_status_xml.setText(f"{quantidade} XMLs novos encontrados.")
 
     def _limpar_conteudo(self) -> None:
         while self._layout_conteudo.count():
@@ -199,13 +216,15 @@ class PainelInicioView(QWidget):
         dialogo = FichaClienteView(self._usuario_logado, cliente_id, self)
         dialogo.exec()
         self._carregar_cards()
+        self._carregar_vendas_do_dia()
         self._carregar_acima_do_limite()
         self._carregar_maiores_atrasos()
 
     # -- Cartões de indicador ---------------------------------------------------
     #
-    # Nenhum depende de período — sempre a situação atual, igual às caixas
-    # de Vendas de Hoje/Acima do Limite/Maior Atraso logo abaixo.
+    # Em Aberto, Clientes e Acima do Limite são sempre a situação atual. O
+    # cartão de vendas segue a data escolhida no topo (ver
+    # _carregar_vendas_do_dia).
 
     def _construir_cards(self) -> QWidget:
         linha = QWidget()
@@ -224,6 +243,8 @@ class PainelInicioView(QWidget):
         self._card_acima_limite, self._label_acima_limite_valor, self._label_acima_limite_sub = (
             self._criar_card("ACIMA DO LIMITE")
         )
+
+        self._label_vendas_titulo = self._card_vendas_hoje.findChild(QLabel)
 
         for card in (
             self._card_em_aberto,
@@ -257,7 +278,6 @@ class PainelInicioView(QWidget):
         try:
             saldos_painel = self._controller_relatorio.obter_saldos()
             saldos_em_aberto = self._controller_relatorio.listar_saldos_em_aberto()
-            vendas_hoje = self._controller_relatorio.obter_vendas_hoje()
             total_clientes = self._controller_cliente.contar_ativos()
             acima_do_limite = self._controller_relatorio.listar_clientes_acima_do_limite()
         except (ErroDeNegocio, ValueError) as exc:
@@ -271,9 +291,6 @@ class PainelInicioView(QWidget):
         self._label_em_aberto_valor.setText(f"{formatar_reais(saldos_painel.total_em_aberto_geral)}")
         self._label_em_aberto_sub.setText(f"{len(saldos_em_aberto)} clientes")
 
-        self._label_vendas_hoje_valor.setText(f"{formatar_reais(vendas_hoje.total_vendido_hoje)}")
-        self._label_vendas_hoje_sub.setText(f"{vendas_hoje.quantidade_vendida_hoje} lançamentos")
-
         self._label_clientes_valor.setText(str(total_clientes))
         self._label_clientes_sub.setText(f"{len(saldos_em_aberto)} com saldo")
 
@@ -282,20 +299,45 @@ class PainelInicioView(QWidget):
             "precisam atenção" if acima_do_limite else "nenhum no momento"
         )
 
-    # -- Vendas de Hoje -------------------------------------------------------
+    # -- Vendas do Dia ----------------------------------------------------------
     #
-    # Fora do ciclo de recarregamento por período de propósito: "hoje" e
-    # "últimos 7 dias" já são, por definição, uma janela fixa — não haveria
-    # sentido em oferecer um período selecionável pra eles.
+    # Tudo aqui segue a data escolhida no topo: o cartão de vendas, a
+    # tabela com cada venda do dia e o gráfico dos 7 dias até ela — os
+    # três vêm da mesma consulta (_carregar_vendas_do_dia).
+
+    def _construir_caixa_vendas_do_dia(self) -> QGroupBox:
+        self._caixa_vendas_do_dia = QGroupBox("Vendas do Dia")
+
+        self._tabela_vendas_do_dia = QTableWidget(0, 4)
+        self._tabela_vendas_do_dia.setHorizontalHeaderLabels(["Hora", "Cliente", "Valor", "Origem"])
+        self._tabela_vendas_do_dia.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._tabela_vendas_do_dia.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._tabela_vendas_do_dia.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
+        self._tabela_vendas_do_dia.cellDoubleClicked.connect(self._abrir_ficha_da_venda)
+        ajustar_colunas(self._tabela_vendas_do_dia, 1)  # Cliente
+
+        self._label_vendas_do_dia_vazio = QLabel("Nenhuma venda nesta data.")
+        self._label_vendas_do_dia_vazio.setProperty("papel", "secundario")
+        self._label_vendas_do_dia_vazio.setVisible(False)
+
+        layout_caixa = QVBoxLayout(self._caixa_vendas_do_dia)
+        layout_caixa.addWidget(self._tabela_vendas_do_dia)
+        layout_caixa.addWidget(self._label_vendas_do_dia_vazio)
+        return self._caixa_vendas_do_dia
+
+    def _abrir_ficha_da_venda(self, linha: int, _coluna: int) -> None:
+        item = self._tabela_vendas_do_dia.item(linha, 0)
+        if item is not None:
+            self._abrir_ficha(item.data(Qt.ItemDataRole.UserRole))
 
     def _construir_caixa_vendas_hoje(self) -> QGroupBox:
-        # O total de hoje já aparece no cartão "Vendas Hoje" do cabeçalho —
-        # aqui fica só o gráfico dos últimos 7 dias, sem repetir o número.
-        caixa = QGroupBox("Vendas dos Últimos 7 Dias")
+        # O total do dia já aparece no cartão de vendas do cabeçalho — aqui
+        # fica só o gráfico dos 7 dias, sem repetir o número.
+        self._caixa_vendas_7_dias = QGroupBox("Vendas dos Últimos 7 Dias")
 
         botao_atualizar_vendas_hoje = QPushButton("Atualizar")
         botao_atualizar_vendas_hoje.setIcon(icone("REFRESH"))
-        botao_atualizar_vendas_hoje.clicked.connect(self._carregar_vendas_hoje)
+        botao_atualizar_vendas_hoje.clicked.connect(self._carregar_vendas_do_dia)
 
         layout_topo = QHBoxLayout()
         layout_topo.addStretch()
@@ -303,34 +345,65 @@ class PainelInicioView(QWidget):
 
         self._layout_grafico_vendas_hoje = QVBoxLayout()
 
-        layout_caixa = QVBoxLayout(caixa)
+        layout_caixa = QVBoxLayout(self._caixa_vendas_7_dias)
         layout_caixa.addLayout(layout_topo)
         layout_caixa.addLayout(self._layout_grafico_vendas_hoje)
-        return caixa
+        return self._caixa_vendas_7_dias
 
-    def _carregar_vendas_hoje(self) -> None:
+    def _carregar_vendas_do_dia(self) -> None:
+        dia = self._data_selecionada()
+        try:
+            resumo = self._controller_relatorio.obter_vendas_do_dia(dia)
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao carregar as vendas do dia %s.", dia)
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar as vendas do dia.")
+            return
+
+        eh_hoje = dia == date.today()
+        data_formatada = dia.strftime("%d/%m/%Y")
+
+        # Cartão
+        self._label_vendas_titulo.setText("VENDAS HOJE" if eh_hoje else f"VENDAS EM {dia.strftime('%d/%m')}")
+        self._label_vendas_hoje_valor.setText(formatar_reais(resumo.total_vendido))
+        self._label_vendas_hoje_sub.setText(
+            "1 venda" if resumo.quantidade == 1 else f"{resumo.quantidade} vendas"
+        )
+
+        # Tabela
+        self._caixa_vendas_do_dia.setTitle(
+            f"Vendas de Hoje ({data_formatada})" if eh_hoje else f"Vendas do Dia {data_formatada}"
+        )
+        self._tabela_vendas_do_dia.setRowCount(len(resumo.vendas))
+        for linha, venda in enumerate(resumo.vendas):
+            item_hora = QTableWidgetItem(venda.data_hora.strftime("%H:%M"))
+            item_hora.setData(Qt.ItemDataRole.UserRole, venda.cliente_id)
+            self._tabela_vendas_do_dia.setItem(linha, 0, item_hora)
+            self._tabela_vendas_do_dia.setItem(linha, 1, QTableWidgetItem(venda.cliente_nome))
+            self._tabela_vendas_do_dia.setItem(linha, 2, QTableWidgetItem(formatar_reais(venda.valor)))
+            self._tabela_vendas_do_dia.setItem(
+                linha, 3, QTableWidgetItem("XML" if venda.via_xml else "Manual")
+            )
+        aplicar_estado_vazio(self._tabela_vendas_do_dia, self._label_vendas_do_dia_vazio)
+
+        # Gráfico dos 7 dias até a data
+        self._caixa_vendas_7_dias.setTitle(
+            "Vendas dos Últimos 7 Dias" if eh_hoje else f"Vendas dos 7 Dias até {data_formatada}"
+        )
         while self._layout_grafico_vendas_hoje.count():
             item = self._layout_grafico_vendas_hoje.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-
-        try:
-            resumo = self._controller_relatorio.obter_vendas_hoje()
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao carregar as vendas de hoje.")
-            QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar as vendas de hoje.")
-            return
-
-        grafico = construir_grafico_linha(
-            "Total Vendido (R$)",
-            [p.dia for p in resumo.vendas_ultimos_7_dias],
-            [float(p.total) for p in resumo.vendas_ultimos_7_dias],
+        self._layout_grafico_vendas_hoje.addWidget(
+            construir_grafico_linha(
+                "Total Vendido (R$)",
+                [p.dia for p in resumo.vendas_ultimos_7_dias],
+                [float(p.total) for p in resumo.vendas_ultimos_7_dias],
+            )
         )
-        self._layout_grafico_vendas_hoje.addWidget(grafico)
 
     # -- Clientes com Maior Atraso (ex-aba "Lembretes") ----------------------
     #
@@ -506,8 +579,12 @@ class PainelInicioView(QWidget):
     def _carregar(self) -> None:
         self._limpar_conteudo()
 
-        data_inicio = self._campo_data_inicio.date().toPython()
-        data_fim = self._campo_data_fim.date().toPython()
+        # Num dia só esses dois gráficos quase não teriam informação: mostram
+        # o mês inteiro da data escolhida.
+        dia = self._data_selecionada()
+        data_inicio = dia.replace(day=1)
+        data_fim = dia.replace(day=calendar.monthrange(dia.year, dia.month)[1])
+        mes = dia.strftime("%m/%Y")
 
         try:
             painel = self._controller.obter_painel(data_inicio, data_fim)
@@ -520,7 +597,7 @@ class PainelInicioView(QWidget):
             return
 
         if painel.maior_valor_gasto:
-            caixa = QGroupBox("Maior Valor Gasto no Período")
+            caixa = QGroupBox(f"Maior Valor Gasto em {mes}")
             layout_caixa = QVBoxLayout(caixa)
             layout_caixa.addWidget(
                 construir_grafico_barras(
@@ -532,7 +609,7 @@ class PainelInicioView(QWidget):
             self._layout_conteudo.addWidget(caixa)
 
         if painel.mais_contas_lancadas:
-            caixa = QGroupBox("Mais Contas Lançadas no Período")
+            caixa = QGroupBox(f"Mais Contas Lançadas em {mes}")
             layout_caixa = QVBoxLayout(caixa)
             layout_caixa.addWidget(
                 construir_grafico_barras(

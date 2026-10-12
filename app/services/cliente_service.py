@@ -155,6 +155,7 @@ class CompraResumo:
     status: str
     eh_resto: bool
     origem_nfe_xml: str | None
+    descricao: str | None = None
 
 
 @dataclass(frozen=True)
@@ -343,6 +344,7 @@ def _montar_ficha(cliente_id_str: str, session) -> ClienteFicha:  # type: ignore
                 status=c.status.value,
                 eh_resto=c.eh_resto,
                 origem_nfe_xml=c.origem_nfe_xml,
+                descricao=c.descricao,
             )
             for c in compras
         ],

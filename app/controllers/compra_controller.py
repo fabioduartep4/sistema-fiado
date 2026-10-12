@@ -36,8 +36,9 @@ class CompraController:
         valor: Decimal,
         data_compra: date,
         comprador_id: Optional[str],
+        observacoes: Optional[str] = None,
     ) -> CompraCriada:
         """Registra uma nova compra."""
         return compra_service.registrar_compra(
-            self.usuario_logado, cliente_id, valor, data_compra, comprador_id
+            self.usuario_logado, cliente_id, valor, data_compra, comprador_id, observacoes
         )

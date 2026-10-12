@@ -48,8 +48,14 @@ def registrar_pagamento(
     valor_pago: Decimal,
     data_pagamento: date,
     observacoes: Optional[str] = None,
+    compra_ids: Optional[list[str]] = None,
 ) -> PagamentoRegistrado:
-    """Registra o recebimento de um pagamento e aplica a quitação FIFO.
+    """Registra o recebimento de um pagamento e quita as compras.
+
+    Sem ``compra_ids``, aplica a quitação FIFO (mais antiga primeiro, com
+    "Resto" se o valor acabar no meio de uma compra). Com ``compra_ids``,
+    quita integralmente só as compras escolhidas, em qualquer ordem — o
+    valor pago precisa ser exatamente a soma delas.
 
     Args:
         usuario_logado: Usuário autenticado que está recebendo o pagamento
@@ -59,6 +65,8 @@ def registrar_pagamento(
         valor_pago: Valor total recebido (deve ser maior que zero).
         data_pagamento: Data do pagamento.
         observacoes: Observações livres sobre o pagamento (opcional).
+        compra_ids: UUIDs (como texto) das compras em aberto que o cliente
+            escolheu pagar. ``None``/vazio = quitação FIFO pelo valor.
 
     Returns:
         Um :class:`PagamentoRegistrado`, com o valor da compra "Resto"
@@ -67,7 +75,9 @@ def registrar_pagamento(
     Raises:
         ValueError: Se o cliente não for encontrado/estiver inativo, se
             não houver compras em aberto, se o valor pago não for maior
-            que zero, se o valor pago exceder o total em aberto, ou se a
+            que zero, se o valor pago exceder o total em aberto, se alguma
+            compra escolhida não estiver em aberto para este cliente, se o
+            valor pago for diferente da soma das compras escolhidas, ou se a
             data do pagamento for anterior à da compra em aberto mais
             antiga (evita que a compra "Resto" gerada saia com uma data
             que a coloque à frente de outras compras na fila FIFO).
@@ -83,6 +93,22 @@ def registrar_pagamento(
         compras_abertas = compra_repository.listar_em_aberto_por_cliente(session, cliente.id)
         if not compras_abertas:
             raise ValueError("Este cliente não possui contas em aberto.")
+
+        if compra_ids:
+            escolhidas = set(compra_ids)
+            selecionadas = [c for c in compras_abertas if str(c.id) in escolhidas]
+            if len(selecionadas) != len(escolhidas):
+                raise ValueError(
+                    "Uma das contas selecionadas não está mais em aberto. Atualize a tela e tente de novo."
+                )
+            total_selecionado = sum((c.valor for c in selecionadas), Decimal("0"))
+            if valor_pago != total_selecionado:
+                raise ValueError(
+                    f"O valor pago ({formatar_reais(valor_pago)}) é diferente da soma das contas "
+                    f"selecionadas ({formatar_reais(total_selecionado)})."
+                )
+            # A partir daqui o laço abaixo quita cada uma por inteiro, sem Resto.
+            compras_abertas = selecionadas
 
         compra_mais_antiga = compras_abertas[0]
         if data_pagamento < compra_mais_antiga.data:

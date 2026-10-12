@@ -52,6 +52,10 @@ def listar_compradores(cliente_id: str) -> list[CompradorOpcao]:
         return [CompradorOpcao(id=str(c.id), nome=c.nome) for c in compradores]
 
 
+# Tamanho da coluna ``compras.descricao``.
+_TAMANHO_MAXIMO_OBSERVACOES = 255
+
+
 @tratar_erros
 def registrar_compra(
     usuario_logado: UsuarioAutenticado,
@@ -59,6 +63,7 @@ def registrar_compra(
     valor: Decimal,
     data_compra: date,
     comprador_id: Optional[str] = None,
+    observacoes: Optional[str] = None,
 ) -> CompraCriada:
     """Registra uma nova compra na conta de um cliente.
 
@@ -69,16 +74,26 @@ def registrar_compra(
         valor: Valor da compra (deve ser maior que zero).
         data_compra: Data da compra.
         comprador_id: UUID (como texto) do comprador, se informado.
+        observacoes: Observações livres do lançamento (opcional, até
+            255 caracteres).
 
     Returns:
         Um :class:`CompraCriada` com os dados da compra registrada.
 
     Raises:
-        ValueError: Se o cliente não for encontrado/estiver inativo, ou
-            se o valor não for maior que zero.
+        ValueError: Se o cliente não for encontrado/estiver inativo, se
+            o valor não for maior que zero, ou se a observação passar de
+            255 caracteres.
     """
     if valor <= 0:
         raise ValueError("O valor da compra deve ser maior que zero.")
+
+    observacoes = (observacoes or "").strip() or None
+    if observacoes and len(observacoes) > _TAMANHO_MAXIMO_OBSERVACOES:
+        raise ValueError(
+            f"A observação pode ter no máximo {_TAMANHO_MAXIMO_OBSERVACOES} caracteres "
+            f"(tem {len(observacoes)})."
+        )
 
     with session_scope() as session:
         cliente = cliente_repository.buscar_por_id(session, uuid.UUID(cliente_id))
@@ -91,6 +106,7 @@ def registrar_compra(
             valor=valor,
             data=data_compra,
             comprador_id=uuid.UUID(comprador_id) if comprador_id else None,
+            descricao=observacoes,
         )
         historico_service.registrar_historico(
             session,

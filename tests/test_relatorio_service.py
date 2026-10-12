@@ -284,38 +284,82 @@ def test_obter_painel_saldos_total_em_aberto_reflete_nova_compra(usuario_admin_t
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
 
 
-def test_obter_vendas_hoje_funcionario_e_rejeitado(usuario_admin_teste) -> None:
+def test_obter_vendas_do_dia_funcionario_e_rejeitado(usuario_admin_teste) -> None:
     funcionario, usuario_funcionario = _criar_funcionario_teste(usuario_admin_teste)
 
     with pytest.raises(PermissaoNegadaError):
-        relatorio_service.obter_vendas_hoje(usuario_funcionario)
+        relatorio_service.obter_vendas_do_dia(usuario_funcionario)
 
     usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
 
 
-def test_obter_vendas_hoje_total_reflete_nova_compra(usuario_admin_teste) -> None:
+def test_obter_vendas_do_dia_sem_data_usa_hoje_e_reflete_nova_compra(usuario_admin_teste) -> None:
     cliente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Vendas Hoje", [], [], []
     )
     # Aqui precisa ser a data real de hoje (não ``obter_data_padrao()``,
-    # que pode ser "ontem" dependendo do modo configurado) — é o que
-    # ``obter_vendas_hoje`` usa internamente como referência.
+    # que pode ser "ontem" dependendo do modo configurado).
     hoje = date.today()
 
-    resumo_antes = relatorio_service.obter_vendas_hoje(usuario_admin_teste)
+    resumo_antes = relatorio_service.obter_vendas_do_dia(usuario_admin_teste)
     compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("42.00"), hoje, None)
-    resumo_depois = relatorio_service.obter_vendas_hoje(usuario_admin_teste)
+    resumo_depois = relatorio_service.obter_vendas_do_dia(usuario_admin_teste)
 
-    assert resumo_depois.total_vendido_hoje - resumo_antes.total_vendido_hoje == Decimal("42.00")
-    assert resumo_depois.quantidade_vendida_hoje - resumo_antes.quantidade_vendida_hoje == 1
+    assert resumo_depois.dia == hoje
+    assert resumo_depois.total_vendido - resumo_antes.total_vendido == Decimal("42.00")
+    assert resumo_depois.quantidade - resumo_antes.quantidade == 1
     assert len(resumo_depois.vendas_ultimos_7_dias) == 7
     assert resumo_depois.vendas_ultimos_7_dias[-1].dia == hoje.strftime("%d/%m")
-    assert (
-        resumo_depois.vendas_ultimos_7_dias[-1].total - resumo_antes.vendas_ultimos_7_dias[-1].total
-        == Decimal("42.00")
-    )
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_obter_vendas_do_dia_lista_as_vendas_da_data_escolhida(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Vendas Do Dia Lista", [], [], []
+    )
+    dia = date.today() - timedelta(days=3)
+    outro_dia = date.today() - timedelta(days=2)
+    try:
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("11.00"), dia, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("22.00"), dia, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("99.00"), outro_dia, None)
+
+        resumo = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia)
+
+        do_cliente = [v for v in resumo.vendas if v.cliente_id == cliente.id]
+        assert sorted(v.valor for v in do_cliente) == [Decimal("11.00"), Decimal("22.00")]
+        assert all(v.via_xml is False for v in do_cliente)
+        # A lista e o total usam o mesmo critério: têm que bater.
+        assert sum((v.valor for v in resumo.vendas), Decimal("0")) == resumo.total_vendido
+        assert len(resumo.vendas) == resumo.quantidade
+        assert resumo.vendas_ultimos_7_dias[-1].dia == dia.strftime("%d/%m")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_conta_resto_nao_conta_como_venda_do_dia(usuario_admin_teste) -> None:
+    """Pagamento parcial gera uma conta "Resto" na data do pagamento — é sobra
+    de uma venda antiga, não uma venda nova daquele dia."""
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Vendas Do Dia Resto", [], [], []
+    )
+    dia_da_compra = date.today() - timedelta(days=6)
+    dia_do_pagamento = date.today() - timedelta(days=5)
+    try:
+        compra_service.registrar_compra(
+            usuario_admin_teste, cliente.id, Decimal("100.00"), dia_da_compra, None
+        )
+        antes = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia_do_pagamento)
+        pagamento_service.registrar_pagamento(
+            usuario_admin_teste, cliente.id, Decimal("60.00"), dia_do_pagamento, None
+        )
+        depois = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia_do_pagamento)
+
+        assert depois.total_vendido == antes.total_vendido
+        assert not any(v.cliente_id == cliente.id for v in depois.vendas)
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
 
 
 def test_listar_historico_vendas_funcionario_e_rejeitado(usuario_admin_teste) -> None:

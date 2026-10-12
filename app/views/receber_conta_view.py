@@ -5,6 +5,10 @@ da janela principal — hoje só é aberta pelo botão "Receber Conta" da
 Ficha do Cliente, através de :class:`ReceberContaDialog`, com o cliente
 já pré-selecionado. Mostra o total em aberto e a lista de compras
 pendentes antes de confirmar o pagamento.
+
+Dois jeitos de receber: marcar na lista as contas que o cliente quer pagar
+(o valor vira a soma delas e só elas são quitadas), ou não marcar nenhuma
+e digitar o valor (quitação FIFO, da mais antiga para a mais nova).
 """
 
 from __future__ import annotations
@@ -12,13 +16,14 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QStackedWidget,
@@ -40,6 +45,10 @@ from app.utils.impressao import exibir_pre_visualizacao_impressao
 from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
 
 
+_ROTULO_VALOR_DIGITADO = "Valor pago:"
+_ROTULO_VALOR_SELECIONADO = "Valor a receber (soma das contas marcadas):"
+
+
 class ReceberContaView(QWidget):
     """Tela de recebimento de pagamento (quitação de contas em aberto)."""
 
@@ -55,6 +64,8 @@ class ReceberContaView(QWidget):
         self._cliente_bloqueado = cliente_pre_selecionado is not None
         self._cliente_id: Optional[str] = None
         self._nome_cliente_selecionado: Optional[str] = None
+        self._havia_selecao = False
+        self._estado_ao_pressionar: tuple = (None, None)
 
         self._paginas = QStackedWidget()
         self._paginas.addWidget(self._construir_pagina_busca())
@@ -101,7 +112,20 @@ class ReceberContaView(QWidget):
         self._botao_trocar_cliente.clicked.connect(self._voltar_para_busca)
 
         self._lista_compras_abertas = QListWidget()
-        self._lista_compras_abertas.setMaximumHeight(120)
+        self._lista_compras_abertas.setMaximumHeight(150)
+        self._lista_compras_abertas.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        self._lista_compras_abertas.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._lista_compras_abertas.itemChanged.connect(self._atualizar_selecao)
+        self._lista_compras_abertas.itemPressed.connect(self._guardar_estado_ao_pressionar)
+        self._lista_compras_abertas.itemClicked.connect(self._alternar_ao_clicar_na_linha)
+
+        dica_selecao = QLabel(
+            "Marque as contas que deseja receber, ou deixe sem marcar e digite o valor."
+        )
+        dica_selecao.setProperty("papel", "secundario")
+        dica_selecao.setWordWrap(True)
+
+        self._label_valor = QLabel(_ROTULO_VALOR_DIGITADO)
 
         self._label_total_em_aberto = QLabel()
         self._label_total_em_aberto.setProperty("papel", "subtitulo")
@@ -131,9 +155,10 @@ class ReceberContaView(QWidget):
         layout.addWidget(self._label_cliente_selecionado)
         layout.addWidget(self._botao_trocar_cliente)
         layout.addWidget(QLabel("Compras em aberto:"))
+        layout.addWidget(dica_selecao)
         layout.addWidget(self._lista_compras_abertas)
         layout.addWidget(self._label_total_em_aberto)
-        layout.addWidget(QLabel("Valor pago:"))
+        layout.addWidget(self._label_valor)
         layout.addWidget(self._campo_valor_pago)
         layout.addWidget(QLabel("Data do pagamento:"))
         layout.addWidget(self._campo_data)
@@ -159,25 +184,79 @@ class ReceberContaView(QWidget):
         self._campo_busca_cliente.focar_campo()
 
     def _carregar_contas_em_aberto(self, cliente_id: str) -> None:
+        # Sem sinais enquanto a lista é remontada: cada item novo dispararia
+        # itemChanged e recalcularia a seleção no meio do caminho.
+        self._lista_compras_abertas.blockSignals(True)
         self._lista_compras_abertas.clear()
         try:
             ficha = self._cliente_controller.ficha(cliente_id)
         except Exception:
             logger.exception("Falha ao carregar contas em aberto do cliente %s.", cliente_id)
             self._label_total_em_aberto.setText("Total em aberto: R$ 0,00")
+            self._lista_compras_abertas.blockSignals(False)
+            self._atualizar_selecao()
             return
 
-        compras_abertas = [c for c in ficha.compras if c.status != "quitada"]
+        compras_abertas = sorted(
+            (c for c in ficha.compras if c.status != "quitada"), key=lambda c: c.data
+        )
         if not compras_abertas:
             self._lista_compras_abertas.addItem("Nenhuma conta em aberto.")
         for compra in compras_abertas:
             rotulo_resto = " [Resto]" if compra.eh_resto else ""
-            data_formatada = compra.data.strftime("%d/%m")
-            self._lista_compras_abertas.addItem(
-                f"{formatar_reais(compra.valor)} — {data_formatada}{rotulo_resto}"
-            )
+            data_formatada = compra.data.strftime("%d/%m/%Y")
+            item = QListWidgetItem(f"{formatar_reais(compra.valor)} — {data_formatada}{rotulo_resto}")
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            item.setData(Qt.ItemDataRole.UserRole, (compra.id, compra.valor))
+            self._lista_compras_abertas.addItem(item)
+        self._lista_compras_abertas.blockSignals(False)
 
         self._label_total_em_aberto.setText(f"Total em aberto: {formatar_reais(ficha.total_em_aberto)}")
+        self._atualizar_selecao()
+
+    def _guardar_estado_ao_pressionar(self, item: QListWidgetItem) -> None:
+        self._estado_ao_pressionar = (item, item.checkState())
+
+    def _alternar_ao_clicar_na_linha(self, item: QListWidgetItem) -> None:
+        """Clicar em qualquer ponto da linha marca/desmarca, não só na caixinha.
+
+        Se o clique foi na própria caixinha, o Qt já alternou o estado
+        entre o pressionar e o soltar — aí não há nada a fazer.
+        """
+        item_pressionado, estado_anterior = self._estado_ao_pressionar
+        self._estado_ao_pressionar = (None, None)
+        if item.data(Qt.ItemDataRole.UserRole) is None:
+            return  # linha "Nenhuma conta em aberto."
+        if item is item_pressionado and item.checkState() == estado_anterior:
+            marcado = estado_anterior == Qt.CheckState.Checked
+            item.setCheckState(Qt.CheckState.Unchecked if marcado else Qt.CheckState.Checked)
+
+    def _compras_marcadas(self) -> list[tuple[str, Decimal]]:
+        """(id, valor) de cada conta marcada na lista."""
+        marcadas = []
+        for indice in range(self._lista_compras_abertas.count()):
+            item = self._lista_compras_abertas.item(indice)
+            dado = item.data(Qt.ItemDataRole.UserRole)
+            if dado is not None and item.checkState() == Qt.CheckState.Checked:
+                marcadas.append(dado)
+        return marcadas
+
+    def _atualizar_selecao(self, _item: QListWidgetItem | None = None) -> None:
+        """Com contas marcadas, o valor é a soma delas e não pode ser editado."""
+        marcadas = self._compras_marcadas()
+        if marcadas:
+            total = sum((valor for _id, valor in marcadas), Decimal("0"))
+            self._campo_valor_pago.setText(f"{total:.2f}".replace(".", ","))
+            self._campo_valor_pago.setReadOnly(True)
+            self._label_valor.setText(_ROTULO_VALOR_SELECIONADO)
+            self._havia_selecao = True
+        else:
+            if self._havia_selecao:
+                self._campo_valor_pago.clear()  # era a soma das marcadas, não um valor digitado
+            self._campo_valor_pago.setReadOnly(False)
+            self._label_valor.setText(_ROTULO_VALOR_DIGITADO)
+            self._havia_selecao = False
 
     def _confirmar_pagamento(self) -> None:
         if self._cliente_id is None:
@@ -193,10 +272,11 @@ class ReceberContaView(QWidget):
 
         data_pagamento = self._campo_data.date().toPython()
         observacoes = self._campo_observacoes.toPlainText().strip() or None
+        ids_marcados = [compra_id for compra_id, _valor in self._compras_marcadas()]
 
         try:
             resultado = self._pagamento_controller.registrar(
-                self._cliente_id, valor_pago, data_pagamento, observacoes
+                self._cliente_id, valor_pago, data_pagamento, observacoes, ids_marcados or None
             )
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível registrar o pagamento", str(exc))
@@ -211,6 +291,10 @@ class ReceberContaView(QWidget):
                 f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado.\n\n"
                 f"Foi gerada uma nova conta 'Resto' de {formatar_reais(resultado.valor_resto_gerado)}."
             )
+        elif ids_marcados:
+            quantidade = len(ids_marcados)
+            texto_contas = "1 conta quitada" if quantidade == 1 else f"{quantidade} contas quitadas"
+            mensagem = f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado. {texto_contas}."
         else:
             mensagem = f"Pagamento de {formatar_reais(resultado.valor_pago)} registrado. Conta quitada."
 

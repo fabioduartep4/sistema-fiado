@@ -88,6 +88,8 @@ class MainWindow(QMainWindow):
         self._usuario = usuario
         self._sessao_encerrada = False
         self._botoes_nav: list[QPushButton] = []
+        self._view_inicio: PainelInicioView | None = None
+        self._verificando_xml = False
 
         self.setWindowTitle("Sistema de Gestão de Fiado")
         self.resize(1100, 720)
@@ -159,7 +161,10 @@ class MainWindow(QMainWindow):
         # depois: construir a view já dispara a consulta e derrubaria
         # com PermissaoNegadaError pra quem não é admin).
         if usuario.eh_administrador:
-            self._adicionar_item_nav(layout, "HOME", "Início", PainelInicioView(usuario))
+            self._view_inicio = PainelInicioView(usuario)
+            # "Atualizar" do Início também procura XMLs novos.
+            self._view_inicio.atualizacao_solicitada.connect(self._verificar_xmls_pendentes)
+            self._adicionar_item_nav(layout, "HOME", "Início", self._view_inicio)
 
         self._botao_clientes = self._adicionar_item_nav(layout, "USERS", "Clientes", view_clientes)
 
@@ -287,13 +292,23 @@ class MainWindow(QMainWindow):
         Se encontrar algum, pergunta ao usuário se deseja importar agora
         (ver ``_perguntar_importar_xml``). Não bloqueia a interface.
         """
+        if self._verificando_xml:
+            return  # já tem uma busca em andamento (ex.: cliques seguidos em "Atualizar")
+        self._verificando_xml = True
+
         worker = _VerificarXmlWorker(self._usuario, self)
         worker.candidatos_encontrados.connect(self._perguntar_importar_xml)
+        worker.finished.connect(self._ao_terminar_verificacao_xml)
         worker.finished.connect(worker.deleteLater)
         self._worker_verificar_xml = worker
         worker.start()
 
+    def _ao_terminar_verificacao_xml(self) -> None:
+        self._verificando_xml = False
+
     def _perguntar_importar_xml(self, quantidade: int) -> None:
+        if self._view_inicio is not None:
+            self._view_inicio.informar_resultado_xml(quantidade)
         if quantidade <= 0:
             return
 
@@ -308,3 +323,5 @@ class MainWindow(QMainWindow):
 
         dialogo = ImportarXmlDialog(self._usuario, self)
         dialogo.exec()
+        if self._view_inicio is not None:
+            self._view_inicio.recarregar()  # as notas importadas entram nas vendas do dia

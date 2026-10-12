@@ -22,7 +22,7 @@ Feito em Python com PySide6 (interface) e PostgreSQL (dados).
 
 | Tela | O que faz |
 |---|---|
-| **Início** | Resumo do dia: total em aberto, vendas de hoje, clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. |
+| **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. Escolha uma **data** no topo para ver as vendas daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
 | **Clientes** | Busca e lista de clientes com saldo, limite e situação. Filtros: Com saldo, Em atraso, Acima do limite. Botão **+ Novo Cliente**. Duplo clique abre a ficha. |
 | **Ficha do Cliente** | Saldo, limite e disponível; histórico de compras e pagamentos. Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Extrato, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
 | **Saldos** | Todos os clientes com saldo em aberto, com busca e exportação para CSV/Excel. |
@@ -37,17 +37,26 @@ O botão **+ Novo Lançamento**, no topo de todas as telas, abre direto
 
 - **Compra**: lança um valor na conta do cliente. A data sugerida é o
   **dia anterior** ou o **dia atual** (escolhido em Configurações), e
-  sempre pode ser alterada.
-- **Pagamento**: quita as compras **mais antigas primeiro**. Se o valor
-  pago acabar no meio de uma compra, ela é quitada e o que faltou vira uma
-  nova compra chamada **"Resto"**. Um pagamento pode ser estornado com
-  duplo clique nele, na ficha do cliente.
+  sempre pode ser alterada. Aceita uma observação opcional, que aparece
+  junto da compra na ficha do cliente.
+- **Pagamento**, de dois jeitos:
+  - **Marcando as contas** que o cliente quer pagar: o valor a receber é a
+    soma delas e só elas são quitadas, em qualquer ordem.
+  - **Digitando o valor**, sem marcar nada: quita as compras **mais
+    antigas primeiro**. Se o valor acabar no meio de uma compra, ela é
+    quitada e o que faltou vira uma nova compra chamada **"Resto"**.
+
+  Um pagamento pode ser estornado com duplo clique nele, na ficha do
+  cliente.
 - **Limite de fiado**: opcional, por cliente. Quem passa do limite aparece
   em destaque no Início e em Clientes.
 - **Atraso**: cliente com compra em aberto há mais de 30 dias (o número de
   dias pode ser alterado nas telas Início e Clientes).
 - **Exclusão**: nada é apagado de verdade; clientes e usuários excluídos
   só ficam inativos, e toda alteração fica registrada no Histórico.
+- **Vendas do dia**: contam as compras com aquela data. Não entram contas
+  "Resto" (são sobra de pagamento, não venda nova) nem compras de clientes
+  excluídos.
 
 ### Importação de XML de NF-e
 
