@@ -15,8 +15,6 @@ A partir daqui dá para:
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -35,7 +33,6 @@ from app.controllers.cliente_controller import ClienteController
 from app.controllers.pagamento_controller import PagamentoController
 from app.controllers.xml_importacao_controller import XmlImportacaoController
 from app.services.auth_service import UsuarioAutenticado
-from app.services.pagamento_service import PagamentoResumo
 from app.utils.documentos import montar_html_recibo_pagamento
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
@@ -46,18 +43,6 @@ from app.views.xml_importacao_view import BotaoVerProdutos
 
 _TIPO_COMPRA = "compra"
 _TIPO_PAGAMENTO = "pagamento"
-
-
-def valor_resto_do_pagamento(pagamento: PagamentoResumo) -> Decimal:
-    """Valor da conta "Resto" que o pagamento gerou (zero se quitou tudo que tocou).
-
-    O pagamento não guarda esse número: ele sai da diferença entre o valor
-    de cada compra e o quanto do pagamento foi aplicado nela.
-    """
-    return sum(
-        (c.valor - c.valor_aplicado for c in pagamento.compras_quitadas if c.valor_aplicado < c.valor),
-        Decimal("0"),
-    )
 
 
 class HistoricoClienteDialog(QDialog):
@@ -202,7 +187,7 @@ class HistoricoClienteDialog(QDialog):
             data_pagamento=pagamento.data_pagamento,
             recebido_por=pagamento.recebido_por_nome,
             observacoes=pagamento.observacoes,
-            valor_resto_gerado=valor_resto_do_pagamento(pagamento),
+            valor_resto_gerado=pagamento.valor_resto_gerado,
             segunda_via=True,
         )
         exibir_pre_visualizacao_impressao(self, "Comprovante de Pagamento (2ª via)", html)

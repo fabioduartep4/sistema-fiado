@@ -314,8 +314,6 @@ def test_ficha_traz_a_hora_do_lancamento_da_compra(usuario_admin_teste) -> None:
 
 def test_valor_do_resto_para_reimprimir_o_comprovante(usuario_admin_teste) -> None:
     """A 2ª via precisa mostrar o mesmo "Resto" do comprovante original."""
-    from app.views.historico_cliente_view import valor_resto_do_pagamento
-
     cliente = cliente_service.cadastrar_cliente(
         usuario_admin_teste, "Teste Automatizado Reimpressao Resto", [], [], []
     )
@@ -331,7 +329,7 @@ def test_valor_do_resto_para_reimprimir_o_comprovante(usuario_admin_teste) -> No
         )
 
         pagamentos = {p.id: p for p in pagamento_service.listar_pagamentos_por_cliente(cliente.id)}
-        assert valor_resto_do_pagamento(pagamentos[original.id]) == original.valor_resto_gerado == Decimal("10.00")
-        assert valor_resto_do_pagamento(pagamentos[exato.id]) == Decimal("0")
+        assert pagamentos[original.id].valor_resto_gerado == original.valor_resto_gerado == Decimal("10.00")
+        assert pagamentos[exato.id].valor_resto_gerado == Decimal("0")
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

@@ -211,6 +211,19 @@ class PagamentoResumo:
     ativo: bool
     compras_quitadas: list[CompraQuitadaResumo]
 
+    @property
+    def valor_resto_gerado(self) -> Decimal:
+        """Valor da conta "Resto" que este pagamento gerou (zero se não gerou).
+
+        O pagamento não guarda esse número: ele sai da diferença entre o
+        valor de cada compra e o quanto do pagamento foi aplicado nela.
+        Usado para reimprimir o comprovante igual ao original.
+        """
+        return sum(
+            (c.valor - c.valor_aplicado for c in self.compras_quitadas if c.valor_aplicado < c.valor),
+            Decimal("0"),
+        )
+
 
 @tratar_erros
 def listar_pagamentos_por_cliente(cliente_id: str) -> list[PagamentoResumo]:
