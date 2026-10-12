@@ -7,8 +7,9 @@ já pré-selecionado. Mostra o total em aberto e a lista de compras
 pendentes antes de confirmar o pagamento.
 
 Dois jeitos de receber: marcar na lista as contas que o cliente quer pagar
-(o valor vira a soma delas e só elas são quitadas), ou não marcar nenhuma
-e digitar o valor (quitação FIFO, da mais antiga para a mais nova).
+(o valor vira a soma delas e só elas são quitadas), ou digitar o valor
+(quitação FIFO, da mais antiga para a mais nova). Digitar um valor com
+contas marcadas desmarca todas — os dois jeitos nunca valem ao mesmo tempo.
 """
 
 from __future__ import annotations
@@ -47,6 +48,8 @@ from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteW
 
 _ROTULO_VALOR_DIGITADO = "Valor pago:"
 _ROTULO_VALOR_SELECIONADO = "Valor a receber (soma das contas marcadas):"
+_TEXTO_SELECIONAR_TODAS = "Selecionar todas"
+_TEXTO_DESMARCAR_TODAS = "Desmarcar todas"
 
 
 class ReceberContaView(QWidget):
@@ -119,11 +122,12 @@ class ReceberContaView(QWidget):
         self._lista_compras_abertas.itemPressed.connect(self._guardar_estado_ao_pressionar)
         self._lista_compras_abertas.itemClicked.connect(self._alternar_ao_clicar_na_linha)
 
-        dica_selecao = QLabel(
-            "Marque as contas que deseja receber, ou deixe sem marcar e digite o valor."
-        )
+        dica_selecao = QLabel("Marque as contas que deseja receber, ou só digite o valor.")
         dica_selecao.setProperty("papel", "secundario")
         dica_selecao.setWordWrap(True)
+
+        self._botao_selecionar_todas = QPushButton(_TEXTO_SELECIONAR_TODAS)
+        self._botao_selecionar_todas.clicked.connect(self._alternar_todas)
 
         self._label_valor = QLabel(_ROTULO_VALOR_DIGITADO)
 
@@ -133,6 +137,8 @@ class ReceberContaView(QWidget):
         self._campo_valor_pago = QLineEdit()
         self._campo_valor_pago.setPlaceholderText("Ex.: 25,50")
         self._campo_valor_pago.setMinimumHeight(36)
+        # textEdited só dispara quando é o usuário que digita (não no setText).
+        self._campo_valor_pago.textEdited.connect(self._ao_digitar_valor)
 
         self._campo_data = QDateEdit()
         self._campo_data.setCalendarPopup(True)
@@ -156,6 +162,7 @@ class ReceberContaView(QWidget):
         layout.addWidget(self._botao_trocar_cliente)
         layout.addWidget(QLabel("Compras em aberto:"))
         layout.addWidget(dica_selecao)
+        layout.addWidget(self._botao_selecionar_todas)
         layout.addWidget(self._lista_compras_abertas)
         layout.addWidget(self._label_total_em_aberto)
         layout.addWidget(self._label_valor)
@@ -242,21 +249,52 @@ class ReceberContaView(QWidget):
                 marcadas.append(dado)
         return marcadas
 
+    def _itens_de_conta(self) -> list[QListWidgetItem]:
+        """Os itens da lista que são contas (fora a linha "Nenhuma conta em aberto.")."""
+        itens = [self._lista_compras_abertas.item(i) for i in range(self._lista_compras_abertas.count())]
+        return [item for item in itens if item.data(Qt.ItemDataRole.UserRole) is not None]
+
+    def _marcar_todas(self, marcar: bool) -> None:
+        """Marca/desmarca todas de uma vez, sem recalcular a cada item."""
+        estado = Qt.CheckState.Checked if marcar else Qt.CheckState.Unchecked
+        self._lista_compras_abertas.blockSignals(True)
+        for item in self._itens_de_conta():
+            item.setCheckState(estado)
+        self._lista_compras_abertas.blockSignals(False)
+
+    def _alternar_todas(self) -> None:
+        itens = self._itens_de_conta()
+        todas_marcadas = bool(itens) and len(self._compras_marcadas()) == len(itens)
+        self._marcar_todas(not todas_marcadas)
+        self._atualizar_selecao()
+
+    def _ao_digitar_valor(self, _texto: str) -> None:
+        """Digitar um valor desmarca as contas: passa a valer a quitação pelo valor."""
+        if not self._havia_selecao:
+            return
+        self._marcar_todas(False)
+        self._havia_selecao = False  # o que está no campo agora é o que o usuário digitou
+        self._atualizar_selecao()
+
     def _atualizar_selecao(self, _item: QListWidgetItem | None = None) -> None:
-        """Com contas marcadas, o valor é a soma delas e não pode ser editado."""
+        """Com contas marcadas, o valor a receber é a soma delas."""
+        itens = self._itens_de_conta()
         marcadas = self._compras_marcadas()
         if marcadas:
             total = sum((valor for _id, valor in marcadas), Decimal("0"))
             self._campo_valor_pago.setText(f"{total:.2f}".replace(".", ","))
-            self._campo_valor_pago.setReadOnly(True)
             self._label_valor.setText(_ROTULO_VALOR_SELECIONADO)
             self._havia_selecao = True
         else:
             if self._havia_selecao:
                 self._campo_valor_pago.clear()  # era a soma das marcadas, não um valor digitado
-            self._campo_valor_pago.setReadOnly(False)
             self._label_valor.setText(_ROTULO_VALOR_DIGITADO)
             self._havia_selecao = False
+
+        self._botao_selecionar_todas.setEnabled(bool(itens))
+        self._botao_selecionar_todas.setText(
+            _TEXTO_DESMARCAR_TODAS if itens and len(marcadas) == len(itens) else _TEXTO_SELECIONAR_TODAS
+        )
 
     def _confirmar_pagamento(self) -> None:
         if self._cliente_id is None:

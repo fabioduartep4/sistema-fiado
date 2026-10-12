@@ -40,8 +40,9 @@ O botão **+ Novo Lançamento**, no topo de todas as telas, abre direto
   sempre pode ser alterada. Aceita uma observação opcional, que aparece
   junto da compra na ficha do cliente.
 - **Pagamento**, de dois jeitos:
-  - **Marcando as contas** que o cliente quer pagar: o valor a receber é a
-    soma delas e só elas são quitadas, em qualquer ordem.
+  - **Marcando as contas** que o cliente quer pagar (ou "Selecionar
+    todas"): o valor a receber é a soma delas e só elas são quitadas, em
+    qualquer ordem. Alterar o valor desmarca as contas.
   - **Digitando o valor**, sem marcar nada: quita as compras **mais
     antigas primeiro**. Se o valor acabar no meio de uma compra, ela é
     quitada e o que faltou vira uma nova compra chamada **"Resto"**.
