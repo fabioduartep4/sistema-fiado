@@ -98,3 +98,39 @@ def test_montar_html_extrato_cliente_sem_compras_em_aberto() -> None:
 
     assert "Nenhuma compra em aberto." in html
     assert "R$ 0,00" in html
+
+
+def test_extrato_mostra_a_hora_da_compra_quando_conhecida() -> None:
+    from datetime import datetime
+
+    compras = [
+        CompraResumo(
+            id="c1", valor=Decimal("10.00"), data=date(2026, 9, 23), status="aberta",
+            eh_resto=False, origem_nfe_xml=None, data_hora=datetime(2026, 9, 23, 14, 32),
+        ),
+        CompraResumo(
+            id="c2", valor=Decimal("20.00"), data=date(2026, 9, 25), status="aberta",
+            eh_resto=False, origem_nfe_xml=None,
+        ),
+    ]
+
+    html = montar_html_extrato_cliente(
+        nome_cliente="Cida", telefones=[], compras=compras, total_em_aberto=Decimal("30.00")
+    )
+
+    assert "23/09/2026 14:32 - R$ 10,00" in html
+    assert "25/09/2026 - R$ 20,00" in html  # sem hora conhecida: só a data
+
+
+def test_recibo_reimpresso_sai_marcado_como_segunda_via() -> None:
+    dados = dict(
+        nome_cliente="Maria da Silva",
+        valor_pago=Decimal("50.00"),
+        data_pagamento=date(2026, 3, 10),
+        recebido_por="Administrador",
+        observacoes=None,
+        valor_resto_gerado=Decimal("0"),
+    )
+
+    assert "2ª VIA" not in montar_html_recibo_pagamento(**dados)
+    assert "2ª VIA" in montar_html_recibo_pagamento(**dados, segunda_via=True)

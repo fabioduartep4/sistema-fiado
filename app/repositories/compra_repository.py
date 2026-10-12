@@ -121,6 +121,7 @@ def criar_compra(
     valor: Decimal,
     data: date,
     comprador_id: Optional[uuid.UUID] = None,
+    descricao: Optional[str] = None,
 ) -> Compra:
     """Cria uma nova compra (lançamento de fiado) para um cliente.
 
@@ -136,11 +137,14 @@ def criar_compra(
             serviço).
         data: Data da compra.
         comprador_id: UUID do comprador que realizou a compra (opcional).
+        descricao: Observações livres do lançamento (opcional).
 
     Returns:
         A :class:`Compra` recém-criada (já com ``id`` preenchido).
     """
-    compra = Compra(cliente_id=cliente_id, comprador_id=comprador_id, valor=valor, data=data)
+    compra = Compra(
+        cliente_id=cliente_id, comprador_id=comprador_id, valor=valor, data=data, descricao=descricao
+    )
     session.add(compra)
     session.flush()
     return compra

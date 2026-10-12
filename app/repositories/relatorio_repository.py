@@ -234,12 +234,23 @@ def calcular_total_em_aberto_geral(session: Session) -> Decimal:
     return Decimal(total)
 
 
+def _filtros_de_venda() -> tuple:
+    """O que conta como venda nas consultas de "vendas do dia" (exigem JOIN com Cliente).
+
+    Fica de fora: compra inativa, conta "Resto" (sobra de pagamento
+    parcial, não é venda nova) e compra de cliente excluído.
+    """
+    return (Compra.ativo.is_(True), Compra.eh_resto.is_(False), Cliente.ativo.is_(True))
+
+
 def calcular_total_vendido_no_dia(session: Session, dia: date) -> tuple[Decimal, int]:
     """Soma o valor (e conta a quantidade) de vendas no fiado lançadas num dia.
 
     Diferente do total em aberto, aqui conta toda venda feita naquele dia,
     já paga ou não — é sobre o que foi vendido, não sobre o que ainda
-    está pendente (mesmo critério de :func:`listar_maior_valor_gasto`).
+    está pendente. Compras "Resto" ficam de fora: são a sobra de um
+    pagamento parcial, não uma venda nova (a venda original já foi
+    contada no dia dela). Compras de clientes excluídos também.
 
     Args:
         session: Sessão SQLAlchemy ativa.
@@ -249,15 +260,45 @@ def calcular_total_vendido_no_dia(session: Session, dia: date) -> tuple[Decimal,
         Tupla (soma_do_valor, quantidade_de_compras) das compras ativas
         lançadas em ``dia``.
     """
-    stmt = select(func.coalesce(func.sum(Compra.valor), 0), func.count(Compra.id)).where(
-        Compra.ativo.is_(True), Compra.data == dia
+    stmt = (
+        select(func.coalesce(func.sum(Compra.valor), 0), func.count(Compra.id))
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(*_filtros_de_venda(), Compra.data == dia)
     )
     total, quantidade = session.execute(stmt).one()
     return Decimal(total), quantidade
 
 
-def listar_vendas_ultimos_dias(session: Session, dias: int = 7) -> list[tuple[date, Decimal]]:
-    """Soma o valor de vendas no fiado por dia, para os últimos ``dias`` dias (incluindo hoje).
+def listar_vendas_do_dia(session: Session, dia: date) -> list[tuple]:
+    """Lista as vendas no fiado de um dia, uma por linha (mesmo critério de
+    :func:`calcular_total_vendido_no_dia`, então a soma bate com o total).
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        dia: Data das vendas.
+
+    Returns:
+        Lista de tuplas (cliente_id, nome_cliente, valor, data_hora,
+        origem_nfe_xml), da mais cedo para a mais tarde. ``data_hora`` é a
+        emissão da nota para compras vindas de XML, e o momento do
+        lançamento para as demais.
+    """
+    data_hora = func.coalesce(Compra.data_hora_emissao, Compra.criado_em)
+    stmt = (
+        select(Cliente.id, Cliente.nome_principal, Compra.valor, data_hora, Compra.origem_nfe_xml)
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(*_filtros_de_venda(), Compra.data == dia)
+        .order_by(data_hora)
+    )
+    return list(session.execute(stmt).all())
+
+
+def listar_vendas_ultimos_dias(
+    session: Session, dias: int = 7, ate: Optional[date] = None
+) -> list[tuple[date, Decimal]]:
+    """Soma o valor de vendas no fiado por dia, para os ``dias`` dias até ``ate`` (inclusive).
 
     Ao contrário de :func:`listar_evolucao_mensal` (que só lista meses com
     alguma venda), aqui todo dia da janela aparece no resultado, mesmo sem
@@ -267,18 +308,21 @@ def listar_vendas_ultimos_dias(session: Session, dias: int = 7) -> list[tuple[da
 
     Args:
         session: Sessão SQLAlchemy ativa.
-        dias: Quantidade de dias a considerar (incluindo hoje).
+        dias: Quantidade de dias a considerar (incluindo ``ate``).
+        ate: Último dia da janela (padrão: hoje).
 
     Returns:
         Lista de tuplas (dia, valor_total), em ordem cronológica, sempre
         com exatamente ``dias`` elementos.
     """
-    hoje = date.today()
-    data_inicio = hoje - timedelta(days=dias - 1)
+    ate = ate or date.today()
+    data_inicio = ate - timedelta(days=dias - 1)
 
     stmt = (
         select(Compra.data, func.coalesce(func.sum(Compra.valor), 0))
-        .where(Compra.ativo.is_(True), Compra.data >= data_inicio, Compra.data <= hoje)
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(*_filtros_de_venda(), Compra.data >= data_inicio, Compra.data <= ate)
         .group_by(Compra.data)
     )
     totais_por_dia = {dia_com_venda: Decimal(total) for dia_com_venda, total in session.execute(stmt).all()}

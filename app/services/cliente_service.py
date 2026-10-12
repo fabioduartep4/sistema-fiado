@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -155,6 +155,9 @@ class CompraResumo:
     status: str
     eh_resto: bool
     origem_nfe_xml: str | None
+    descricao: str | None = None
+    # Emissão da nota (compras de XML) ou momento do lançamento (as demais).
+    data_hora: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -343,6 +346,8 @@ def _montar_ficha(cliente_id_str: str, session) -> ClienteFicha:  # type: ignore
                 status=c.status.value,
                 eh_resto=c.eh_resto,
                 origem_nfe_xml=c.origem_nfe_xml,
+                descricao=c.descricao,
+                data_hora=c.data_hora_emissao or c.criado_em,
             )
             for c in compras
         ],

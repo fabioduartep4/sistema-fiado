@@ -249,6 +249,21 @@ QTableWidget::item:selected, QListWidget::item:selected, QTreeWidget::item:selec
     color: {c["destaque_texto"]};
 }}
 
+/* Caixa de marcar dos itens de lista (ex.: contas a receber): sempre
+   visível, vazia quando desmarcada e preenchida quando marcada. */
+QListWidget::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 2px solid {c["texto_secundario"]};
+    border-radius: 4px;
+    background-color: {c["fundo_alt"]};
+}}
+
+QListWidget::indicator:checked {{
+    border-color: {c["destaque"]};
+    background-color: {c["destaque"]};
+}}
+
 QHeaderView::section {{
     background-color: {c["fundo"]};
     color: {c["texto_secundario"]};

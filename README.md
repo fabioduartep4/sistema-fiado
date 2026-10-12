@@ -22,9 +22,10 @@ Feito em Python com PySide6 (interface) e PostgreSQL (dados).
 
 | Tela | O que faz |
 |---|---|
-| **Início** | Resumo do dia: total em aberto, vendas de hoje, clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. |
+| **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. Escolha uma **data** no topo para ver as vendas daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
 | **Clientes** | Busca e lista de clientes com saldo, limite e situação. Filtros: Com saldo, Em atraso, Acima do limite. Botão **+ Novo Cliente**. Duplo clique abre a ficha. |
-| **Ficha do Cliente** | Saldo, limite e disponível; histórico de compras e pagamentos. Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Extrato, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
+| **Ficha do Cliente** | Saldo, limite e disponível; extrato na tela (compras em aberto com data, hora e valor). Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Imprimir Extrato, Histórico, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
+| **Histórico do cliente** | Aberto pelo botão Histórico da ficha: todas as compras e pagamentos, do mais novo para o mais antigo. Permite ver produtos, reimprimir o comprovante de um pagamento e abrir os detalhes/estorno. |
 | **Saldos** | Todos os clientes com saldo em aberto, com busca e exportação para CSV/Excel. |
 | **Histórico** | Vendas e recebimentos (com filtro de período, cliente e tipo), alterações feitas no sistema e log de erros. |
 | **Backups** | Pasta de backup, backup manual e restauração. |
@@ -37,17 +38,27 @@ O botão **+ Novo Lançamento**, no topo de todas as telas, abre direto
 
 - **Compra**: lança um valor na conta do cliente. A data sugerida é o
   **dia anterior** ou o **dia atual** (escolhido em Configurações), e
-  sempre pode ser alterada.
-- **Pagamento**: quita as compras **mais antigas primeiro**. Se o valor
-  pago acabar no meio de uma compra, ela é quitada e o que faltou vira uma
-  nova compra chamada **"Resto"**. Um pagamento pode ser estornado com
-  duplo clique nele, na ficha do cliente.
+  sempre pode ser alterada. Aceita uma observação opcional, que aparece
+  junto da compra na ficha do cliente.
+- **Pagamento**, de dois jeitos:
+  - **Marcando as contas** que o cliente quer pagar (ou "Selecionar
+    todas"): o valor a receber é a soma delas e só elas são quitadas, em
+    qualquer ordem. Alterar o valor desmarca as contas.
+  - **Digitando o valor**, sem marcar nada: quita as compras **mais
+    antigas primeiro**. Se o valor acabar no meio de uma compra, ela é
+    quitada e o que faltou vira uma nova compra chamada **"Resto"**.
+
+  Um pagamento pode ser estornado pelo Histórico do cliente (duplo clique
+  no pagamento, ou "Detalhes / Estornar").
 - **Limite de fiado**: opcional, por cliente. Quem passa do limite aparece
   em destaque no Início e em Clientes.
 - **Atraso**: cliente com compra em aberto há mais de 30 dias (o número de
   dias pode ser alterado nas telas Início e Clientes).
 - **Exclusão**: nada é apagado de verdade; clientes e usuários excluídos
   só ficam inativos, e toda alteração fica registrada no Histórico.
+- **Vendas do dia**: contam as compras com aquela data. Não entram contas
+  "Resto" (são sobra de pagamento, não venda nova) nem compras de clientes
+  excluídos.
 
 ### Importação de XML de NF-e
 
@@ -74,8 +85,12 @@ WhatsApp com a mensagem pronta para revisar e enviar:
 Feita para impressora térmica de **80 mm** (ex.: Elgin i9), sempre com
 pré-visualização antes:
 
-- **Extrato**: nome, telefone, compras em aberto (data e valor) e total.
-- **Comprovante de pagamento**: oferecido ao registrar um pagamento.
+- **Extrato**: nome, telefone, compras em aberto (data, hora e valor) e
+  total. A hora é a de emissão da nota (compras de XML) ou a do
+  lançamento (compras feitas à mão).
+- **Comprovante de pagamento**: oferecido ao registrar um pagamento. Pode
+  ser reimpresso depois pelo Histórico do cliente (sai marcado como
+  "2ª VIA"; pagamento estornado não pode ser reimpresso).
 
 ### Backup
 

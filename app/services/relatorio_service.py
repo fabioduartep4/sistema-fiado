@@ -637,49 +637,75 @@ class PontoVendaDiaria:
 
 
 @dataclass(frozen=True)
-class VendasHojeResumo:
-    """Dados da seção "Vendas de Hoje" da tela de Início — situação do dia
-    atual, sem filtro de período (não faz sentido escolher um "período"
-    para "hoje").
+class VendaDoDiaResumo:
+    """Uma venda no fiado, para a lista "Vendas do Dia" da tela de Início."""
+
+    cliente_id: str
+    cliente_nome: str
+    valor: Decimal
+    data_hora: datetime
+    via_xml: bool
+
+
+@dataclass(frozen=True)
+class VendasDoDiaResumo:
+    """Vendas no fiado de uma data, para a tela de Início.
 
     Attributes:
-        total_vendido_hoje: Soma de tudo que foi vendido no fiado hoje.
-        quantidade_vendida_hoje: Quantidade de compras lançadas hoje.
-        vendas_ultimos_7_dias: Total vendido por dia, últimos 7 dias
-            (janela fixa, incluindo hoje).
+        dia: Data consultada.
+        total_vendido: Soma de tudo que foi vendido no fiado nesse dia.
+        quantidade: Quantidade de vendas do dia.
+        vendas: Cada venda do dia, da mais cedo para a mais tarde.
+        vendas_ultimos_7_dias: Total vendido por dia, nos 7 dias até ``dia``.
     """
 
-    total_vendido_hoje: Decimal
-    quantidade_vendida_hoje: int
+    dia: date
+    total_vendido: Decimal
+    quantidade: int
+    vendas: list[VendaDoDiaResumo]
     vendas_ultimos_7_dias: list[PontoVendaDiaria]
 
 
 @tratar_erros
-def obter_vendas_hoje(usuario_logado: UsuarioAutenticado) -> VendasHojeResumo:
-    """Monta os dados da seção "Vendas de Hoje" — sempre o dia atual e os
-    últimos 7 dias, sem período selecionável.
+def obter_vendas_do_dia(
+    usuario_logado: UsuarioAutenticado, dia: Optional[date] = None
+) -> VendasDoDiaResumo:
+    """Monta os dados de vendas de uma data (padrão: hoje) para a tela de Início.
 
     Args:
         usuario_logado: Usuário autenticado que está consultando.
+        dia: Data a consultar. ``None`` = hoje.
 
     Returns:
-        Um :class:`VendasHojeResumo`.
+        Um :class:`VendasDoDiaResumo`.
 
     Raises:
         PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
     """
     if not usuario_logado.eh_administrador:
-        raise PermissaoNegadaError("Apenas administradores podem ver as vendas de hoje.")
+        raise PermissaoNegadaError("Apenas administradores podem ver as vendas do dia.")
 
-    hoje = date.today()
+    dia = dia or date.today()
     with session_scope() as session:
-        total_hoje, quantidade_hoje = relatorio_repository.calcular_total_vendido_no_dia(session, hoje)
-        vendas_diarias = relatorio_repository.listar_vendas_ultimos_dias(session, dias=7)
-        return VendasHojeResumo(
-            total_vendido_hoje=total_hoje,
-            quantidade_vendida_hoje=quantidade_hoje,
+        total, quantidade = relatorio_repository.calcular_total_vendido_no_dia(session, dia)
+        vendas = relatorio_repository.listar_vendas_do_dia(session, dia)
+        vendas_diarias = relatorio_repository.listar_vendas_ultimos_dias(session, dias=7, ate=dia)
+        return VendasDoDiaResumo(
+            dia=dia,
+            total_vendido=total,
+            quantidade=quantidade,
+            vendas=[
+                VendaDoDiaResumo(
+                    cliente_id=str(cliente_id),
+                    cliente_nome=nome,
+                    valor=valor,
+                    data_hora=data_hora,
+                    via_xml=origem_nfe_xml is not None,
+                )
+                for cliente_id, nome, valor, data_hora, origem_nfe_xml in vendas
+            ],
             vendas_ultimos_7_dias=[
-                PontoVendaDiaria(dia=dia.strftime("%d/%m"), total=total) for dia, total in vendas_diarias
+                PontoVendaDiaria(dia=d.strftime("%d/%m"), total=t) for d, t in vendas_diarias
             ],
         )
 

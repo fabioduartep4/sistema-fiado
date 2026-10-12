@@ -19,7 +19,7 @@ from app.services.relatorio_service import (
     PainelSaldos,
     SaldoAtrasoResumo,
     SaldoClienteResumo,
-    VendasHojeResumo,
+    VendasDoDiaResumo,
 )
 
 
@@ -103,6 +103,6 @@ class RelatorioController:
         """Obtém os dados da aba Saldos (situação atual, sem período)."""
         return relatorio_service.obter_painel_saldos(self.usuario_logado)
 
-    def obter_vendas_hoje(self) -> VendasHojeResumo:
-        """Obtém os dados de "Vendas de Hoje" (dia atual e últimos 7 dias, sem período)."""
-        return relatorio_service.obter_vendas_hoje(self.usuario_logado)
+    def obter_vendas_do_dia(self, dia: Optional[date] = None) -> VendasDoDiaResumo:
+        """Obtém as vendas de uma data (padrão: hoje) e os 7 dias até ela."""
+        return relatorio_service.obter_vendas_do_dia(self.usuario_logado, dia)

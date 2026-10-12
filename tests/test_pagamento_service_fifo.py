@@ -199,3 +199,137 @@ def test_estorno_bloqueado_quando_resto_ja_foi_pago(usuario_admin_teste) -> None
         pagamento_service.estornar_pagamento(usuario_admin_teste, pagamento_original.id)
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_pagamento_de_contas_escolhidas_quita_so_elas_fora_da_ordem(usuario_admin_teste) -> None:
+    """Exemplo do pedido: contas de 23, 25 e 30; marca 23 e 30, recebe 53, sobra a de 25."""
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Contas Escolhidas", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        c23 = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("23.00"), hoje, None)
+        c25 = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("25.00"), hoje, None)
+        c30 = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("30.00"), hoje, None)
+
+        resultado = pagamento_service.registrar_pagamento(
+            usuario_admin_teste, cliente.id, Decimal("53.00"), hoje, None, compra_ids=[c23.id, c30.id]
+        )
+
+        assert resultado.valor_resto_gerado == Decimal("0")
+        ficha = cliente_service.obter_ficha(cliente.id)
+        abertas = [c for c in ficha.compras if c.status != "quitada"]
+        assert [c.id for c in abertas] == [c25.id]
+        assert ficha.total_em_aberto == Decimal("25.00")
+        assert not any(c.eh_resto for c in ficha.compras)
+
+        # O estorno reabre exatamente as contas que esse pagamento quitou.
+        pagamento_service.estornar_pagamento(usuario_admin_teste, resultado.id)
+        ficha_apos_estorno = cliente_service.obter_ficha(cliente.id)
+        assert ficha_apos_estorno.total_em_aberto == Decimal("78.00")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_pagamento_de_contas_escolhidas_exige_valor_igual_a_soma(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Contas Escolhidas Valor", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        c1 = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("23.00"), hoje, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("30.00"), hoje, None)
+
+        with pytest.raises(ValueError):
+            pagamento_service.registrar_pagamento(
+                usuario_admin_teste, cliente.id, Decimal("20.00"), hoje, None, compra_ids=[c1.id]
+            )
+
+        ficha = cliente_service.obter_ficha(cliente.id)
+        assert ficha.total_em_aberto == Decimal("53.00")  # nada foi quitado
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_pagamento_de_conta_ja_quitada_ou_de_outro_cliente_e_rejeitado(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Contas Escolhidas Dono", [], [], []
+    )
+    outro = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Contas Escolhidas Outro", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("10.00"), hoje, None)
+        do_outro = compra_service.registrar_compra(usuario_admin_teste, outro.id, Decimal("10.00"), hoje, None)
+
+        with pytest.raises(ValueError):
+            pagamento_service.registrar_pagamento(
+                usuario_admin_teste, cliente.id, Decimal("10.00"), hoje, None, compra_ids=[do_outro.id]
+            )
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+        cliente_service.excluir_cliente(usuario_admin_teste, outro.id)
+
+
+def test_compra_guarda_observacao_e_ela_aparece_na_ficha(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Compra Observacao", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        compra_service.registrar_compra(
+            usuario_admin_teste, cliente.id, Decimal("12.00"), hoje, None, "  pegou o filho  "
+        )
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("5.00"), hoje, None)
+
+        ficha = cliente_service.obter_ficha(cliente.id)
+        observacoes = {c.valor: c.descricao for c in ficha.compras}
+        assert observacoes == {Decimal("12.00"): "pegou o filho", Decimal("5.00"): None}
+
+        with pytest.raises(ValueError):
+            compra_service.registrar_compra(
+                usuario_admin_teste, cliente.id, Decimal("1.00"), hoje, None, "x" * 256
+            )
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_ficha_traz_a_hora_do_lancamento_da_compra(usuario_admin_teste) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Hora Da Compra", [], [], []
+    )
+    try:
+        antes = datetime.now(timezone.utc) - timedelta(seconds=5)
+        compra_service.registrar_compra(
+            usuario_admin_teste, cliente.id, Decimal("9.00"), obter_data_padrao(), None
+        )
+        ficha = cliente_service.obter_ficha(cliente.id)
+        assert ficha.compras[0].data_hora >= antes
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_valor_do_resto_para_reimprimir_o_comprovante(usuario_admin_teste) -> None:
+    """A 2ª via precisa mostrar o mesmo "Resto" do comprovante original."""
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Reimpressao Resto", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("20.00"), hoje, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("30.00"), hoje, None)
+        original = pagamento_service.registrar_pagamento(
+            usuario_admin_teste, cliente.id, Decimal("40.00"), hoje, None
+        )
+        exato = pagamento_service.registrar_pagamento(
+            usuario_admin_teste, cliente.id, Decimal("10.00"), hoje, None
+        )
+
+        pagamentos = {p.id: p for p in pagamento_service.listar_pagamentos_por_cliente(cliente.id)}
+        assert pagamentos[original.id].valor_resto_gerado == original.valor_resto_gerado == Decimal("10.00")
+        assert pagamentos[exato.id].valor_resto_gerado == Decimal("0")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

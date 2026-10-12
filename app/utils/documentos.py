@@ -38,8 +38,9 @@ def montar_html_recibo_pagamento(
     recebido_por: str,
     observacoes: Optional[str],
     valor_resto_gerado: Decimal,
+    segunda_via: bool = False,
 ) -> str:
-    """Monta o HTML do comprovante de um pagamento recém-registrado.
+    """Monta o HTML do comprovante de um pagamento.
 
     Args:
         nome_cliente: Nome principal do cliente que pagou.
@@ -49,6 +50,8 @@ def montar_html_recibo_pagamento(
         observacoes: Observações livres do pagamento (opcional).
         valor_resto_gerado: Valor da conta "Resto" gerada, se houver
             (``Decimal("0")`` quando o pagamento quitou tudo exatamente).
+        segunda_via: Marca o comprovante como "2ª VIA" (reimpressão pelo
+            histórico), para não ser confundido com um pagamento novo.
 
     Returns:
         HTML pronto para impressão/pré-visualização (80mm).
@@ -60,11 +63,15 @@ def montar_html_recibo_pagamento(
             f"<strong>{formatar_reais(valor_resto_gerado)}</strong>.</p>"
         )
     linha_obs = f"<p>Obs: {escape(observacoes)}</p>" if observacoes else ""
+    linha_segunda_via = (
+        '<p style="text-align: center;"><strong>2ª VIA</strong></p>' if segunda_via else ""
+    )
 
     return f"""
     <html><head><style>{_ESTILO_BASE}</style></head>
     <body>
       <h2>Comprovante de Pagamento</h2>
+      {linha_segunda_via}
       <hr>
       <p>Cliente: {escape(nome_cliente)}</p>
       <p>Valor pago: {formatar_reais(valor_pago)}</p>
@@ -78,6 +85,14 @@ def montar_html_recibo_pagamento(
     """
 
 
+def formatar_data_hora_compra(compra: CompraResumo) -> str:
+    """Data da compra e, quando conhecida, a hora: ``23/09/2026 14:32``."""
+    texto = compra.data.strftime("%d/%m/%Y")
+    if compra.data_hora is not None:
+        texto += f" {compra.data_hora.strftime('%H:%M')}"
+    return texto
+
+
 def montar_html_extrato_cliente(
     nome_cliente: str,
     telefones: Sequence[str],
@@ -89,14 +104,14 @@ def montar_html_extrato_cliente(
     Args:
         nome_cliente: Nome principal do cliente.
         telefones: Telefones de contato cadastrados.
-        compras: Compras em aberto, uma linha cada (data e valor).
+        compras: Compras em aberto, uma linha cada (data, hora e valor).
         total_em_aberto: Total devido.
 
     Returns:
         HTML pronto para impressão/pré-visualização (80mm).
     """
     linhas_compras = "".join(
-        f"<p>{c.data.strftime('%d/%m/%Y')} - {formatar_reais(c.valor)}</p>" for c in compras
+        f"<p>{formatar_data_hora_compra(c)} - {formatar_reais(c.valor)}</p>" for c in compras
     )
     if not linhas_compras:
         linhas_compras = "<p>Nenhuma compra em aberto.</p>"
