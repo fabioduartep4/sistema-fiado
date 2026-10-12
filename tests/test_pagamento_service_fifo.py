@@ -293,3 +293,45 @@ def test_compra_guarda_observacao_e_ela_aparece_na_ficha(usuario_admin_teste) ->
             )
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_ficha_traz_a_hora_do_lancamento_da_compra(usuario_admin_teste) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Hora Da Compra", [], [], []
+    )
+    try:
+        antes = datetime.now(timezone.utc) - timedelta(seconds=5)
+        compra_service.registrar_compra(
+            usuario_admin_teste, cliente.id, Decimal("9.00"), obter_data_padrao(), None
+        )
+        ficha = cliente_service.obter_ficha(cliente.id)
+        assert ficha.compras[0].data_hora >= antes
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_valor_do_resto_para_reimprimir_o_comprovante(usuario_admin_teste) -> None:
+    """A 2ª via precisa mostrar o mesmo "Resto" do comprovante original."""
+    from app.views.historico_cliente_view import valor_resto_do_pagamento
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Reimpressao Resto", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("20.00"), hoje, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("30.00"), hoje, None)
+        original = pagamento_service.registrar_pagamento(
+            usuario_admin_teste, cliente.id, Decimal("40.00"), hoje, None
+        )
+        exato = pagamento_service.registrar_pagamento(
+            usuario_admin_teste, cliente.id, Decimal("10.00"), hoje, None
+        )
+
+        pagamentos = {p.id: p for p in pagamento_service.listar_pagamentos_por_cliente(cliente.id)}
+        assert valor_resto_do_pagamento(pagamentos[original.id]) == original.valor_resto_gerado == Decimal("10.00")
+        assert valor_resto_do_pagamento(pagamentos[exato.id]) == Decimal("0")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

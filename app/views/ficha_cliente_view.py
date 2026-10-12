@@ -5,18 +5,15 @@ Aberta ao dar duplo clique em um cliente na tela "Clientes"
 do redesign — não virou uma página navegável). Mostra:
 
 - Um cartão com o saldo em aberto, limite e valor disponível.
-- Um histórico combinado do cliente — compras (``+ valor``) e
-  pagamentos (``- valor``), do mais recente pro mais antigo, no lugar
-  das duas listas separadas de antes (compras em aberto + diálogo
-  próprio de histórico de pagamentos). Duplo clique num pagamento ainda
-  abre o antigo :class:`~app.views.historico_pagamentos_view.HistoricoPagamentosDialog`
-  (reaproveitado, é lá que mora o estorno). Se a compra selecionada veio
+- O extrato do cliente: as compras em aberto, com data, hora e valor
+  (as mesmas que saem no extrato impresso). Se a compra selecionada veio
   de um XML importado, "Ver Produtos" fica habilitado.
-- Botão "Enviar Lembrete" (novo aqui — antes só existia na tela de
-  Início), visível quando o cliente está atrasado e/ou acima do limite,
-  já que essa ação saiu das tabelas do dashboard.
-- Ações: Nova Compra, Receber Pagamento, Editar Cliente, Excluir Conta,
-  Extrato, Fechar.
+- Botão "Histórico", que abre a linha do tempo completa — compras e
+  pagamentos, reimpressão de comprovante e estorno
+  (:class:`~app.views.historico_cliente_view.HistoricoClienteDialog`).
+- Botão "Enviar Lembrete", visível quando o cliente tem saldo em aberto.
+- Ações: Nova Compra, Receber Pagamento, Imprimir Extrato, Editar
+  Cliente, Excluir Conta, Fechar.
 
 Se o cliente ainda não foi confirmado (criado automaticamente por
 importação de XML), a ficha pergunta se o cadastro deve ser confirmado
@@ -47,7 +44,7 @@ from app.controllers.pagamento_controller import PagamentoController
 from app.controllers.xml_importacao_controller import XmlImportacaoController
 from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteFicha
-from app.utils.documentos import montar_html_extrato_cliente
+from app.utils.documentos import formatar_data_hora_compra, montar_html_extrato_cliente
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
@@ -55,17 +52,14 @@ from app.utils.formatacao import formatar_reais
 from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.adicionar_compra_view import AdicionarCompraDialog
 from app.views.editar_cliente_dialog import EditarClienteDialog
-from app.views.historico_pagamentos_view import HistoricoPagamentosDialog
+from app.views.historico_cliente_view import HistoricoClienteDialog
 from app.views.receber_conta_view import ReceberContaDialog
 from app.views.relatorio_view import LembreteWhatsAppDialog
-from app.views.xml_importacao_view import ObterProdutosWorker, ProdutosXmlDialog
+from app.views.xml_importacao_view import BotaoVerProdutos
 
 # Mesmo critério usado em app.views.clientes_view / app.views.painel_inicio_view
 # pra considerar uma compra em aberto "atrasada".
 _DIAS_ATRASO_PADRAO = 30
-
-_TIPO_COMPRA = "compra"
-_TIPO_PAGAMENTO = "pagamento"
 
 
 class FichaClienteView(QDialog):
@@ -76,12 +70,9 @@ class FichaClienteView(QDialog):
         self._usuario_logado = usuario_logado
         self._controller = ClienteController(usuario_logado)
         self._pagamento_controller = PagamentoController(usuario_logado)
-        self._xml_controller = XmlImportacaoController(usuario_logado)
         self._cliente_id = cliente_id
         self._ficha: ClienteFicha | None = None
         self._prompt_confirmacao_ja_exibido = False
-        self._worker_produtos: ObterProdutosWorker | None = None
-        self._encerrada = False
 
         self.setWindowTitle("Ficha do Cliente")
         self.setMinimumSize(560, 620)
@@ -134,39 +125,50 @@ class FichaClienteView(QDialog):
         layout_botoes_principais.addWidget(botao_adicionar_compra)
         layout_botoes_principais.addWidget(botao_receber_conta)
 
-        label_timeline = QLabel("Histórico do cliente")
-        label_timeline.setProperty("papel", "subtitulo")
+        label_extrato = QLabel("Extrato — contas em aberto")
+        label_extrato.setProperty("papel", "subtitulo")
 
-        self._lista_timeline = QListWidget()
-        self._lista_timeline.itemSelectionChanged.connect(self._atualizar_botao_ver_produtos)
-        self._lista_timeline.itemDoubleClicked.connect(self._item_timeline_ativado)
+        self._lista_extrato = QListWidget()
+        self._lista_extrato.itemSelectionChanged.connect(self._atualizar_botao_ver_produtos)
 
-        self._botao_ver_produtos = QPushButton("Ver Produtos")
-        self._botao_ver_produtos.setIcon(icone("FILE_INVOICE"))
-        self._botao_ver_produtos.setEnabled(False)
-        self._botao_ver_produtos.clicked.connect(self._ver_produtos_xml)
+        self._botao_ver_produtos = BotaoVerProdutos(XmlImportacaoController(usuario_logado))
+
+        botao_extrato = QPushButton("Imprimir Extrato")
+        botao_extrato.setIcon(icone("PRINTER"))
+        botao_historico = QPushButton("Histórico")
+        botao_historico.setIcon(icone("HISTORY"))
 
         botao_editar = QPushButton("Editar Cliente")
         botao_editar.setIcon(icone("EDIT"))
         botao_excluir = QPushButton("Excluir Conta")
         botao_excluir.setIcon(icone("TRASH"))
-        botao_extrato = QPushButton("Extrato")
-        botao_extrato.setIcon(icone("PRINTER"))
         self._botao_fechar = QPushButton("Fechar")
         self._botao_fechar.setIcon(icone("X"))
 
-        for botao in (self._botao_ver_produtos, botao_editar, botao_excluir, botao_extrato, self._botao_fechar):
+        for botao in (
+            self._botao_ver_produtos,
+            botao_extrato,
+            botao_historico,
+            botao_editar,
+            botao_excluir,
+            self._botao_fechar,
+        ):
             botao.setMinimumHeight(38)
 
+        botao_extrato.clicked.connect(self._imprimir_extrato)
+        botao_historico.clicked.connect(self._abrir_historico)
         botao_editar.clicked.connect(self._editar_cliente)
         botao_excluir.clicked.connect(self._excluir_cliente)
-        botao_extrato.clicked.connect(self._imprimir_extrato)
         self._botao_fechar.clicked.connect(self.accept)
+
+        layout_botoes_extrato = QHBoxLayout()
+        layout_botoes_extrato.addWidget(self._botao_ver_produtos)
+        layout_botoes_extrato.addWidget(botao_extrato)
+        layout_botoes_extrato.addWidget(botao_historico)
 
         layout_botoes_secundarios = QHBoxLayout()
         layout_botoes_secundarios.addWidget(botao_editar)
         layout_botoes_secundarios.addWidget(botao_excluir)
-        layout_botoes_secundarios.addWidget(botao_extrato)
         layout_botoes_secundarios.addStretch()
         layout_botoes_secundarios.addWidget(self._botao_fechar)
 
@@ -177,9 +179,9 @@ class FichaClienteView(QDialog):
         layout.addWidget(self._label_compradores)
         layout.addWidget(self._card_saldo)
         layout.addLayout(layout_botoes_principais)
-        layout.addWidget(label_timeline)
-        layout.addWidget(self._lista_timeline)
-        layout.addWidget(self._botao_ver_produtos)
+        layout.addWidget(label_extrato)
+        layout.addWidget(self._lista_extrato, 1)
+        layout.addLayout(layout_botoes_extrato)
         layout.addLayout(layout_botoes_secundarios)
         self.setLayout(layout)
 
@@ -188,7 +190,6 @@ class FichaClienteView(QDialog):
     def _carregar_ficha(self) -> None:
         try:
             self._ficha = self._controller.ficha(self._cliente_id)
-            pagamentos = self._pagamento_controller.listar_pagamentos(self._cliente_id)
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Cliente não encontrado", str(exc))
             self.reject()
@@ -228,39 +229,38 @@ class FichaClienteView(QDialog):
         self._botao_lembrete.setVisible(ficha.total_em_aberto > 0)
         self._excedido, self._atrasado = excedido, atrasado
 
-        self._preencher_timeline(ficha, pagamentos)
-        self._atualizar_botao_ver_produtos()
+        self._preencher_extrato()
 
         if not ficha.confirmado and not self._prompt_confirmacao_ja_exibido:
             self._prompt_confirmacao_ja_exibido = True
             self._perguntar_confirmacao_cliente()
 
-    def _preencher_timeline(self, ficha: ClienteFicha, pagamentos: list) -> None:
-        itens = []
-        for compra in ficha.compras:
+    def _compras_em_aberto(self) -> list:
+        """Compras em aberto, da mais antiga para a mais nova (as mesmas do extrato impresso)."""
+        if self._ficha is None:
+            return []
+        return sorted((c for c in self._ficha.compras if c.status == "aberta"), key=lambda c: c.data)
+
+    def _preencher_extrato(self) -> None:
+        self._lista_extrato.clear()
+        compras = self._compras_em_aberto()
+        if not compras:
+            self._lista_extrato.addItem("Nenhuma conta em aberto.")
+        for compra in compras:
             marca_resto = " [Resto]" if compra.eh_resto else ""
             marca_xml = " 📄" if compra.origem_nfe_xml else ""
-            texto = f"{compra.data.strftime('%d/%m')} — Compra: + {formatar_reais(compra.valor)}{marca_resto}{marca_xml}"
+            texto = f"{formatar_data_hora_compra(compra)} — {formatar_reais(compra.valor)}{marca_resto}{marca_xml}"
             if compra.descricao:
                 texto += f"\n      Obs.: {compra.descricao}"
-            itens.append((compra.data, texto, _TIPO_COMPRA, compra))
-        for pagamento in pagamentos:
-            marca_estorno = " [Estornado]" if not pagamento.ativo else ""
-            texto = (
-                f"{pagamento.data_pagamento.strftime('%d/%m')} — Pagamento: "
-                f"- {formatar_reais(pagamento.valor_pago)}{marca_estorno}"
-            )
-            itens.append((pagamento.data_pagamento, texto, _TIPO_PAGAMENTO, pagamento))
-        itens.sort(key=lambda item: item[0], reverse=True)
-
-        self._lista_timeline.clear()
-        if not itens:
-            self._lista_timeline.addItem("Nenhuma movimentação registrada.")
-            return
-        for _data, texto, tipo, dado in itens:
             item = QListWidgetItem(texto)
-            item.setData(Qt.ItemDataRole.UserRole, (tipo, dado))
-            self._lista_timeline.addItem(item)
+            item.setData(Qt.ItemDataRole.UserRole, compra)
+            self._lista_extrato.addItem(item)
+        self._atualizar_botao_ver_produtos()
+
+    def _atualizar_botao_ver_produtos(self) -> None:
+        item = self._lista_extrato.currentItem()
+        compra = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        self._botao_ver_produtos.definir_chave(compra.origem_nfe_xml if compra is not None else None)
 
     def _abrir_lembrete(self) -> None:
         if self._ficha is None:
@@ -314,28 +314,23 @@ class FichaClienteView(QDialog):
         dialogo.exec()
         self._carregar_ficha()  # atualiza a lista de compras e o total em aberto
 
-    def _item_timeline_ativado(self, item: QListWidgetItem) -> None:
-        """Duplo clique num pagamento abre o diálogo de histórico/estorno."""
-        dado = item.data(Qt.ItemDataRole.UserRole)
-        if not dado or dado[0] != _TIPO_PAGAMENTO or self._ficha is None:
+    def _abrir_historico(self) -> None:
+        """Linha do tempo completa (compras e pagamentos), reimpressão e estorno."""
+        if self._ficha is None:
             return
-        dialogo = HistoricoPagamentosDialog(
+        HistoricoClienteDialog(
             self._usuario_logado, self._cliente_id, self._ficha.nome_principal, self
-        )
-        dialogo.exec()
+        ).exec()
         self._carregar_ficha()  # um estorno pode ter reaberto compras: atualiza a ficha
 
     def _imprimir_extrato(self) -> None:
         if self._ficha is None:
             return
 
-        compras_em_aberto = sorted(
-            (c for c in self._ficha.compras if c.status == "aberta"), key=lambda c: c.data
-        )
         html = montar_html_extrato_cliente(
             nome_cliente=self._ficha.nome_principal,
             telefones=self._ficha.telefones,
-            compras=compras_em_aberto,
+            compras=self._compras_em_aberto(),
             total_em_aberto=self._ficha.total_em_aberto,
         )
         exibir_pre_visualizacao_impressao(self, f"Extrato — {self._ficha.nome_principal}", html)
@@ -389,72 +384,6 @@ class FichaClienteView(QDialog):
 
         QMessageBox.information(self, "Cliente excluído", "Conta excluída com sucesso.")
         self.accept()
-
-    def _atualizar_botao_ver_produtos(self) -> None:
-        item = self._lista_timeline.currentItem()
-        dado = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
-        chave = dado[1].origem_nfe_xml if dado and dado[0] == _TIPO_COMPRA else None
-        self._botao_ver_produtos.setEnabled(bool(chave))
-
-    def _ver_produtos_xml(self) -> None:
-        item = self._lista_timeline.currentItem()
-        dado = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
-        chave = dado[1].origem_nfe_xml if dado and dado[0] == _TIPO_COMPRA else None
-        if not chave:
-            return  # compra não veio de um XML importado
-
-        self._botao_ver_produtos.setEnabled(False)
-        self._botao_ver_produtos.setText("Carregando produtos...")
-
-        # Sem parent (None): a busca roda em segundo plano de verdade — se
-        # o usuário fechar a ficha antes de terminar (pasta com muitos
-        # XMLs pode demorar bastante), a janela fecha na hora, sem travar
-        # nem esperar. A QThread não fica presa ao ciclo de vida da janela
-        # (evita o crash de "destruir thread ainda em execução"), e os
-        # callbacks abaixo conferem ``self._encerrada`` antes de mexer em
-        # qualquer widget, para não tentar atualizar uma ficha já fechada.
-        worker = ObterProdutosWorker(self._xml_controller, chave)
-        worker.produtos_prontos.connect(self._exibir_produtos_xml)
-        worker.erro_ocorrido.connect(self._erro_ao_obter_produtos_xml)
-        worker.progresso.connect(self._atualizar_progresso_produtos)
-        worker.finished.connect(self._finalizar_busca_produtos)
-        worker.finished.connect(worker.deleteLater)
-        self._worker_produtos = worker
-        worker.start()
-
-    def _atualizar_progresso_produtos(self, atual: int, total: int) -> None:
-        if self._encerrada:
-            return
-        self._botao_ver_produtos.setText(f"Verificando {atual}/{total}...")
-
-    def _finalizar_busca_produtos(self) -> None:
-        if self._encerrada:
-            return
-        self._botao_ver_produtos.setText("Ver Produtos")
-        self._atualizar_botao_ver_produtos()
-
-    def _exibir_produtos_xml(self, produtos: list) -> None:
-        if self._encerrada:
-            return
-        dialogo = ProdutosXmlDialog(produtos, self)
-        dialogo.exec()
-
-    def _erro_ao_obter_produtos_xml(self, mensagem: str) -> None:
-        if self._encerrada:
-            return
-        QMessageBox.warning(self, "Não foi possível abrir os produtos", mensagem)
-
-    def closeEvent(self, event) -> None:  # noqa: N802 (nome exigido pelo Qt)
-        self._encerrada = True
-        super().closeEvent(event)
-
-    def accept(self) -> None:
-        self._encerrada = True
-        super().accept()
-
-    def reject(self) -> None:
-        self._encerrada = True
-        super().reject()
 
     def _perguntar_confirmacao_cliente(self) -> None:
         resposta = QMessageBox.question(

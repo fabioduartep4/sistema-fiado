@@ -65,6 +65,73 @@ class ObterProdutosWorker(QThread):
             self.produtos_prontos.emit(produtos)
 
 
+class BotaoVerProdutos(QPushButton):
+    """Botão "Ver Produtos" de uma compra vinda de XML.
+
+    Quem usa só informa a chave da nota da compra selecionada
+    (:meth:`definir_chave`); o botão cuida de buscar os produtos em segundo
+    plano (:class:`ObterProdutosWorker`), mostrar o progresso no próprio
+    texto e abrir o :class:`ProdutosXmlDialog`.
+    """
+
+    _TEXTO = "Ver Produtos"
+
+    def __init__(self, controller: XmlImportacaoController, parent: QWidget | None = None) -> None:
+        super().__init__(self._TEXTO, parent)
+        self.setIcon(icone("FILE_INVOICE"))
+        self.setEnabled(False)
+        self._controller = controller
+        self._chave: str | None = None
+        self._worker: ObterProdutosWorker | None = None
+        self.clicked.connect(self._buscar)
+
+    def definir_chave(self, chave: str | None) -> None:
+        """Chave da nota da compra selecionada (``None`` = compra sem XML/nada selecionado)."""
+        self._chave = chave or None
+        if self._worker is None:
+            self.setEnabled(self._chave is not None)
+
+    def _janela_aberta(self) -> bool:
+        # A busca pode terminar depois de a janela ser fechada (pasta com
+        # muitos XMLs demora): aí não se mexe em mais nada nem se abre diálogo.
+        return self.window().isVisible()
+
+    def _buscar(self) -> None:
+        if self._chave is None:
+            return
+        self.setEnabled(False)
+        self.setText("Carregando produtos...")
+
+        # Sem parent: a QThread não fica presa ao ciclo de vida da janela
+        # (evita o crash de "destruir thread ainda em execução" se a janela
+        # for fechada no meio da busca).
+        worker = ObterProdutosWorker(self._controller, self._chave)
+        worker.produtos_prontos.connect(self._exibir)
+        worker.erro_ocorrido.connect(self._erro)
+        worker.progresso.connect(self._progresso)
+        worker.finished.connect(self._finalizar)
+        worker.finished.connect(worker.deleteLater)
+        self._worker = worker
+        worker.start()
+
+    def _progresso(self, atual: int, total: int) -> None:
+        if self._janela_aberta():
+            self.setText(f"Verificando {atual}/{total}...")
+
+    def _finalizar(self) -> None:
+        self._worker = None
+        self.setText(self._TEXTO)
+        self.setEnabled(self._chave is not None)
+
+    def _exibir(self, produtos: list) -> None:
+        if self._janela_aberta():
+            ProdutosXmlDialog(produtos, self.window()).exec()
+
+    def _erro(self, mensagem: str) -> None:
+        if self._janela_aberta():
+            QMessageBox.warning(self.window(), "Não foi possível abrir os produtos", mensagem)
+
+
 class _ListarCandidatosWorker(QThread):
     """Varre a pasta de XMLs e lista os candidatos pendentes, fora da thread da UI.
 
