@@ -31,7 +31,7 @@ from app.views.busca_cliente_worker import BuscaClienteWorker
 _INTERVALO_DEBOUNCE_MS = 300
 
 # Adicionar Compra e Receber Conta abrem sempre do mesmo tamanho.
-TAMANHO_DIALOGO_LANCAMENTO = (680, 720)
+TAMANHO_DIALOGO_LANCAMENTO = (520, 720)
 # Até onde dá para encolher a janela sem cortar nada.
 TAMANHO_MINIMO_DIALOGO_LANCAMENTO = (440, 720)
 
