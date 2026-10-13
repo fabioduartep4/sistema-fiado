@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.config.settings import settings
-from app.services import configuracao_service
+from app.services import configuracao_service, nuvem_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
@@ -166,6 +166,10 @@ def _executar_backup(pasta_destino: Optional[str] = None) -> BackupResultado:
     _executar_pg_dump(caminho_sql)
     _compactar_em_zip(caminho_sql, caminho_zip)
 
+    # Se este computador tem uma pasta sincronizada com a nuvem configurada,
+    # o backup também vai para lá (não interrompe nada se a cópia falhar).
+    nuvem_service.copiar_para_nuvem(caminho_zip)
+
     return BackupResultado(caminho_arquivo=str(caminho_zip), data_hora=agora)
 
 
@@ -236,6 +240,13 @@ def restaurar_backup(usuario_logado: UsuarioAutenticado, caminho_arquivo_zip: st
         shutil.rmtree(pasta_temporaria, ignore_errors=True)
 
 
+def _backup_local_de_hoje() -> Optional[Path]:
+    """O backup mais recente de hoje na pasta de backup configurada, se existir."""
+    pasta = Path(configuracao_service.obter_pasta_backup())
+    arquivos = sorted(pasta.glob(f"backup_fiado_{date.today().strftime('%Y%m%d')}_*.zip"))
+    return arquivos[-1] if arquivos else None
+
+
 def verificar_e_executar_backup_automatico_se_necessario() -> Optional[BackupResultado]:
     """Executa o backup automático diário, se ainda não tiver sido feito hoje.
 
@@ -253,6 +264,15 @@ def verificar_e_executar_backup_automatico_se_necessario() -> Optional[BackupRes
     hoje = date.today()
 
     if ultima_data == hoje:
+        # O backup de hoje já foi feito — talvez por outro computador, que não
+        # tem a pasta da nuvem. Se este tem e ainda não mandou nada hoje,
+        # manda agora (reaproveitando um backup local de hoje, se houver).
+        if not nuvem_service.falta_copia_de_hoje():
+            return None
+        backup_local = _backup_local_de_hoje()
+        if backup_local is None:
+            return _executar_backup(pasta_destino=None)
+        nuvem_service.copiar_para_nuvem(backup_local)
         return None
 
     resultado = _executar_backup(pasta_destino=None)

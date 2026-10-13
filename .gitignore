@@ -26,3 +26,4 @@ htmlcov/
 .idea/
 *.swp
 Thumbs.db
+app/config_local.json

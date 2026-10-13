@@ -111,6 +111,26 @@ pré-visualização antes:
 - Usa `pg_dump` e `psql`, que precisam estar instalados (vêm com o
   PostgreSQL) e no PATH do computador.
 
+**Cópia na nuvem (Google Drive)** — opcional, configurada por computador:
+
+1. Instale o **Google Drive para computador** numa máquina da loja e entre
+   com a sua conta. Ele cria uma unidade/pasta no Windows (ex.: `G:\Meu Drive`).
+2. Crie uma pasta dentro dela (ex.: `G:\Meu Drive\Backups Fiado`).
+3. No sistema, em **Backups > Escolher Pasta do Google Drive**, selecione
+   essa pasta.
+
+A partir daí, todo backup feito nesse computador (o automático do dia e os
+manuais) é copiado para a pasta, e o Google Drive envia para a nuvem. Ficam
+guardados os **30 mais recentes**; os mais antigos são apagados da pasta. Se
+o backup do dia tiver sido feito por outro computador, o que tem a pasta da
+nuvem manda um mesmo assim. A tela Backups mostra quando foi a última cópia
+— ou o erro, se ela falhou (o backup local é feito do mesmo jeito).
+
+O sistema só copia para a pasta: quem envia para a nuvem é o aplicativo do
+Google, que precisa estar aberto e conectado. Para restaurar, baixe o
+arquivo do Drive e use **Restaurar Backup**. A configuração fica em
+`app/config_local.json`, ao lado dos backups e dos logs.
+
 ### Atalhos de teclado
 
 | Atalho | Ação |

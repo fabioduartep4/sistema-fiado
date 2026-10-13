@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from app.services import backup_service, configuracao_service
+from app.services import backup_service, configuracao_service, nuvem_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.backup_service import BackupResultado
+from app.services.nuvem_service import StatusNuvem
 
 
 class BackupController:
@@ -40,3 +41,11 @@ class BackupController:
     def restaurar_backup(self, caminho_arquivo_zip: str) -> None:
         """Restaura o banco a partir de um arquivo de backup."""
         backup_service.restaurar_backup(self.usuario_logado, caminho_arquivo_zip)
+
+    def status_nuvem(self) -> StatusNuvem:
+        """Situação da cópia na nuvem neste computador."""
+        return nuvem_service.obter_status()
+
+    def definir_pasta_nuvem(self, pasta: Optional[str]) -> None:
+        """Define (ou desativa, com ``None``) a pasta sincronizada com a nuvem deste computador."""
+        nuvem_service.definir_pasta(self.usuario_logado, pasta)

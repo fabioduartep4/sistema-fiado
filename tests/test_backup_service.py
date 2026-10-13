@@ -98,3 +98,70 @@ def test_verificar_backup_automatico_nao_roda_duas_vezes_no_mesmo_dia(usuario_ad
     finally:
         if data_original is not None:
             configuracao_service.definir_data_ultimo_backup_automatico(data_original)
+
+
+def test_backup_manual_tambem_vai_para_a_pasta_da_nuvem(usuario_admin_teste, tmp_path, monkeypatch):
+    from app.services import nuvem_service
+
+    monkeypatch.setattr(nuvem_service, "_ARQUIVO_CONFIG", tmp_path / "config_local.json")
+    nuvem = tmp_path / "drive"
+    nuvem.mkdir()
+    nuvem_service.definir_pasta(usuario_admin_teste, str(nuvem))
+
+    resultado = backup_service.fazer_backup_manual(usuario_admin_teste, str(tmp_path / "local"))
+
+    copia = nuvem / Path(resultado.caminho_arquivo).name
+    assert copia.exists()
+    assert copia.read_bytes() == Path(resultado.caminho_arquivo).read_bytes()
+    assert nuvem_service.obter_status().ultimo_erro is None
+
+
+def test_backup_continua_valendo_se_a_nuvem_falhar(usuario_admin_teste, tmp_path, monkeypatch):
+    from app.services import nuvem_service
+
+    monkeypatch.setattr(nuvem_service, "_ARQUIVO_CONFIG", tmp_path / "config_local.json")
+    nuvem = tmp_path / "drive"
+    nuvem.mkdir()
+    nuvem_service.definir_pasta(usuario_admin_teste, str(nuvem))
+    nuvem.rmdir()  # o Google Drive não está aberto
+
+    resultado = backup_service.fazer_backup_manual(usuario_admin_teste, str(tmp_path / "local"))
+
+    assert Path(resultado.caminho_arquivo).exists()  # o backup local foi feito normalmente
+    assert nuvem_service.obter_status().ultimo_erro
+
+
+def test_backup_de_hoje_feito_por_outro_computador_ainda_vai_para_a_nuvem(
+    usuario_admin_teste, tmp_path, monkeypatch
+):
+    """O backup diário já foi feito (data de hoje gravada no banco), mas este
+    computador, que tem a pasta da nuvem, ainda não mandou nada hoje."""
+    from datetime import date
+
+    from app.services import configuracao_service, nuvem_service
+
+    monkeypatch.setattr(nuvem_service, "_ARQUIVO_CONFIG", tmp_path / "config_local.json")
+    nuvem = tmp_path / "drive"
+    nuvem.mkdir()
+    pasta_original = configuracao_service.obter_pasta_backup()
+    data_original = configuracao_service.obter_data_ultimo_backup_automatico()
+    configuracao_service.definir_pasta_backup(usuario_admin_teste, str(tmp_path / "local"))
+    configuracao_service.definir_data_ultimo_backup_automatico(date.today())
+    try:
+        # Sem a nuvem configurada: nada a fazer, como sempre.
+        assert backup_service.verificar_e_executar_backup_automatico_se_necessario() is None
+        assert not (tmp_path / "local").exists() or not list((tmp_path / "local").glob("*.zip"))
+
+        nuvem_service.definir_pasta(usuario_admin_teste, str(nuvem))
+        resultado = backup_service.verificar_e_executar_backup_automatico_se_necessario()
+
+        assert resultado is not None  # não havia backup local de hoje: gerou um
+        assert (nuvem / Path(resultado.caminho_arquivo).name).exists()
+
+        # Já mandou hoje: não gera nem copia de novo.
+        assert backup_service.verificar_e_executar_backup_automatico_se_necessario() is None
+        assert len(list(nuvem.glob("*.zip"))) == 1
+    finally:
+        configuracao_service.definir_pasta_backup(usuario_admin_teste, pasta_original)
+        if data_original is not None:
+            configuracao_service.definir_data_ultimo_backup_automatico(data_original)
