@@ -21,6 +21,7 @@ from PySide6.QtCore import QDate, QTimer, Qt
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -55,6 +56,8 @@ _ROTULO_VALOR_DIGITADO = "Valor pago:"
 _ROTULO_VALOR_SELECIONADO = "Valor a receber (soma das contas marcadas):"
 _TEXTO_SELECIONAR_TODAS = "Selecionar todas"
 _TEXTO_DESMARCAR_TODAS = "Desmarcar todas"
+_ICONE_NEM_TODAS = "SQUARE"
+_ICONE_TODAS = "SQUARE_CHECK"
 
 
 class ReceberContaView(QWidget):
@@ -131,13 +134,21 @@ class ReceberContaView(QWidget):
         dica_selecao.setProperty("papel", "secundario")
         dica_selecao.setWordWrap(True)
 
+        # Botão pequeno, à esquerda. O ícone é uma caixinha que acompanha o
+        # estado: vazia, ou marcada quando todas as contas estão selecionadas.
         self._botao_selecionar_todas = QPushButton(_TEXTO_SELECIONAR_TODAS)
+        self._botao_selecionar_todas.setIcon(icone(_ICONE_NEM_TODAS))
+        self._botao_selecionar_todas.setMinimumHeight(38)
         self._botao_selecionar_todas.clicked.connect(self._alternar_todas)
+
+        layout_selecionar_todas = QHBoxLayout()
+        layout_selecionar_todas.addWidget(self._botao_selecionar_todas)
+        layout_selecionar_todas.addStretch()
 
         self._label_valor = QLabel(_ROTULO_VALOR_DIGITADO)
 
         self._label_total_em_aberto = QLabel()
-        self._label_total_em_aberto.setProperty("papel", "subtitulo")
+        self._label_total_em_aberto.setStyleSheet("font-size: 18px; font-weight: 700;")
 
         self._campo_valor_pago = QLineEdit()
         self._campo_valor_pago.setPlaceholderText("Ex.: 25,50")
@@ -168,7 +179,7 @@ class ReceberContaView(QWidget):
         layout.addWidget(self._botao_trocar_cliente)
         layout.addWidget(QLabel("Compras em aberto:"))
         layout.addWidget(dica_selecao)
-        layout.addWidget(self._botao_selecionar_todas)
+        layout.addLayout(layout_selecionar_todas)
         layout.addWidget(self._lista_compras_abertas)
         layout.addWidget(self._label_total_em_aberto)
         layout.addWidget(self._label_valor)
@@ -306,8 +317,10 @@ class ReceberContaView(QWidget):
             self._havia_selecao = False
 
         self._botao_selecionar_todas.setEnabled(bool(itens))
+        todas_marcadas = bool(itens) and len(marcadas) == len(itens)
+        self._botao_selecionar_todas.setIcon(icone(_ICONE_TODAS if todas_marcadas else _ICONE_NEM_TODAS))
         self._botao_selecionar_todas.setText(
-            _TEXTO_DESMARCAR_TODAS if itens and len(marcadas) == len(itens) else _TEXTO_SELECIONAR_TODAS
+            _TEXTO_DESMARCAR_TODAS if todas_marcadas else _TEXTO_SELECIONAR_TODAS
         )
 
     def _confirmar_pagamento(self) -> None:
