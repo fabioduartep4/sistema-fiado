@@ -8,9 +8,10 @@ escolhida define:
 - o gráfico dos 7 dias que terminam nela;
 - a lista "Quem Mais Comprou", que mostra o **mês** da data escolhida.
 
-Os demais cartões (Em Aberto, Clientes) e as seções
-"Clientes Acima do Limite de Fiado", "Clientes com Maior Atraso" e
-"Movimentações Recentes" são sempre a situação atual.
+Os demais cartões (Em Aberto, Clientes) e a seção "Movimentações
+Recentes" são sempre a situação atual. As listas de quem está acima do
+limite e de quem está em atraso ficam na tela Saldos
+(``app.views.saldos_view``).
 
 "Atualizar" recarrega a tela inteira e emite ``atualizacao_solicitada``,
 que a janela principal usa para procurar XMLs novos na pasta configurada
@@ -35,7 +36,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -59,7 +59,6 @@ from app.utils.tabelas import (
     item_valor,
 )
 from app.views.ficha_cliente_view import FichaClienteView
-from app.views.lembretes_em_lote_view import LembretesEmLoteDialog
 
 # Largura máxima do conteúdo da tela de Início — limita a coluna central
 # numa janela larga (senão fica esticada de ponta a ponta, com espaço
@@ -93,8 +92,6 @@ class PainelInicioView(QWidget):
         self._controller = PainelController(usuario_logado)
         self._controller_relatorio = RelatorioController(usuario_logado)
         self._controller_cliente = ClienteController(usuario_logado)
-        self._atrasos_carregados: list = []
-        self._dias_atraso_carregado = 30
 
         titulo = QLabel("Início")
         titulo.setProperty("papel", "titulo")
@@ -127,8 +124,6 @@ class PainelInicioView(QWidget):
 
         caixa_vendas_do_dia = self._construir_caixa_vendas_do_dia()
         caixa_vendas_hoje = self._construir_caixa_vendas_hoje()
-        caixa_acima_do_limite = self._construir_caixa_acima_do_limite()
-        caixa_maior_atraso = self._construir_caixa_maior_atraso()
         caixa_movimentacoes = self._construir_caixa_movimentacoes()
 
         # Tudo — as caixas fixas e os gráficos dependentes do período —
@@ -151,8 +146,6 @@ class PainelInicioView(QWidget):
         layout_scroll.addWidget(cards)
         layout_scroll.addWidget(caixa_vendas_do_dia)
         layout_scroll.addWidget(caixa_vendas_hoje)
-        layout_scroll.addWidget(caixa_acima_do_limite)
-        layout_scroll.addWidget(caixa_maior_atraso)
         layout_scroll.addWidget(caixa_movimentacoes)
 
         self._widget_periodo = QWidget()
@@ -190,8 +183,6 @@ class PainelInicioView(QWidget):
         """Recarrega a tela inteira (sem procurar XMLs novos)."""
         self._carregar_cards()
         self._carregar_dependentes_da_data()
-        self._carregar_acima_do_limite()
-        self._carregar_maiores_atrasos()
         self._carregar_movimentacoes()
 
     def _atualizar_tudo(self) -> None:
@@ -222,8 +213,6 @@ class PainelInicioView(QWidget):
         dialogo.exec()
         self._carregar_cards()
         self._carregar_vendas_do_dia()
-        self._carregar_acima_do_limite()
-        self._carregar_maiores_atrasos()
 
     # -- Cartões de indicador ---------------------------------------------------
     #
@@ -409,181 +398,6 @@ class PainelInicioView(QWidget):
                 ),
             )
         )
-
-    # -- Clientes com Maior Atraso (ex-aba "Lembretes") ----------------------
-    #
-    # Fora do ciclo de recarregamento por período (_carregar/_limpar_conteudo)
-    # de propósito: tem seu próprio filtro (dias em atraso) e não deve ser
-    # reconstruída/perder o valor do filtro sempre que o período do resto do
-    # painel for atualizado.
-
-    def _construir_caixa_maior_atraso(self) -> QGroupBox:
-        caixa = QGroupBox("Clientes com Maior Atraso")
-
-        self._campo_dias_atraso = QSpinBox()
-        self._campo_dias_atraso.setRange(1, 365)
-        self._campo_dias_atraso.setValue(30)
-        self._campo_dias_atraso.setSuffix(" dias")
-        # Sem botão próprio de atualizar: mudar o número já refaz a lista
-        # (só quando termina de digitar, não a cada tecla).
-        self._campo_dias_atraso.setKeyboardTracking(False)
-        self._campo_dias_atraso.valueChanged.connect(lambda _dias: self._carregar_maiores_atrasos())
-
-        layout_filtro = QHBoxLayout()
-        layout_filtro.addWidget(QLabel("Considerar em atraso compras com mais de:"))
-        layout_filtro.addWidget(self._campo_dias_atraso)
-        self._botao_lembretes_em_lote = QPushButton("Lembretes em lote")
-        self._botao_lembretes_em_lote.setIcon(icone("BRAND_WHATSAPP"))
-        self._botao_lembretes_em_lote.clicked.connect(self._abrir_lembretes_em_lote)
-
-        layout_filtro.addStretch()
-        layout_filtro.addWidget(self._botao_lembretes_em_lote)
-
-        self._tabela_atrasos = QTableWidget(0, 6)
-        self._tabela_atrasos.setHorizontalHeaderLabels(
-            ["Cliente", "Telefone", "Em atraso há", "Total Atrasado", "Total em Aberto", ""]
-        )
-        self._tabela_atrasos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela_atrasos.cellDoubleClicked.connect(
-            lambda linha, _coluna: self._abrir_ficha(self._tabela_atrasos.item(linha, 0).data(Qt.ItemDataRole.UserRole))
-        )
-        ajustar_colunas(self._tabela_atrasos, 0)  # Cliente
-
-        self._label_atrasos_vazio = QLabel("Nenhum cliente com saldo atrasado no momento.")
-        self._label_atrasos_vazio.setProperty("papel", "secundario")
-        self._label_atrasos_vazio.setVisible(False)
-
-        layout_caixa = QVBoxLayout(caixa)
-        layout_caixa.addLayout(layout_filtro)
-        layout_caixa.addWidget(QLabel(
-            "Sem data de vencimento própria no fiado, a data da compra é usada como "
-            "referência: quanto mais antiga uma compra ainda em aberto, mais atrasada conta."
-        ))
-        layout_caixa.addWidget(self._tabela_atrasos)
-        layout_caixa.addWidget(self._label_atrasos_vazio)
-        return caixa
-
-    def _abrir_lembretes_em_lote(self) -> None:
-        """Lembrete para vários clientes da lista de atrasos, um por vez."""
-        LembretesEmLoteDialog(self._atrasos_carregados, self._dias_atraso_carregado, self).exec()
-
-    def _carregar_maiores_atrasos(self) -> None:
-        try:
-            saldos = self._controller_relatorio.listar_saldos_em_atraso(self._campo_dias_atraso.value())
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao carregar a lista de clientes com maior atraso.")
-            QMessageBox.critical(
-                self, "Erro inesperado", "Não foi possível carregar os clientes com maior atraso."
-            )
-            return
-
-        self._atrasos_carregados = saldos
-        self._dias_atraso_carregado = self._campo_dias_atraso.value()
-        self._botao_lembretes_em_lote.setEnabled(bool(saldos))
-        self._tabela_atrasos.setRowCount(len(saldos))
-        for linha, saldo in enumerate(saldos):
-            item_nome = QTableWidgetItem(saldo.nome_principal)
-            item_nome.setData(Qt.ItemDataRole.UserRole, saldo.id)
-            self._tabela_atrasos.setItem(linha, 0, item_nome)
-            self._tabela_atrasos.setItem(linha, 1, QTableWidgetItem(saldo.telefone or "-"))
-            self._tabela_atrasos.setItem(
-                linha, 2, QTableWidgetItem(f"{saldo.dias_desde_a_compra_mais_antiga} dias")
-            )
-            self._tabela_atrasos.setItem(
-                linha, 3, item_valor(formatar_reais(saldo.total_em_atraso))
-            )
-            self._tabela_atrasos.setItem(
-                linha, 4, item_valor(formatar_reais(saldo.total_em_aberto))
-            )
-
-            botao_ver = QPushButton()
-            botao_ver.setIcon(icone("CHEVRON_RIGHT"))
-            botao_ver.setFlat(True)
-            botao_ver.setToolTip("Abrir ficha do cliente")
-            botao_ver.clicked.connect(lambda _checked=False, s=saldo: self._abrir_ficha(s.id))
-            self._tabela_atrasos.setCellWidget(linha, 5, botao_ver)
-
-        ajustar_altura_as_linhas(self._tabela_atrasos)
-        aplicar_estado_vazio(self._tabela_atrasos, self._label_atrasos_vazio)
-
-    # -- Clientes Acima do Limite de Fiado -----------------------------------
-    #
-    # Mesmo raciocínio da caixa de maior atraso: fora do ciclo de
-    # recarregamento por período, com filtro/atualização próprios.
-
-    def _construir_caixa_acima_do_limite(self) -> QGroupBox:
-        caixa = QGroupBox("Clientes Acima do Limite de Fiado")
-
-        layout_topo = QHBoxLayout()
-        layout_topo.addWidget(QLabel(
-            "Clientes com limite de fiado definido (ver Editar Cliente) cujo saldo "
-            "em aberto já passou do combinado."
-        ))
-        layout_topo.addStretch()
-
-        self._tabela_acima_do_limite = QTableWidget(0, 6)
-        self._tabela_acima_do_limite.setHorizontalHeaderLabels(
-            ["Cliente", "Telefone", "Limite", "Total em Aberto", "Excesso", ""]
-        )
-        self._tabela_acima_do_limite.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela_acima_do_limite.cellDoubleClicked.connect(
-            lambda linha, _coluna: self._abrir_ficha(
-                self._tabela_acima_do_limite.item(linha, 0).data(Qt.ItemDataRole.UserRole)
-            )
-        )
-        ajustar_colunas(self._tabela_acima_do_limite, 0)  # Cliente
-
-        self._label_acima_limite_vazio = QLabel("Nenhum cliente acima do limite no momento.")
-        self._label_acima_limite_vazio.setProperty("papel", "secundario")
-        self._label_acima_limite_vazio.setVisible(False)
-
-        layout_caixa = QVBoxLayout(caixa)
-        layout_caixa.addLayout(layout_topo)
-        layout_caixa.addWidget(self._tabela_acima_do_limite)
-        layout_caixa.addWidget(self._label_acima_limite_vazio)
-        return caixa
-
-    def _carregar_acima_do_limite(self) -> None:
-        try:
-            clientes = self._controller_relatorio.listar_clientes_acima_do_limite()
-        except (ErroDeNegocio, ValueError) as exc:
-            QMessageBox.warning(self, "Não foi possível carregar", str(exc))
-            return
-        except Exception:
-            logger.exception("Falha inesperada ao carregar a lista de clientes acima do limite.")
-            QMessageBox.critical(
-                self, "Erro inesperado", "Não foi possível carregar os clientes acima do limite."
-            )
-            return
-
-        self._tabela_acima_do_limite.setRowCount(len(clientes))
-        for linha, item in enumerate(clientes):
-            item_nome = QTableWidgetItem(item.nome_principal)
-            item_nome.setData(Qt.ItemDataRole.UserRole, item.id)
-            self._tabela_acima_do_limite.setItem(linha, 0, item_nome)
-            self._tabela_acima_do_limite.setItem(linha, 1, QTableWidgetItem(item.telefone or "-"))
-            self._tabela_acima_do_limite.setItem(
-                linha, 2, item_valor(formatar_reais(item.limite_fiado))
-            )
-            self._tabela_acima_do_limite.setItem(
-                linha, 3, item_valor(formatar_reais(item.total_em_aberto))
-            )
-            self._tabela_acima_do_limite.setItem(
-                linha, 4, item_valor(formatar_reais(item.excesso))
-            )
-
-            botao_ver = QPushButton()
-            botao_ver.setIcon(icone("CHEVRON_RIGHT"))
-            botao_ver.setFlat(True)
-            botao_ver.setToolTip("Abrir ficha do cliente")
-            botao_ver.clicked.connect(lambda _checked=False, i=item: self._abrir_ficha(i.id))
-            self._tabela_acima_do_limite.setCellWidget(linha, 5, botao_ver)
-
-        ajustar_altura_as_linhas(self._tabela_acima_do_limite)
-        aplicar_estado_vazio(self._tabela_acima_do_limite, self._label_acima_limite_vazio)
 
     # -- Gráficos dependentes do período --------------------------------------
 

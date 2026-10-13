@@ -22,11 +22,11 @@ Feito em Python com PySide6 (interface) e PostgreSQL (dados).
 
 | Tela | O que faz |
 |---|---|
-| **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), recebidos do dia, clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. Escolha uma **data** no topo para ver as vendas e os recebimentos daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
+| **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), recebidos do dia, clientes, vendas dos últimos 7 dias, movimentações recentes e quem mais comprou no mês. Escolha uma **data** no topo para ver as vendas e os recebimentos daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
 | **Clientes** | Busca (por nome, código ou telefone) e lista de clientes com saldo, limite e situação. Filtros: Com saldo, Em atraso, Acima do limite. Botão **+ Novo Cliente**. Duplo clique ou Enter abre a ficha. |
 | **Ficha do Cliente** | Saldo, limite e disponível; extrato na tela (compras em aberto com data, hora e valor, a mais recente em cima; no papel sai da mais antiga para a mais nova). Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Imprimir Extrato, Histórico, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
 | **Histórico do cliente** | Aberto pelo botão Histórico da ficha, em duas abas, do mais novo para o mais antigo: **Pagamentos** (abre nesta; reimprimir comprovante e detalhes/estorno) e **Compras** (ver produtos das vindas de XML). |
-| **Saldos** | Todos os clientes com saldo em aberto, com busca e exportação para CSV/Excel. |
+| **Saldos** | Situação das contas: total em aberto, clientes acima do limite, clientes com maior atraso (com **Lembretes em lote**), evolução de vendas dos últimos 6 meses, maiores saldos e a lista de todos os clientes com saldo, com busca e exportação para CSV/Excel. |
 | **Histórico** | Vendas e recebimentos (com filtro de período, cliente e tipo), alterações feitas no sistema e log de erros. Cada tabela traz as 200 linhas mais recentes; **Carregar mais** traz as seguintes. |
 | **Backups** | Pasta de backup, backup manual e restauração. |
 | **Configurações** | Modo de data padrão, tema claro/escuro, pasta dos XMLs, importação de XML, clientes duplicados e usuários. |
@@ -53,7 +53,7 @@ O botão **+ Novo Lançamento**, no topo de todas as telas, abre direto
 - **Limite de fiado**: opcional, por cliente. Quem passa do limite aparece
   em destaque no Início e em Clientes.
 - **Atraso**: cliente com compra em aberto há mais de 30 dias (o número de
-  dias pode ser alterado nas telas Início e Clientes).
+  dias pode ser alterado nas telas Saldos e Clientes).
 - **Exclusão**: nada é apagado de verdade; clientes e usuários excluídos
   só ficam inativos, e toda alteração fica registrada no Histórico. Ao
   excluir um cliente que ainda deve, o sistema avisa o valor antes.
@@ -85,7 +85,7 @@ WhatsApp com a mensagem pronta para revisar e enviar:
 - **Em atraso** → avisa do atraso, cita o último pagamento e o total da conta.
 - **Em dia** → só informa o total da conta.
 
-**Em lote**: no Início, na seção "Clientes com Maior Atraso", o botão
+**Em lote**: na tela Saldos, na seção "Clientes com Maior Atraso", o botão
 **Lembretes em lote** lista os clientes em atraso com telefone, deixa
 marcar quem vai receber e abre a conversa de cada um, um por vez, com a
 mesma mensagem acima (editável). O envio em si é feito por você no
