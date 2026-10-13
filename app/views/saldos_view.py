@@ -5,9 +5,9 @@ uma data escolhida (diferente da tela de Início). De cima para baixo:
 
 - três cartões (Total em Aberto, Clientes com saldo, Acima do Limite);
 - "Evolução de Vendas" (janela fixa dos últimos 6 meses);
+- "Clientes com Maior Saldo em Aberto";
 - "Clientes Acima do Limite de Fiado" e "Clientes com Maior Atraso" (com
   o filtro de dias e o botão "Lembretes em lote") — quem precisa de atenção;
-- "Clientes com Maior Saldo em Aberto";
 - "Saldo em Aberto" (tabela completa, com busca e exportação para CSV/Excel).
 
 Clicar num cliente de qualquer tabela abre a Ficha do Cliente.
@@ -90,10 +90,10 @@ class SaldosView(QWidget):
         self._area_scroll = QScrollArea()
         self._area_scroll.setWidgetResizable(True)
         self._container = QWidget()
-        # De cima para baixo: cartões e evolução de vendas (refeitos a cada
-        # carga), as duas listas de quem precisa de atenção (fixas, para o
-        # filtro de dias não se perder ao atualizar) e o resto (maiores
-        # saldos e tabela, refeitos a cada carga).
+        # De cima para baixo: cartões, evolução de vendas e maiores saldos
+        # (refeitos a cada carga), as duas listas de quem precisa de atenção
+        # (fixas, para o filtro de dias não se perder ao atualizar) e a
+        # tabela completa (refeita a cada carga).
         layout_container = QVBoxLayout(self._container)
         self._layout_cards = QVBoxLayout()
         self._layout_evolucao = QVBoxLayout()
@@ -192,7 +192,7 @@ class SaldosView(QWidget):
                     titulo_valor="Saldo em aberto",
                 )
             )
-            self._layout_conteudo.addWidget(caixa)
+            self._layout_evolucao.addWidget(caixa)
 
         caixa_saldo_em_aberto = QGroupBox("Saldo em Aberto")
         layout_caixa = QVBoxLayout(caixa_saldo_em_aberto)
