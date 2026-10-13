@@ -147,12 +147,7 @@ def listar_maior_valor_gasto(
     stmt = (
         select(Cliente, func.coalesce(func.sum(Compra.valor), 0), func.count(Compra.id))
         .join(Compra, Compra.cliente_id == Cliente.id)
-        .where(
-            Cliente.ativo.is_(True),
-            Compra.ativo.is_(True),
-            Compra.data >= data_inicio,
-            Compra.data <= data_fim,
-        )
+        .where(*_filtros_de_venda(), Compra.data >= data_inicio, Compra.data <= data_fim)
         .group_by(Cliente.id)
         .order_by(func.sum(Compra.valor).desc())
         .limit(limite)
@@ -182,7 +177,9 @@ def listar_evolucao_mensal(session: Session, meses: int = 6) -> list[tuple[str, 
             func.to_char(Compra.data, "YYYY-MM").label("mes"),
             func.coalesce(func.sum(Compra.valor), 0),
         )
-        .where(Compra.ativo.is_(True), Compra.data >= data_inicio)
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(*_filtros_de_venda(), Compra.data >= data_inicio)
         .group_by("mes")
         .order_by("mes")
     )
@@ -198,15 +195,22 @@ def calcular_total_em_aberto_geral(session: Session) -> Decimal:
     Returns:
         Soma de todas as compras não quitadas e ativas.
     """
-    stmt = select(func.coalesce(func.sum(Compra.valor), 0)).where(
-        Compra.ativo.is_(True), Compra.status != StatusCompra.QUITADA
+    # Só clientes ativos: a dívida de um cliente excluído deixa de contar,
+    # como já acontece na lista de saldos em aberto (senão o total não bate
+    # com a soma do que a tela mostra).
+    stmt = (
+        select(func.coalesce(func.sum(Compra.valor), 0))
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(Compra.ativo.is_(True), Compra.status != StatusCompra.QUITADA, Cliente.ativo.is_(True))
     )
     total = session.execute(stmt).scalar_one()
     return Decimal(total)
 
 
 def _filtros_de_venda() -> tuple:
-    """O que conta como venda nas consultas de "vendas do dia" (exigem JOIN com Cliente).
+    """O que conta como venda em todos os indicadores de vendas — do dia, por
+    mês, por cliente (as consultas que usam isto exigem JOIN com Cliente).
 
     Fica de fora: compra inativa, conta "Resto" (sobra de pagamento
     parcial, não é venda nova) e compra de cliente excluído.

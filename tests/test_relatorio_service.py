@@ -557,3 +557,55 @@ def test_painel_inicio_traz_valor_e_numero_de_compras_de_quem_mais_comprou(usuar
         assert primeiro.quantidade == 2
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_total_em_aberto_geral_bate_com_a_lista_e_ignora_cliente_excluido(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Total Em Aberto Excluido", [], [], []
+    )
+    excluido = False
+    try:
+        compra_service.registrar_compra(
+            usuario_admin_teste, cliente.id, Decimal("321.00"), obter_data_padrao(), None
+        )
+        com_o_cliente = relatorio_service.obter_painel_saldos(usuario_admin_teste).total_em_aberto_geral
+        lista = relatorio_service.listar_saldos_em_aberto(usuario_admin_teste)
+        assert com_o_cliente == sum((s.total_em_aberto for s in lista), Decimal("0"))
+
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+        excluido = True
+        sem_o_cliente = relatorio_service.obter_painel_saldos(usuario_admin_teste).total_em_aberto_geral
+        assert com_o_cliente - sem_o_cliente == Decimal("321.00")
+    finally:
+        if not excluido:
+            cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_evolucao_mensal_ignora_cliente_excluido_e_conta_resto(usuario_admin_teste) -> None:
+    """A evolução de vendas por mês segue a mesma regra das vendas do dia."""
+    hoje = date.today()
+    mes_atual = hoje.strftime("%Y-%m")
+
+    def total_do_mes() -> Decimal:
+        painel = relatorio_service.obter_painel_saldos(usuario_admin_teste)
+        return next((p.total for p in painel.evolucao_mensal if p.mes == mes_atual), Decimal("0"))
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Evolucao Mensal", [], [], []
+    )
+    excluido = False
+    try:
+        antes = total_do_mes()
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("100.00"), hoje, None)
+        assert total_do_mes() - antes == Decimal("100.00")
+
+        # Pagamento parcial gera uma conta "Resto": não é venda nova.
+        pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("60.00"), hoje, None)
+        assert total_do_mes() - antes == Decimal("100.00")
+
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+        excluido = True
+        assert total_do_mes() == antes
+    finally:
+        if not excluido:
+            cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

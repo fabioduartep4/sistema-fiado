@@ -334,18 +334,9 @@ class PainelInicioView(QWidget):
         # fica só o gráfico dos 7 dias, sem repetir o número.
         self._caixa_vendas_7_dias = QGroupBox("Vendas dos Últimos 7 Dias")
 
-        botao_atualizar_vendas_hoje = QPushButton("Atualizar")
-        botao_atualizar_vendas_hoje.setIcon(icone("REFRESH"))
-        botao_atualizar_vendas_hoje.clicked.connect(self._carregar_vendas_do_dia)
-
-        layout_topo = QHBoxLayout()
-        layout_topo.addStretch()
-        layout_topo.addWidget(botao_atualizar_vendas_hoje)
-
         self._layout_grafico_vendas_hoje = QVBoxLayout()
 
         layout_caixa = QVBoxLayout(self._caixa_vendas_7_dias)
-        layout_caixa.addLayout(layout_topo)
         layout_caixa.addLayout(self._layout_grafico_vendas_hoje)
         return self._caixa_vendas_7_dias
 
@@ -433,10 +424,10 @@ class PainelInicioView(QWidget):
         self._campo_dias_atraso.setRange(1, 365)
         self._campo_dias_atraso.setValue(30)
         self._campo_dias_atraso.setSuffix(" dias")
-
-        botao_atualizar_atraso = QPushButton("Atualizar")
-        botao_atualizar_atraso.setIcon(icone("REFRESH"))
-        botao_atualizar_atraso.clicked.connect(self._carregar_maiores_atrasos)
+        # Sem botão próprio de atualizar: mudar o número já refaz a lista
+        # (só quando termina de digitar, não a cada tecla).
+        self._campo_dias_atraso.setKeyboardTracking(False)
+        self._campo_dias_atraso.valueChanged.connect(lambda _dias: self._carregar_maiores_atrasos())
 
         layout_filtro = QHBoxLayout()
         layout_filtro.addWidget(QLabel("Considerar em atraso compras com mais de:"))
@@ -447,7 +438,6 @@ class PainelInicioView(QWidget):
 
         layout_filtro.addStretch()
         layout_filtro.addWidget(self._botao_lembretes_em_lote)
-        layout_filtro.addWidget(botao_atualizar_atraso)
 
         self._tabela_atrasos = QTableWidget(0, 6)
         self._tabela_atrasos.setHorizontalHeaderLabels(
@@ -527,17 +517,12 @@ class PainelInicioView(QWidget):
     def _construir_caixa_acima_do_limite(self) -> QGroupBox:
         caixa = QGroupBox("Clientes Acima do Limite de Fiado")
 
-        botao_atualizar_limite = QPushButton("Atualizar")
-        botao_atualizar_limite.setIcon(icone("REFRESH"))
-        botao_atualizar_limite.clicked.connect(self._carregar_acima_do_limite)
-
         layout_topo = QHBoxLayout()
         layout_topo.addWidget(QLabel(
             "Clientes com limite de fiado definido (ver Editar Cliente) cujo saldo "
             "em aberto já passou do combinado."
         ))
         layout_topo.addStretch()
-        layout_topo.addWidget(botao_atualizar_limite)
 
         self._tabela_acima_do_limite = QTableWidget(0, 6)
         self._tabela_acima_do_limite.setHorizontalHeaderLabels(
@@ -653,18 +638,9 @@ class PainelInicioView(QWidget):
     def _construir_caixa_movimentacoes(self) -> QGroupBox:
         caixa = QGroupBox("Movimentações Recentes")
 
-        botao_atualizar = QPushButton("Atualizar")
-        botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_movimentacoes)
-
-        layout_topo = QHBoxLayout()
-        layout_topo.addStretch()
-        layout_topo.addWidget(botao_atualizar)
-
         self._lista_movimentacoes = QListWidget()
 
         layout_caixa = QVBoxLayout(caixa)
-        layout_caixa.addLayout(layout_topo)
         layout_caixa.addWidget(self._lista_movimentacoes)
         return caixa
 
