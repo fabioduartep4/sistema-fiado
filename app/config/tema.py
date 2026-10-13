@@ -34,7 +34,16 @@ exibido (definir antes de mostrar, o caso mais comum, não precisa disso).
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from app.services.configuracao_service import ModoTema
+
+# "✓" branco da caixinha marcada. Dentro do .exe os arquivos empacotados
+# ficam em sys._MEIPASS; rodando pelo código-fonte, na raiz do projeto.
+_CAMINHO_CHECK = (
+    Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2])) / "app" / "assets" / "check.png"
+).as_posix()
 
 # Fonte do sistema no Windows (a maioria das instalações já usa isso por
 # padrão via "MS Shell Dlg 2", mas fixar explicitamente evita variação e
@@ -262,6 +271,7 @@ QListWidget::indicator {{
 QListWidget::indicator:checked {{
     border-color: {c["destaque"]};
     background-color: {c["destaque"]};
+    image: url({_CAMINHO_CHECK});
 }}
 
 QHeaderView::section {{

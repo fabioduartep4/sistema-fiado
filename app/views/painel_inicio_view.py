@@ -50,17 +50,15 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
-from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
+from app.utils.tabelas import (
+    ajustar_altura_aos_itens,
+    ajustar_altura_as_linhas,
+    ajustar_colunas,
+    aplicar_estado_vazio,
+    item_valor,
+)
 from app.views.ficha_cliente_view import FichaClienteView
 from app.views.lembretes_em_lote_view import LembretesEmLoteDialog
-
-# Altura mínima das tabelas de "Clientes com Maior Atraso" e "Clientes
-# Acima do Limite de Fiado", calculada para caber pelo menos 10 linhas
-# visíveis sem precisar rolar dentro da própria tabela (~32px por linha +
-# ~34px do cabeçalho) — a caixa toda já está dentro da área de rolagem da
-# tela, então crescer aqui não atrapalha, só evita ficar pequena demais
-# com poucos clientes visíveis de cada vez.
-_ALTURA_TABELA_10_LINHAS = 10 * 32 + 34
 
 # Largura máxima do conteúdo da tela de Início — limita a coluna central
 # numa janela larga (senão fica esticada de ponta a ponta, com espaço
@@ -315,7 +313,6 @@ class PainelInicioView(QWidget):
         self._tabela_vendas_do_dia.setHorizontalHeaderLabels(["Hora", "Cliente", "Valor", "Origem"])
         self._tabela_vendas_do_dia.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela_vendas_do_dia.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._tabela_vendas_do_dia.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
         self._tabela_vendas_do_dia.cellDoubleClicked.connect(self._abrir_ficha_da_venda)
         ajustar_colunas(self._tabela_vendas_do_dia, 1)  # Cliente
 
@@ -385,10 +382,11 @@ class PainelInicioView(QWidget):
             item_hora.setData(Qt.ItemDataRole.UserRole, venda.cliente_id)
             self._tabela_vendas_do_dia.setItem(linha, 0, item_hora)
             self._tabela_vendas_do_dia.setItem(linha, 1, QTableWidgetItem(venda.cliente_nome))
-            self._tabela_vendas_do_dia.setItem(linha, 2, QTableWidgetItem(formatar_reais(venda.valor)))
+            self._tabela_vendas_do_dia.setItem(linha, 2, item_valor(formatar_reais(venda.valor)))
             self._tabela_vendas_do_dia.setItem(
                 linha, 3, QTableWidgetItem("XML" if venda.via_xml else "Manual")
             )
+        ajustar_altura_as_linhas(self._tabela_vendas_do_dia)
         aplicar_estado_vazio(self._tabela_vendas_do_dia, self._label_vendas_do_dia_vazio)
 
         # Gráfico dos 7 dias até a data
@@ -443,7 +441,6 @@ class PainelInicioView(QWidget):
             ["Cliente", "Telefone", "Em atraso há", "Total Atrasado", "Total em Aberto", ""]
         )
         self._tabela_atrasos.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela_atrasos.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
         self._tabela_atrasos.cellDoubleClicked.connect(
             lambda linha, _coluna: self._abrir_ficha(self._tabela_atrasos.item(linha, 0).data(Qt.ItemDataRole.UserRole))
         )
@@ -493,10 +490,10 @@ class PainelInicioView(QWidget):
                 linha, 2, QTableWidgetItem(f"{saldo.dias_desde_a_compra_mais_antiga} dias")
             )
             self._tabela_atrasos.setItem(
-                linha, 3, QTableWidgetItem(f"{formatar_reais(saldo.total_em_atraso)}")
+                linha, 3, item_valor(formatar_reais(saldo.total_em_atraso))
             )
             self._tabela_atrasos.setItem(
-                linha, 4, QTableWidgetItem(f"{formatar_reais(saldo.total_em_aberto)}")
+                linha, 4, item_valor(formatar_reais(saldo.total_em_aberto))
             )
 
             botao_ver = QPushButton()
@@ -506,6 +503,7 @@ class PainelInicioView(QWidget):
             botao_ver.clicked.connect(lambda _checked=False, s=saldo: self._abrir_ficha(s.id))
             self._tabela_atrasos.setCellWidget(linha, 5, botao_ver)
 
+        ajustar_altura_as_linhas(self._tabela_atrasos)
         aplicar_estado_vazio(self._tabela_atrasos, self._label_atrasos_vazio)
 
     # -- Clientes Acima do Limite de Fiado -----------------------------------
@@ -533,7 +531,6 @@ class PainelInicioView(QWidget):
             ["Cliente", "Telefone", "Limite", "Total em Aberto", "Excesso", ""]
         )
         self._tabela_acima_do_limite.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._tabela_acima_do_limite.setMinimumHeight(_ALTURA_TABELA_10_LINHAS)
         self._tabela_acima_do_limite.cellDoubleClicked.connect(
             lambda linha, _coluna: self._abrir_ficha(
                 self._tabela_acima_do_limite.item(linha, 0).data(Qt.ItemDataRole.UserRole)
@@ -571,13 +568,13 @@ class PainelInicioView(QWidget):
             self._tabela_acima_do_limite.setItem(linha, 0, item_nome)
             self._tabela_acima_do_limite.setItem(linha, 1, QTableWidgetItem(item.telefone or "-"))
             self._tabela_acima_do_limite.setItem(
-                linha, 2, QTableWidgetItem(f"{formatar_reais(item.limite_fiado)}")
+                linha, 2, item_valor(formatar_reais(item.limite_fiado))
             )
             self._tabela_acima_do_limite.setItem(
-                linha, 3, QTableWidgetItem(f"{formatar_reais(item.total_em_aberto)}")
+                linha, 3, item_valor(formatar_reais(item.total_em_aberto))
             )
             self._tabela_acima_do_limite.setItem(
-                linha, 4, QTableWidgetItem(f"{formatar_reais(item.excesso)}")
+                linha, 4, item_valor(formatar_reais(item.excesso))
             )
 
             botao_ver = QPushButton()
@@ -587,6 +584,7 @@ class PainelInicioView(QWidget):
             botao_ver.clicked.connect(lambda _checked=False, i=item: self._abrir_ficha(i.id))
             self._tabela_acima_do_limite.setCellWidget(linha, 5, botao_ver)
 
+        ajustar_altura_as_linhas(self._tabela_acima_do_limite)
         aplicar_estado_vazio(self._tabela_acima_do_limite, self._label_acima_limite_vazio)
 
     # -- Gráficos dependentes do período --------------------------------------
@@ -611,6 +609,12 @@ class PainelInicioView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o painel de início.")
             return
 
+        # Os dois gráficos do mês lado a lado: um embaixo do outro, tomavam
+        # duas telas de rolagem para pouca informação.
+        linha_graficos = QWidget()
+        layout_graficos = QHBoxLayout(linha_graficos)
+        layout_graficos.setContentsMargins(0, 0, 0, 0)
+
         if painel.maior_valor_gasto:
             caixa = QGroupBox(f"Maior Valor Gasto em {mes}")
             layout_caixa = QVBoxLayout(caixa)
@@ -621,7 +625,7 @@ class PainelInicioView(QWidget):
                     [float(c.valor) for c in painel.maior_valor_gasto],
                 )
             )
-            self._layout_conteudo.addWidget(caixa)
+            layout_graficos.addWidget(caixa)
 
         if painel.mais_contas_lancadas:
             caixa = QGroupBox(f"Mais Contas Lançadas em {mes}")
@@ -633,7 +637,12 @@ class PainelInicioView(QWidget):
                     [float(c.quantidade) for c in painel.mais_contas_lancadas],
                 )
             )
-            self._layout_conteudo.addWidget(caixa)
+            layout_graficos.addWidget(caixa)
+
+        if layout_graficos.count():
+            self._layout_conteudo.addWidget(linha_graficos)
+        else:
+            linha_graficos.deleteLater()
 
         self._layout_conteudo.addStretch()
 
@@ -677,6 +686,7 @@ class PainelInicioView(QWidget):
         self._lista_movimentacoes.clear()
         if not itens:
             self._lista_movimentacoes.addItem("Nenhuma movimentação registrada.")
+            ajustar_altura_aos_itens(self._lista_movimentacoes)
             return
         for item in itens:
             sinal = "+" if item.tipo == "Venda" else "-"
@@ -685,3 +695,4 @@ class PainelInicioView(QWidget):
                 f"{item.tipo}: {sinal} {formatar_reais(item.valor)}{item.marca}"
             )
             self._lista_movimentacoes.addItem(texto)
+        ajustar_altura_aos_itens(self._lista_movimentacoes)

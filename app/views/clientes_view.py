@@ -39,7 +39,7 @@ from app.services.cliente_service import ClienteStatusResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
+from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor
 from app.views.cadastrar_cliente_view import CadastrarClienteDialog
 from app.views.ficha_cliente_view import FichaClienteView
 
@@ -182,9 +182,9 @@ class ClientesView(QWidget):
                 nome += " (pendente de confirmação)"
             self._tabela.setItem(linha, 0, QTableWidgetItem(nome))
             self._tabela.setItem(linha, 1, QTableWidgetItem(cliente.telefone or "-"))
-            self._tabela.setItem(linha, 2, QTableWidgetItem(f"{formatar_reais(cliente.saldo)}"))
+            self._tabela.setItem(linha, 2, item_valor(formatar_reais(cliente.saldo)))
             texto_limite = f"{formatar_reais(cliente.limite_fiado)}" if cliente.limite_fiado is not None else "-"
-            self._tabela.setItem(linha, 3, QTableWidgetItem(texto_limite))
+            self._tabela.setItem(linha, 3, item_valor(texto_limite))
             item_status = QTableWidgetItem(self._texto_status(cliente))
             self._tabela.setItem(linha, 4, item_status)
             self._tabela.item(linha, 0).setData(Qt.ItemDataRole.UserRole, cliente.id)

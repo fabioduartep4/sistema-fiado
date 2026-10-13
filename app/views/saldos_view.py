@@ -43,7 +43,7 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
-from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
+from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor
 from app.views.ficha_cliente_view import FichaClienteView
 
 # Altura mínima da tabela de "Saldo em Aberto", calculada para caber pelo
@@ -214,7 +214,7 @@ class SaldosView(QWidget):
             item_codigo.setData(Qt.ItemDataRole.UserRole, saldo.id)
             self._tabela_saldos.setItem(linha, 0, item_codigo)
             self._tabela_saldos.setItem(linha, 1, QTableWidgetItem(saldo.nome_principal))
-            self._tabela_saldos.setItem(linha, 2, QTableWidgetItem(f"{formatar_reais(saldo.total_em_aberto)}"))
+            self._tabela_saldos.setItem(linha, 2, item_valor(formatar_reais(saldo.total_em_aberto)))
         aplicar_estado_vazio(self._tabela_saldos, self._label_saldos_vazio)
 
     def _filtrar_tabela(self, termo: str) -> None:

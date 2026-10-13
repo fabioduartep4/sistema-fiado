@@ -16,7 +16,41 @@ faz o botão esticar de forma estranha e o nome ficar sem espaço garantido.
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHeaderView, QLabel, QTableWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QHeaderView, QLabel, QListWidget, QTableWidget, QTableWidgetItem
+
+
+def item_valor(texto: str) -> QTableWidgetItem:
+    """Célula de valor em dinheiro: alinhada à direita, para os números de
+    uma coluna ficarem um embaixo do outro e fáceis de comparar."""
+    item = QTableWidgetItem(texto)
+    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    return item
+
+
+def ajustar_altura_as_linhas(tabela: QTableWidget, minimo: int = 2, maximo: int = 10) -> None:
+    """Deixa a tabela com a altura das linhas que ela tem (entre ``minimo`` e ``maximo``).
+
+    Para tabelas dentro de uma tela que já rola: em vez de reservar sempre
+    espaço para 10 linhas (um buraco em branco quando há 1 ou 2), a tabela
+    encolhe; passando de ``maximo`` linhas, ela mesma ganha rolagem.
+
+    Chamar depois de preencher a tabela — a altura sai das linhas reais
+    (uma linha com botão é mais alta que uma só de texto).
+    """
+    cabecalho_vertical = tabela.verticalHeader()
+    visiveis = min(tabela.rowCount(), maximo)
+    altura_linhas = sum(tabela.rowHeight(linha) for linha in range(visiveis))
+    altura_linhas += max(minimo - visiveis, 0) * cabecalho_vertical.defaultSectionSize()
+    altura = tabela.horizontalHeader().height() + altura_linhas + 2 * tabela.frameWidth()
+    tabela.setFixedHeight(altura + 2)  # folga: sem ela aparece barra de rolagem por 1px
+
+
+def ajustar_altura_aos_itens(lista: QListWidget, maximo: int = 12) -> None:
+    """O mesmo de :func:`ajustar_altura_as_linhas`, para uma lista simples."""
+    visiveis = max(1, min(lista.count(), maximo))
+    altura_item = max(lista.sizeHintForRow(0), 24)
+    lista.setFixedHeight(visiveis * altura_item + 2 * lista.frameWidth() + 2)
 
 
 def aplicar_estado_vazio(tabela: QTableWidget, label_vazio: QLabel) -> None:
