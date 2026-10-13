@@ -5,8 +5,9 @@ Aberta ao dar duplo clique em um cliente na tela "Clientes"
 do redesign — não virou uma página navegável). Mostra:
 
 - Um cartão com o saldo em aberto, limite e valor disponível.
-- O extrato do cliente: as compras em aberto, com data, hora e valor
-  (as mesmas que saem no extrato impresso). Se a compra selecionada veio
+- O extrato do cliente: as compras em aberto, com data, hora e valor,
+  da mais recente para a mais antiga (as mesmas que saem no extrato
+  impresso, que vai na ordem contrária: da mais antiga para a mais nova). Se a compra selecionada veio
   de um XML importado, "Ver Produtos" fica habilitado.
 - Botão "Histórico", que abre a linha do tempo completa — compras e
   pagamentos, reimpressão de comprovante e estorno
@@ -70,6 +71,7 @@ class FichaClienteView(QDialog):
 
         self.setWindowTitle("Ficha do Cliente")
         self.setMinimumSize(560, 620)
+        self.resize(800, 680)
 
         self._label_nome = QLabel()
         self._label_nome.setProperty("papel", "titulo")
@@ -225,14 +227,20 @@ class FichaClienteView(QDialog):
             self._perguntar_confirmacao_cliente()
 
     def _compras_em_aberto(self) -> list:
-        """Compras em aberto, da mais antiga para a mais nova (as mesmas do extrato impresso)."""
+        """Compras em aberto, da mais antiga para a mais nova (a ordem do extrato impresso)."""
         if self._ficha is None:
             return []
-        return sorted((c for c in self._ficha.compras if c.status == "aberta"), key=lambda c: c.data)
+        return sorted(
+            (c for c in self._ficha.compras if c.status == "aberta"),
+            # Mesma data: desempata pela hora (emissão da nota ou lançamento).
+            key=lambda c: (c.data, c.data_hora.timestamp() if c.data_hora else 0),
+        )
 
     def _preencher_extrato(self) -> None:
         self._lista_extrato.clear()
-        compras = self._compras_em_aberto()
+        # Na tela, a mais recente em cima (é a que se procura no balcão); no
+        # papel continua da mais antiga para a mais nova (ver _imprimir_extrato).
+        compras = list(reversed(self._compras_em_aberto()))
         if not compras:
             self._lista_extrato.addItem("Nenhuma conta em aberto.")
         for compra in compras:
