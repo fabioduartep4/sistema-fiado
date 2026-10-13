@@ -157,9 +157,12 @@ class PainelInicioView(QWidget):
         widget_centralizado = QWidget()
         layout_centralizado = QHBoxLayout(widget_centralizado)
         layout_centralizado.setContentsMargins(0, 0, 0, 0)
-        layout_centralizado.addStretch()
-        layout_centralizado.addWidget(self._container)
-        layout_centralizado.addStretch()
+        # O conteúdo fica com quase todo o espaço (até a largura máxima dele);
+        # só o que sobrar vai para as laterais. Sem esse peso, a coluna
+        # encolhia para a largura mínima do que tem dentro.
+        layout_centralizado.addStretch(1)
+        layout_centralizado.addWidget(self._container, 1000)
+        layout_centralizado.addStretch(1)
 
         self._area_scroll.setWidget(widget_centralizado)
 

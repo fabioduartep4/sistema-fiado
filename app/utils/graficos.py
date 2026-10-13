@@ -70,14 +70,18 @@ def _reais_sem_centavos(valor: float) -> str:
 
 
 def _teto_redondo(valor: float) -> float:
-    """Menor número "redondo" (1, 2, 2,5 ou 5 × 10ⁿ) que cobre o valor — o topo do eixo."""
-    if valor <= 0:
+    """Topo do eixo: o menor número "redondo" que cobre o valor.
+
+    Sempre 2, 4, 6, 8 ou 10 × 10ⁿ (no mínimo 10), para a marca do meio do
+    eixo também ser um número inteiro (25 daria "12,5" no meio).
+    """
+    if valor <= 10:
         return 10.0
     base = 10 ** math.floor(math.log10(valor))
-    for fator in (1, 2, 2.5, 5, 10):
+    for fator in (2, 4, 6, 8, 10):
         if fator * base >= valor:
-            return fator * base
-    return 10 * base
+            return float(fator * base)
+    return float(10 * base)
 
 
 def _barra_arredondada(retangulo: QRectF, lado_reto: str) -> QPainterPath:
