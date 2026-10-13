@@ -244,6 +244,23 @@ versões diferentes e o programa para de abrir.
 4. Abra o sistema e confira o **número da versão**, que aparece na tela de
    login e embaixo do botão Sair. O número fica em `app/versao.py`.
 
+#### Atualizar pela internet (`atualizar.bat`)
+
+Quando a versão nova já está publicada no GitHub, não é preciso copiar
+nada: feche o sistema e rode o **`atualizar.bat`** que fica na pasta
+instalada. Ele consulta a última versão publicada, compara com a instalada
+(arquivo `versao.txt`), baixa, confere se o arquivo chegou inteiro e troca
+os programas, mantendo o `.env` e a pasta `app`. Se a troca falhar no
+meio, a versão anterior é colocada de volta.
+
+Numa instalação antiga, que ainda não tem o atualizador, basta copiar o
+`atualizar.bat` e o `atualizar.ps1` para dentro da pasta do sistema.
+
+Para publicar uma versão: aumente o número em `app/versao.py`, gere o
+`.exe` com `build_exe.bat`, compacte a pasta `dist\SistemaFiado` em
+`SistemaFiado.zip` e crie no GitHub uma *Release* com a tag `vX.Y.Z` (o
+mesmo número) e esse `.zip` anexado. O `.env` nunca vai no pacote.
+
 Se o Windows bloquear o `CriarUsuarioAdmin.exe`, rode
 `criar_admin_emergencia.sql` no banco (pelo `psql` ou pgAdmin). Ele cria o
 usuário `admin` com senha `admin123`; troque a senha logo depois, em
