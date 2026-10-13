@@ -41,7 +41,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.relatorio_service import SaldoClienteResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
-from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
+from app.utils.graficos import GraficoColunas, ItemRanking, ListaRanking, PontoColuna
 from app.utils.icons import icone
 from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor
 from app.views.ficha_cliente_view import FichaClienteView
@@ -54,6 +54,15 @@ from app.views.ficha_cliente_view import FichaClienteView
 # visível pra aparecer (mesmo problema que as tabelas de
 # app.views.painel_inicio_view já evitam com o mesmo cálculo).
 _ALTURA_TABELA_10_LINHAS = 10 * 32 + 34
+
+
+_MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+
+def _ponto_do_mes(mes: str, total) -> PontoColuna:
+    """Coluna de um mês: ``"2026-10"`` vira os rótulos "out" / "2026"."""
+    ano, numero = mes.split("-")
+    return PontoColuna(rotulo=_MESES[int(numero) - 1], valor=total, sub_rotulo=ano)
 
 
 class SaldosView(QWidget):
@@ -145,11 +154,11 @@ class SaldosView(QWidget):
         if painel.evolucao_mensal:
             caixa = QGroupBox("Evolução de Vendas (últimos 6 meses)")
             layout_caixa = QVBoxLayout(caixa)
+            pontos = painel.evolucao_mensal
             layout_caixa.addWidget(
-                construir_grafico_linha(
-                    "Total Vendido (R$)",
-                    [p.mes for p in painel.evolucao_mensal],
-                    [float(p.total) for p in painel.evolucao_mensal],
+                GraficoColunas(
+                    [_ponto_do_mes(p.mes, p.total) for p in pontos],
+                    indice_destaque=len(pontos) - 1,  # o último é o mês atual
                 )
             )
             self._layout_conteudo.addWidget(caixa)
@@ -158,10 +167,9 @@ class SaldosView(QWidget):
             caixa = QGroupBox("Clientes com Maior Saldo em Aberto")
             layout_caixa = QVBoxLayout(caixa)
             layout_caixa.addWidget(
-                construir_grafico_barras(
-                    "Saldo em Aberto (R$)",
-                    [c.nome_principal for c in painel.maiores_saldos_em_aberto],
-                    [float(c.valor) for c in painel.maiores_saldos_em_aberto],
+                ListaRanking(
+                    [ItemRanking(c.nome_principal, c.valor) for c in painel.maiores_saldos_em_aberto],
+                    titulo_valor="Saldo em aberto",
                 )
             )
             self._layout_conteudo.addWidget(caixa)

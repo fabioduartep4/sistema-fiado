@@ -639,6 +639,7 @@ class PontoVendaDiaria:
 
     dia: str  # "dd/mm"
     total: Decimal
+    data: Optional[date] = None
 
 
 @dataclass(frozen=True)
@@ -717,7 +718,7 @@ def obter_vendas_do_dia(
                 for cliente_id, nome, valor, data_hora, origem_nfe_xml in vendas
             ],
             vendas_ultimos_7_dias=[
-                PontoVendaDiaria(dia=d.strftime("%d/%m"), total=t) for d, t in vendas_diarias
+                PontoVendaDiaria(dia=d.strftime("%d/%m"), total=t, data=d) for d, t in vendas_diarias
             ],
             total_recebido=total_recebido,
             quantidade_recebimentos=quantidade_recebimentos,
@@ -730,14 +731,7 @@ class ClienteValorResumo:
 
     nome_principal: str
     valor: Decimal
-
-
-@dataclass(frozen=True)
-class ClienteContagemResumo:
-    """Um cliente e uma quantidade associada (nº de contas lançadas), para gráficos."""
-
-    nome_principal: str
-    quantidade: int
+    quantidade: int = 0  # nº de compras no período (só no painel de Início)
 
 
 @dataclass(frozen=True)
@@ -763,7 +757,6 @@ class PainelInicio:
     periodo_inicio: date
     periodo_fim: date
     maior_valor_gasto: list[ClienteValorResumo]
-    mais_contas_lancadas: list[ClienteContagemResumo]
 
 
 @tratar_erros
@@ -797,18 +790,15 @@ def obter_painel_inicio(
 
     with session_scope() as session:
         maior_valor = relatorio_repository.listar_maior_valor_gasto(session, data_inicio, data_fim)
-        mais_contas = relatorio_repository.listar_mais_contas_lancadas(session, data_inicio, data_fim)
 
         return PainelInicio(
             periodo_inicio=data_inicio,
             periodo_fim=data_fim,
             maior_valor_gasto=[
-                ClienteValorResumo(nome_principal=cliente.nome_principal, valor=Decimal(valor))
-                for cliente, valor in maior_valor
-            ],
-            mais_contas_lancadas=[
-                ClienteContagemResumo(nome_principal=cliente.nome_principal, quantidade=int(quantidade))
-                for cliente, quantidade in mais_contas
+                ClienteValorResumo(
+                    nome_principal=cliente.nome_principal, valor=Decimal(valor), quantidade=int(quantidade)
+                )
+                for cliente, valor, quantidade in maior_valor
             ],
         )
 

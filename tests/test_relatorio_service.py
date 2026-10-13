@@ -536,3 +536,24 @@ def test_recebidos_do_dia_somam_pagamentos_e_ignoram_estornados(usuario_admin_te
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
 
+
+
+def test_painel_inicio_traz_valor_e_numero_de_compras_de_quem_mais_comprou(usuario_admin_teste) -> None:
+    import uuid as _uuid
+
+    nome = f"Teste Automatizado Quem Mais Comprou {_uuid.uuid4().hex[:8]}"
+    cliente = cliente_service.cadastrar_cliente(usuario_admin_teste, nome, [], [], [])
+    dia = date.today()
+    try:
+        # Valor alto de propósito: precisa entrar entre os 10 maiores do período.
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("900000.00"), dia, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("50000.00"), dia, None)
+
+        painel = relatorio_service.obter_painel_inicio(usuario_admin_teste, data_inicio=dia, data_fim=dia)
+
+        primeiro = painel.maior_valor_gasto[0]
+        assert primeiro.nome_principal == nome
+        assert primeiro.valor == Decimal("950000.00")
+        assert primeiro.quantidade == 2
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

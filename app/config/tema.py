@@ -69,6 +69,7 @@ _CORES_ESCURO = {
     "aviso": "#f59e0b",
     "erro": "#ef4444",
     "perigo": "#ef4444",
+    "grafico_neutro": "#64748b",
 }
 
 _CORES_CLARO = {
@@ -86,6 +87,7 @@ _CORES_CLARO = {
     "aviso": "#d97706",
     "erro": "#dc2626",
     "perigo": "#dc2626",
+    "grafico_neutro": "#94a3b8",
 }
 
 
@@ -356,6 +358,7 @@ QScrollBar::handle:hover {{
 
 
 _QSS_ESCURO = _construir_qss(_CORES_ESCURO)
+_tema_aplicado = ModoTema.CLARO
 _QSS_CLARO = _construir_qss(_CORES_CLARO)
 
 
@@ -370,4 +373,16 @@ def obter_stylesheet(tema: ModoTema) -> str:
         (antes, o claro usava a aparência nativa crua do Windows, sem
         stylesheet nenhum).
     """
+    global _tema_aplicado
+    _tema_aplicado = tema
     return _QSS_ESCURO if tema == ModoTema.ESCURO else _QSS_CLARO
+
+
+def cores_do_tema_aplicado() -> dict[str, str]:
+    """Cores do tema em uso (o último pedido a :func:`obter_stylesheet`).
+
+    Para o que é desenhado à mão e não passa pelo QSS — os gráficos de
+    ``app.utils.graficos``. Além das cores do QSS, traz ``grafico_neutro``,
+    o cinza das colunas que não estão em destaque.
+    """
+    return _CORES_ESCURO if _tema_aplicado == ModoTema.ESCURO else _CORES_CLARO

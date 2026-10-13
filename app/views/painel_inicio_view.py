@@ -6,8 +6,7 @@ escolhida define:
 - os cartões de vendas e de recebidos, e a tabela "Vendas do Dia" (cada
   venda daquela data);
 - o gráfico dos 7 dias que terminam nela;
-- os gráficos "Maior Valor Gasto" e "Mais Contas Lançadas", que mostram o
-  **mês** da data escolhida.
+- a lista "Quem Mais Comprou", que mostra o **mês** da data escolhida.
 
 Os demais cartões (Em Aberto, Clientes) e as seções
 "Clientes Acima do Limite de Fiado", "Clientes com Maior Atraso" e
@@ -23,6 +22,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date, datetime
+from decimal import Decimal
 
 from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
@@ -49,7 +49,7 @@ from app.controllers.relatorio_controller import RelatorioController
 from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
-from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
+from app.utils.graficos import GraficoColunas, ItemRanking, ListaRanking, PontoColuna
 from app.utils.icons import icone
 from app.utils.tabelas import (
     ajustar_altura_aos_itens,
@@ -65,6 +65,9 @@ from app.views.lembretes_em_lote_view import LembretesEmLoteDialog
 # numa janela larga (senão fica esticada de ponta a ponta, com espaço
 # lateral desperdiçado) e é centralizada dentro da área de rolagem.
 _LARGURA_MAXIMA_CONTEUDO = 1000
+
+
+_DIAS_DA_SEMANA = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
 
 
 def _saudacao() -> str:
@@ -403,11 +406,16 @@ class PainelInicioView(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        pontos = resumo.vendas_ultimos_7_dias
+        total_semana = sum((p.total for p in pontos), Decimal("0"))
         self._layout_grafico_vendas_hoje.addWidget(
-            construir_grafico_linha(
-                "Total Vendido (R$)",
-                [p.dia for p in resumo.vendas_ultimos_7_dias],
-                [float(p.total) for p in resumo.vendas_ultimos_7_dias],
+            GraficoColunas(
+                [PontoColuna(_DIAS_DA_SEMANA[p.data.weekday()], p.total, p.dia) for p in pontos],
+                indice_destaque=len(pontos) - 1,  # o último é sempre a data escolhida
+                resumo=(
+                    f"Total dos 7 dias: {formatar_reais(total_semana)}   •   "
+                    f"média por dia: {formatar_reais(total_semana / len(pontos))}"
+                ),
             )
         )
 
@@ -597,8 +605,8 @@ class PainelInicioView(QWidget):
     def _carregar(self) -> None:
         self._limpar_conteudo()
 
-        # Num dia só esses dois gráficos quase não teriam informação: mostram
-        # o mês inteiro da data escolhida.
+        # Num dia só essa lista quase não teria informação: mostra o mês
+        # inteiro da data escolhida.
         dia = self._data_selecionada()
         data_inicio = dia.replace(day=1)
         data_fim = dia.replace(day=calendar.monthrange(dia.year, dia.month)[1])
@@ -614,40 +622,25 @@ class PainelInicioView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o painel de início.")
             return
 
-        # Os dois gráficos do mês lado a lado: um embaixo do outro, tomavam
-        # duas telas de rolagem para pouca informação.
-        linha_graficos = QWidget()
-        layout_graficos = QHBoxLayout(linha_graficos)
-        layout_graficos.setContentsMargins(0, 0, 0, 0)
-
+        # Uma lista só: quem mais comprou no mês, com o valor e o nº de compras
+        # (antes eram dois gráficos de barras, com os nomes cortados).
         if painel.maior_valor_gasto:
-            caixa = QGroupBox(f"Maior Valor Gasto em {mes}")
+            caixa = QGroupBox(f"Quem Mais Comprou em {mes}")
             layout_caixa = QVBoxLayout(caixa)
             layout_caixa.addWidget(
-                construir_grafico_barras(
-                    "Valor Gasto (R$)",
-                    [c.nome_principal for c in painel.maior_valor_gasto],
-                    [float(c.valor) for c in painel.maior_valor_gasto],
+                ListaRanking(
+                    [
+                        ItemRanking(
+                            c.nome_principal,
+                            c.valor,
+                            "1 compra" if c.quantidade == 1 else f"{c.quantidade} compras",
+                        )
+                        for c in painel.maior_valor_gasto
+                    ],
+                    titulo_valor="Comprou no mês",
                 )
             )
-            layout_graficos.addWidget(caixa)
-
-        if painel.mais_contas_lancadas:
-            caixa = QGroupBox(f"Mais Contas Lançadas em {mes}")
-            layout_caixa = QVBoxLayout(caixa)
-            layout_caixa.addWidget(
-                construir_grafico_barras(
-                    "Nº de Contas",
-                    [c.nome_principal for c in painel.mais_contas_lancadas],
-                    [float(c.quantidade) for c in painel.mais_contas_lancadas],
-                )
-            )
-            layout_graficos.addWidget(caixa)
-
-        if layout_graficos.count():
-            self._layout_conteudo.addWidget(linha_graficos)
-        else:
-            linha_graficos.deleteLater()
+            self._layout_conteudo.addWidget(caixa)
 
         self._layout_conteudo.addStretch()
 

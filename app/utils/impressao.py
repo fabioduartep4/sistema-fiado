@@ -6,8 +6,8 @@ calculada a partir do conteúdo real de cada documento, não um tamanho fixo
 (bobina contínua não tem "página" com altura definida — é o conteúdo que
 decide onde a bobina termina).
 
-Usa ``QtPrintSupport``, já incluso na instalação do PySide6 (mesmo padrão
-já usado para ``QtCharts`` no painel de início) — nenhuma dependência nova.
+Usa ``QtPrintSupport``, já incluso na instalação do PySide6 — nenhuma
+dependência nova.
 O usuário sempre passa pela pré-visualização antes de imprimir de verdade,
 podendo também "imprimir" em PDF através de uma impressora virtual (já
 disponível por padrão no Windows, macOS e na maioria das distribuições

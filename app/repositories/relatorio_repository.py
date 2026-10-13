@@ -131,7 +131,7 @@ def listar_clientes_acima_do_limite(session: Session) -> list[tuple[Cliente, Dec
 
 def listar_maior_valor_gasto(
     session: Session, data_inicio: date, data_fim: date, limite: int = 10
-) -> list[tuple[Cliente, Decimal]]:
+) -> list[tuple[Cliente, Decimal, int]]:
     """Lista os clientes que mais gastaram (maior soma de compras) no período.
 
     Args:
@@ -141,10 +141,11 @@ def listar_maior_valor_gasto(
         limite: Número máximo de clientes retornados.
 
     Returns:
-        Lista de tuplas (cliente, valor_total), da maior para a menor soma.
+        Lista de tuplas (cliente, valor_total, quantidade_de_compras), da
+        maior para a menor soma.
     """
     stmt = (
-        select(Cliente, func.coalesce(func.sum(Compra.valor), 0))
+        select(Cliente, func.coalesce(func.sum(Compra.valor), 0), func.count(Compra.id))
         .join(Compra, Compra.cliente_id == Cliente.id)
         .where(
             Cliente.ativo.is_(True),
@@ -154,36 +155,6 @@ def listar_maior_valor_gasto(
         )
         .group_by(Cliente.id)
         .order_by(func.sum(Compra.valor).desc())
-        .limit(limite)
-    )
-    return list(session.execute(stmt).all())
-
-
-def listar_mais_contas_lancadas(
-    session: Session, data_inicio: date, data_fim: date, limite: int = 10
-) -> list[tuple[Cliente, int]]:
-    """Lista os clientes que mais lançaram contas (maior número de compras) no período.
-
-    Args:
-        session: Sessão SQLAlchemy ativa.
-        data_inicio: Início do período (inclusive).
-        data_fim: Fim do período (inclusive).
-        limite: Número máximo de clientes retornados.
-
-    Returns:
-        Lista de tuplas (cliente, quantidade_de_compras), da maior para a menor.
-    """
-    stmt = (
-        select(Cliente, func.count(Compra.id))
-        .join(Compra, Compra.cliente_id == Cliente.id)
-        .where(
-            Cliente.ativo.is_(True),
-            Compra.ativo.is_(True),
-            Compra.data >= data_inicio,
-            Compra.data <= data_fim,
-        )
-        .group_by(Cliente.id)
-        .order_by(func.count(Compra.id).desc())
         .limit(limite)
     )
     return list(session.execute(stmt).all())
