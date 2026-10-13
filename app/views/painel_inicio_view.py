@@ -52,6 +52,7 @@ from app.utils.graficos import construir_grafico_barras, construir_grafico_linha
 from app.utils.icons import icone
 from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
 from app.views.ficha_cliente_view import FichaClienteView
+from app.views.lembretes_em_lote_view import LembretesEmLoteDialog
 
 # Altura mínima das tabelas de "Clientes com Maior Atraso" e "Clientes
 # Acima do Limite de Fiado", calculada para caber pelo menos 10 linhas
@@ -90,6 +91,8 @@ class PainelInicioView(QWidget):
         self._controller = PainelController(usuario_logado)
         self._controller_relatorio = RelatorioController(usuario_logado)
         self._controller_cliente = ClienteController(usuario_logado)
+        self._atrasos_carregados: list = []
+        self._dias_atraso_carregado = 30
 
         titulo = QLabel("Início")
         titulo.setProperty("papel", "titulo")
@@ -427,7 +430,12 @@ class PainelInicioView(QWidget):
         layout_filtro = QHBoxLayout()
         layout_filtro.addWidget(QLabel("Considerar em atraso compras com mais de:"))
         layout_filtro.addWidget(self._campo_dias_atraso)
+        self._botao_lembretes_em_lote = QPushButton("Lembretes em lote")
+        self._botao_lembretes_em_lote.setIcon(icone("BRAND_WHATSAPP"))
+        self._botao_lembretes_em_lote.clicked.connect(self._abrir_lembretes_em_lote)
+
         layout_filtro.addStretch()
+        layout_filtro.addWidget(self._botao_lembretes_em_lote)
         layout_filtro.addWidget(botao_atualizar_atraso)
 
         self._tabela_atrasos = QTableWidget(0, 6)
@@ -455,6 +463,10 @@ class PainelInicioView(QWidget):
         layout_caixa.addWidget(self._label_atrasos_vazio)
         return caixa
 
+    def _abrir_lembretes_em_lote(self) -> None:
+        """Lembrete para vários clientes da lista de atrasos, um por vez."""
+        LembretesEmLoteDialog(self._atrasos_carregados, self._dias_atraso_carregado, self).exec()
+
     def _carregar_maiores_atrasos(self) -> None:
         try:
             saldos = self._controller_relatorio.listar_saldos_em_atraso(self._campo_dias_atraso.value())
@@ -468,6 +480,9 @@ class PainelInicioView(QWidget):
             )
             return
 
+        self._atrasos_carregados = saldos
+        self._dias_atraso_carregado = self._campo_dias_atraso.value()
+        self._botao_lembretes_em_lote.setEnabled(bool(saldos))
         self._tabela_atrasos.setRowCount(len(saldos))
         for linha, saldo in enumerate(saldos):
             item_nome = QTableWidgetItem(saldo.nome_principal)

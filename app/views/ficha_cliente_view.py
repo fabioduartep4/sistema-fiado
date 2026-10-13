@@ -22,8 +22,6 @@ assim que é aberta.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -42,6 +40,7 @@ from app.config.logging_config import logger
 from app.controllers.cliente_controller import ClienteController
 from app.controllers.pagamento_controller import PagamentoController
 from app.controllers.xml_importacao_controller import XmlImportacaoController
+from app.services import lembrete_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteFicha
 from app.utils.documentos import formatar_data_hora_compra, montar_html_extrato_cliente
@@ -49,7 +48,6 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
 from app.utils.formatacao import formatar_reais
-from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.adicionar_compra_view import AdicionarCompraDialog
 from app.views.componentes import confirmar_e_cancelar_compra
 from app.views.editar_cliente_dialog import EditarClienteDialog
@@ -57,10 +55,6 @@ from app.views.historico_cliente_view import HistoricoClienteDialog
 from app.views.receber_conta_view import ReceberContaDialog
 from app.views.relatorio_view import LembreteWhatsAppDialog
 from app.views.xml_importacao_view import BotaoVerProdutos
-
-# Mesmo critério usado em app.views.clientes_view / app.views.painel_inicio_view
-# pra considerar uma compra em aberto "atrasada".
-_DIAS_ATRASO_PADRAO = 30
 
 
 class FichaClienteView(QDialog):
@@ -232,12 +226,7 @@ class FichaClienteView(QDialog):
             texto_limite = "Sem limite de fiado definido"
         self._label_limite_disponivel.setText(texto_limite)
 
-        data_limite_atraso = date.today() - timedelta(days=_DIAS_ATRASO_PADRAO)
-        atrasado = any(
-            c.status == "aberta" and c.data <= data_limite_atraso for c in ficha.compras
-        )
         self._botao_lembrete.setVisible(ficha.total_em_aberto > 0)
-        self._excedido, self._atrasado = excedido, atrasado
 
         self._preencher_extrato()
 
@@ -281,36 +270,17 @@ class FichaClienteView(QDialog):
             self._carregar_ficha()
 
     def _abrir_lembrete(self) -> None:
-        if self._ficha is None:
-            return
-        ficha = self._ficha
-        telefone = ficha.telefones[0] if ficha.telefones else None
-
-        if self._excedido:
-            mensagem = montar_mensagem_lembrete_limite(
-                ficha.nome_principal,
-                formatar_reais(ficha.total_em_aberto),
-                formatar_reais(ficha.limite_fiado),
-            )
-        else:
-            mensagem = montar_mensagem_lembrete_saldo(
-                ficha.nome_principal,
-                self._data_ultimo_pagamento() if self._atrasado else None,
-                formatar_reais(ficha.total_em_aberto),
-                self._atrasado,
-            )
-
-        dialogo = LembreteWhatsAppDialog(ficha.nome_principal, telefone, mensagem, self)
-        dialogo.exec()
-
-    def _data_ultimo_pagamento(self) -> str | None:
         try:
-            pagamentos = self._pagamento_controller.listar_pagamentos(self._cliente_id)
+            lembrete = lembrete_service.montar_lembrete(self._cliente_id)
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível montar o lembrete", str(exc))
+            return
         except Exception:
-            logger.exception("Falha ao buscar o último pagamento do cliente %s.", self._cliente_id)
-            return None
-        ultimo_ativo = next((p for p in pagamentos if p.ativo), None)
-        return ultimo_ativo.data_pagamento.strftime("%d/%m/%Y") if ultimo_ativo else None
+            logger.exception("Falha inesperada ao montar o lembrete do cliente %s.", self._cliente_id)
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível montar o lembrete.")
+            return
+
+        LembreteWhatsAppDialog(lembrete.nome_cliente, lembrete.telefone, lembrete.mensagem, self).exec()
 
     def _adicionar_compra(self) -> None:
         if self._ficha is None:
