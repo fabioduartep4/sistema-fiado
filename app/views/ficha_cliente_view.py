@@ -23,7 +23,7 @@ assim que é aberta.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -108,12 +108,15 @@ class FichaClienteView(QDialog):
         layout_card.addWidget(self._label_limite_disponivel)
 
         botao_adicionar_compra = QPushButton("+ Nova Compra")
-        botao_adicionar_compra.setIcon(icone("SHOPPING_CART_PLUS"))
+        botao_adicionar_compra.setIcon(icone("SHOPPING_CART_PLUS", tamanho=22, cor="#ffffff"))
         botao_receber_conta = QPushButton("Receber Pagamento")
-        botao_receber_conta.setIcon(icone("CASH_BANKNOTE"))
+        botao_receber_conta.setIcon(icone("CASH_BANKNOTE", tamanho=22, cor="#ffffff"))
         for botao_principal in (botao_adicionar_compra, botao_receber_conta):
             botao_principal.setProperty("importancia", "primaria")
-            botao_principal.setMinimumHeight(42)
+            botao_principal.setMinimumHeight(46)
+            # As duas ações principais da ficha: texto do tamanho do extrato (16px).
+            botao_principal.setStyleSheet("font-size: 16px; font-weight: 600;")
+            botao_principal.setIconSize(QSize(22, 22))
         botao_adicionar_compra.clicked.connect(self._adicionar_compra)
         botao_receber_conta.clicked.connect(self._receber_conta)
 
