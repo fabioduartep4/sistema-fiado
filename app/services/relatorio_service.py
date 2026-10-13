@@ -71,8 +71,8 @@ class HistoricoFinanceiroResumo:
 
     ``estornado`` só é usado pelo histórico de Recebimentos — um
     pagamento estornado continua aparecendo (o dinheiro foi recebido
-    naquele dia), só marcado para deixar claro que foi desfeito depois.
-    Nunca é True vindo do histórico de Vendas (compra não tem estorno).
+    naquele dia), só marcado para deixar claro que foi desfeito depois
+    (ver :attr:`marca`). Nunca é True vindo do histórico de Vendas.
     """
 
     data_hora: datetime
@@ -81,6 +81,11 @@ class HistoricoFinanceiroResumo:
     usuario_nome: str
     tipo: str
     estornado: bool = False
+
+    @property
+    def marca(self) -> str:
+        """Sufixo para exibição: " [Estornado]" ou vazio."""
+        return " [Estornado]" if self.estornado else ""
 
 
 @dataclass(frozen=True)
@@ -634,6 +639,7 @@ class PontoVendaDiaria:
 
     dia: str  # "dd/mm"
     total: Decimal
+    data: Optional[date] = None
 
 
 @dataclass(frozen=True)
@@ -656,6 +662,8 @@ class VendasDoDiaResumo:
         total_vendido: Soma de tudo que foi vendido no fiado nesse dia.
         quantidade: Quantidade de vendas do dia.
         vendas: Cada venda do dia, da mais cedo para a mais tarde.
+        total_recebido: Soma dos pagamentos recebidos nesse dia (sem os estornados).
+        quantidade_recebimentos: Quantidade de pagamentos recebidos nesse dia.
         vendas_ultimos_7_dias: Total vendido por dia, nos 7 dias até ``dia``.
     """
 
@@ -664,6 +672,8 @@ class VendasDoDiaResumo:
     quantidade: int
     vendas: list[VendaDoDiaResumo]
     vendas_ultimos_7_dias: list[PontoVendaDiaria]
+    total_recebido: Decimal = Decimal("0")
+    quantidade_recebimentos: int = 0
 
 
 @tratar_erros
@@ -690,6 +700,9 @@ def obter_vendas_do_dia(
         total, quantidade = relatorio_repository.calcular_total_vendido_no_dia(session, dia)
         vendas = relatorio_repository.listar_vendas_do_dia(session, dia)
         vendas_diarias = relatorio_repository.listar_vendas_ultimos_dias(session, dias=7, ate=dia)
+        total_recebido, quantidade_recebimentos = relatorio_repository.calcular_total_recebido_no_dia(
+            session, dia
+        )
         return VendasDoDiaResumo(
             dia=dia,
             total_vendido=total,
@@ -705,8 +718,10 @@ def obter_vendas_do_dia(
                 for cliente_id, nome, valor, data_hora, origem_nfe_xml in vendas
             ],
             vendas_ultimos_7_dias=[
-                PontoVendaDiaria(dia=d.strftime("%d/%m"), total=t) for d, t in vendas_diarias
+                PontoVendaDiaria(dia=d.strftime("%d/%m"), total=t, data=d) for d, t in vendas_diarias
             ],
+            total_recebido=total_recebido,
+            quantidade_recebimentos=quantidade_recebimentos,
         )
 
 
@@ -716,14 +731,7 @@ class ClienteValorResumo:
 
     nome_principal: str
     valor: Decimal
-
-
-@dataclass(frozen=True)
-class ClienteContagemResumo:
-    """Um cliente e uma quantidade associada (nº de contas lançadas), para gráficos."""
-
-    nome_principal: str
-    quantidade: int
+    quantidade: int = 0  # nº de compras no período (só no painel de Início)
 
 
 @dataclass(frozen=True)
@@ -749,7 +757,6 @@ class PainelInicio:
     periodo_inicio: date
     periodo_fim: date
     maior_valor_gasto: list[ClienteValorResumo]
-    mais_contas_lancadas: list[ClienteContagemResumo]
 
 
 @tratar_erros
@@ -783,18 +790,15 @@ def obter_painel_inicio(
 
     with session_scope() as session:
         maior_valor = relatorio_repository.listar_maior_valor_gasto(session, data_inicio, data_fim)
-        mais_contas = relatorio_repository.listar_mais_contas_lancadas(session, data_inicio, data_fim)
 
         return PainelInicio(
             periodo_inicio=data_inicio,
             periodo_fim=data_fim,
             maior_valor_gasto=[
-                ClienteValorResumo(nome_principal=cliente.nome_principal, valor=Decimal(valor))
-                for cliente, valor in maior_valor
-            ],
-            mais_contas_lancadas=[
-                ClienteContagemResumo(nome_principal=cliente.nome_principal, quantidade=int(quantidade))
-                for cliente, quantidade in mais_contas
+                ClienteValorResumo(
+                    nome_principal=cliente.nome_principal, valor=Decimal(valor), quantidade=int(quantidade)
+                )
+                for cliente, valor, quantidade in maior_valor
             ],
         )
 

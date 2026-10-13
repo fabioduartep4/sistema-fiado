@@ -16,7 +16,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -40,7 +40,12 @@ from app.utils.date_utils import obter_data_padrao
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
+from app.views.componentes import (
+    TAMANHO_DIALOGO_LANCAMENTO,
+    TAMANHO_MINIMO_DIALOGO_LANCAMENTO,
+    CampoBuscaClienteWidget,
+    desligar_botao_padrao,
+)
 
 _ID_NENHUM_COMPRADOR = "__nenhum__"
 
@@ -107,6 +112,7 @@ class AdicionarCompraView(QWidget):
         self._campo_valor = QLineEdit()
         self._campo_valor.setPlaceholderText("Ex.: 25,50")
         self._campo_valor.setMinimumHeight(36)
+        self._campo_valor.returnPressed.connect(self._salvar_compra)  # Enter salva
 
         self._campo_data = QDateEdit()
         self._campo_data.setCalendarPopup(True)
@@ -150,6 +156,14 @@ class AdicionarCompraView(QWidget):
         self._carregar_compradores(cliente_id)
 
         self._paginas.setCurrentIndex(1)
+        self._campo_valor.setFocus()  # já pode digitar o valor, sem mouse
+
+    def focar_campo_inicial(self) -> None:
+        """Foco no campo por onde o usuário começa: o valor, ou a busca se ainda não há cliente."""
+        if self._paginas.currentIndex() == 1:
+            self._campo_valor.setFocus()
+        else:
+            self._campo_busca_cliente.focar_campo()
 
     def _voltar_para_busca(self) -> None:
         self._paginas.setCurrentIndex(0)
@@ -202,6 +216,7 @@ class AdicionarCompraView(QWidget):
             f"Compra de {formatar_reais(compra.valor)} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
         )
         self._campo_valor.clear()
+        self._campo_valor.setFocus()  # pronto para o próximo lançamento
         self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._campo_comprador.setCurrentIndex(0)
@@ -227,7 +242,7 @@ class AdicionarCompraDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Adicionar Compra — {nome_principal}" if nome_principal else "Adicionar Compra")
-        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.setMinimumSize(*TAMANHO_MINIMO_DIALOGO_LANCAMENTO)
         self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
@@ -242,3 +257,9 @@ class AdicionarCompraDialog(QDialog):
         layout.addWidget(self._view)
         layout.addWidget(botao_fechar)
         self.setLayout(layout)
+        desligar_botao_padrao(self)
+
+    def showEvent(self, evento) -> None:  # noqa: N802 (nome exigido pelo Qt)
+        super().showEvent(evento)
+        # Só depois de a janela aparecer: antes disso o foco pedido não "pega".
+        QTimer.singleShot(0, self._view.focar_campo_inicial)

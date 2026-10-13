@@ -35,7 +35,7 @@ from app.services.pagamento_service import PagamentoResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas
+from app.utils.tabelas import ajustar_colunas, item_valor
 from app.views.xml_importacao_view import ObterProdutosWorker, ProdutosXmlDialog
 
 
@@ -123,7 +123,7 @@ class HistoricoPagamentosDialog(QDialog):
             self._tabela.setItem(
                 linha, 0, QTableWidgetItem(pagamento.data_pagamento.strftime("%d/%m/%Y"))
             )
-            self._tabela.setItem(linha, 1, QTableWidgetItem(f"{formatar_reais(pagamento.valor_pago)}"))
+            self._tabela.setItem(linha, 1, item_valor(formatar_reais(pagamento.valor_pago)))
             self._tabela.setItem(linha, 2, QTableWidgetItem(pagamento.recebido_por_nome))
             self._tabela.setItem(linha, 3, QTableWidgetItem(pagamento.observacoes or "-"))
             self._tabela.setItem(

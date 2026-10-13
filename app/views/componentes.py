@@ -10,7 +10,7 @@ ver ``app.views.clientes_view``).
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -31,7 +31,9 @@ from app.views.busca_cliente_worker import BuscaClienteWorker
 _INTERVALO_DEBOUNCE_MS = 300
 
 # Adicionar Compra e Receber Conta abrem sempre do mesmo tamanho.
-TAMANHO_DIALOGO_LANCAMENTO = (440, 700)
+TAMANHO_DIALOGO_LANCAMENTO = (520, 720)
+# Até onde dá para encolher a janela sem cortar nada.
+TAMANHO_MINIMO_DIALOGO_LANCAMENTO = (440, 720)
 
 
 class ListaDinamicaWidget(QWidget):
@@ -127,6 +129,11 @@ class CampoBuscaClienteWidget(QWidget):
         resultado_ativado: ``(cliente_id, nome_principal)`` quando um
             resultado é clicado duas vezes — usado pela tela de Buscar
             Cliente, que abre a ficha do cliente diretamente.
+
+    Pelo teclado, sem tirar o foco do campo: o primeiro resultado já vem
+    destacado, as setas para cima/baixo mudam o destacado e Enter o
+    escolhe (mesmo efeito de um clique). Enter antes de a busca terminar
+    escolhe o primeiro resultado assim que ele chegar.
     """
 
     resultado_clicado = Signal(str, str)
@@ -135,7 +142,7 @@ class CampoBuscaClienteWidget(QWidget):
     def __init__(
         self,
         controller: ClienteController,
-        placeholder: str = "Digite o nome do cliente...",
+        placeholder: str = "Nome, código ou telefone do cliente...",
         mostrar_pendente_confirmacao: bool = False,
         parent: QWidget | None = None,
     ) -> None:
@@ -143,12 +150,17 @@ class CampoBuscaClienteWidget(QWidget):
         self._controller = controller
         self._mostrar_pendente_confirmacao = mostrar_pendente_confirmacao
         self._sequencia_busca = 0
+        self._termo_em_busca = ""
         self._worker: BuscaClienteWorker | None = None
 
         self.campo_busca = QLineEdit()
         self.campo_busca.setPlaceholderText(placeholder)
         self.campo_busca.setMinimumHeight(38)
         self.campo_busca.textChanged.connect(self._agendar_busca)
+        self.campo_busca.returnPressed.connect(self._enter_no_campo)
+        self.campo_busca.installEventFilter(self)
+        self._termo_exibido: str | None = None  # termo cujos resultados estão na lista
+        self._escolher_ao_chegar = False
 
         self._timer_debounce = QTimer(self)
         self._timer_debounce.setSingleShot(True)
@@ -173,15 +185,42 @@ class CampoBuscaClienteWidget(QWidget):
         self._executar_busca()
 
     def _agendar_busca(self) -> None:
+        self._escolher_ao_chegar = False
         self._timer_debounce.start()
+
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 (nome exigido pelo Qt)
+        """Setas para cima/baixo no campo de busca andam pela lista de resultados."""
+        if objeto is self.campo_busca and evento.type() == QEvent.Type.KeyPress:
+            passo = {Qt.Key.Key_Down: 1, Qt.Key.Key_Up: -1}.get(evento.key())
+            if passo is not None and self.lista_resultados.count():
+                linha = max(0, min(self.lista_resultados.count() - 1, self.lista_resultados.currentRow() + passo))
+                self.lista_resultados.setCurrentRow(linha)
+                return True
+        return super().eventFilter(objeto, evento)
+
+    def _enter_no_campo(self) -> None:
+        termo = self.campo_busca.text().strip()
+        if not termo:
+            return
+        if termo != self._termo_exibido:
+            # A lista ainda é de uma digitação anterior: busca já e escolhe ao chegar.
+            self._timer_debounce.stop()
+            self._executar_busca()
+            self._escolher_ao_chegar = True
+            return
+        item = self.lista_resultados.currentItem() or self.lista_resultados.item(0)
+        if item is not None:
+            self._item_clicado(item)
 
     def _executar_busca(self) -> None:
         termo = self.campo_busca.text().strip()
         self.lista_resultados.clear()
+        self._termo_exibido = None
         if not termo:
             return
 
         self._sequencia_busca += 1
+        self._termo_em_busca = termo
         worker = BuscaClienteWorker(self._controller, termo, self._sequencia_busca, self)
         worker.resultado_pronto.connect(self._exibir_resultados)
         worker.finished.connect(worker.deleteLater)
@@ -193,6 +232,9 @@ class CampoBuscaClienteWidget(QWidget):
             return  # resultado de uma busca já superada por uma digitação mais recente
 
         self.lista_resultados.clear()
+        self._termo_exibido = self._termo_em_busca
+        escolher = self._escolher_ao_chegar
+        self._escolher_ao_chegar = False
         if not resultados:
             self.lista_resultados.addItem("Nenhum cliente encontrado.")
             return
@@ -210,6 +252,10 @@ class CampoBuscaClienteWidget(QWidget):
                 item.setForeground(QColor("red"))
             self.lista_resultados.addItem(item)
 
+        self.lista_resultados.setCurrentRow(0)
+        if escolher:
+            self._item_clicado(self.lista_resultados.item(0))
+
     def _item_clicado(self, item: QListWidgetItem) -> None:
         dados = item.data(Qt.ItemDataRole.UserRole)
         if not dados:
@@ -221,3 +267,17 @@ class CampoBuscaClienteWidget(QWidget):
         if not dados:
             return
         self.resultado_ativado.emit(*dados)
+
+
+def desligar_botao_padrao(dialogo: QWidget) -> None:
+    """Impede que Enter acione um botão qualquer de um diálogo.
+
+    Num ``QDialog``, Enter dentro de um campo de texto aciona o "botão
+    padrão" — que o Qt escolhe sozinho entre os botões (podia ser o
+    "Fechar"). Com isso desligado, Enter só faz o que cada campo ligou
+    explicitamente (``returnPressed``): escolher o cliente, salvar a
+    compra, confirmar o pagamento.
+    """
+    for botao in dialogo.findChildren(QPushButton):
+        botao.setAutoDefault(False)
+        botao.setDefault(False)

@@ -131,7 +131,7 @@ def listar_clientes_acima_do_limite(session: Session) -> list[tuple[Cliente, Dec
 
 def listar_maior_valor_gasto(
     session: Session, data_inicio: date, data_fim: date, limite: int = 10
-) -> list[tuple[Cliente, Decimal]]:
+) -> list[tuple[Cliente, Decimal, int]]:
     """Lista os clientes que mais gastaram (maior soma de compras) no período.
 
     Args:
@@ -141,49 +141,15 @@ def listar_maior_valor_gasto(
         limite: Número máximo de clientes retornados.
 
     Returns:
-        Lista de tuplas (cliente, valor_total), da maior para a menor soma.
+        Lista de tuplas (cliente, valor_total, quantidade_de_compras), da
+        maior para a menor soma.
     """
     stmt = (
-        select(Cliente, func.coalesce(func.sum(Compra.valor), 0))
+        select(Cliente, func.coalesce(func.sum(Compra.valor), 0), func.count(Compra.id))
         .join(Compra, Compra.cliente_id == Cliente.id)
-        .where(
-            Cliente.ativo.is_(True),
-            Compra.ativo.is_(True),
-            Compra.data >= data_inicio,
-            Compra.data <= data_fim,
-        )
+        .where(*_filtros_de_venda(), Compra.data >= data_inicio, Compra.data <= data_fim)
         .group_by(Cliente.id)
         .order_by(func.sum(Compra.valor).desc())
-        .limit(limite)
-    )
-    return list(session.execute(stmt).all())
-
-
-def listar_mais_contas_lancadas(
-    session: Session, data_inicio: date, data_fim: date, limite: int = 10
-) -> list[tuple[Cliente, int]]:
-    """Lista os clientes que mais lançaram contas (maior número de compras) no período.
-
-    Args:
-        session: Sessão SQLAlchemy ativa.
-        data_inicio: Início do período (inclusive).
-        data_fim: Fim do período (inclusive).
-        limite: Número máximo de clientes retornados.
-
-    Returns:
-        Lista de tuplas (cliente, quantidade_de_compras), da maior para a menor.
-    """
-    stmt = (
-        select(Cliente, func.count(Compra.id))
-        .join(Compra, Compra.cliente_id == Cliente.id)
-        .where(
-            Cliente.ativo.is_(True),
-            Compra.ativo.is_(True),
-            Compra.data >= data_inicio,
-            Compra.data <= data_fim,
-        )
-        .group_by(Cliente.id)
-        .order_by(func.count(Compra.id).desc())
         .limit(limite)
     )
     return list(session.execute(stmt).all())
@@ -211,7 +177,9 @@ def listar_evolucao_mensal(session: Session, meses: int = 6) -> list[tuple[str, 
             func.to_char(Compra.data, "YYYY-MM").label("mes"),
             func.coalesce(func.sum(Compra.valor), 0),
         )
-        .where(Compra.ativo.is_(True), Compra.data >= data_inicio)
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(*_filtros_de_venda(), Compra.data >= data_inicio)
         .group_by("mes")
         .order_by("mes")
     )
@@ -227,15 +195,22 @@ def calcular_total_em_aberto_geral(session: Session) -> Decimal:
     Returns:
         Soma de todas as compras não quitadas e ativas.
     """
-    stmt = select(func.coalesce(func.sum(Compra.valor), 0)).where(
-        Compra.ativo.is_(True), Compra.status != StatusCompra.QUITADA
+    # Só clientes ativos: a dívida de um cliente excluído deixa de contar,
+    # como já acontece na lista de saldos em aberto (senão o total não bate
+    # com a soma do que a tela mostra).
+    stmt = (
+        select(func.coalesce(func.sum(Compra.valor), 0))
+        .select_from(Compra)
+        .join(Cliente, Cliente.id == Compra.cliente_id)
+        .where(Compra.ativo.is_(True), Compra.status != StatusCompra.QUITADA, Cliente.ativo.is_(True))
     )
     total = session.execute(stmt).scalar_one()
     return Decimal(total)
 
 
 def _filtros_de_venda() -> tuple:
-    """O que conta como venda nas consultas de "vendas do dia" (exigem JOIN com Cliente).
+    """O que conta como venda em todos os indicadores de vendas — do dia, por
+    mês, por cliente (as consultas que usam isto exigem JOIN com Cliente).
 
     Fica de fora: compra inativa, conta "Resto" (sobra de pagamento
     parcial, não é venda nova) e compra de cliente excluído.
@@ -265,6 +240,30 @@ def calcular_total_vendido_no_dia(session: Session, dia: date) -> tuple[Decimal,
         .select_from(Compra)
         .join(Cliente, Cliente.id == Compra.cliente_id)
         .where(*_filtros_de_venda(), Compra.data == dia)
+    )
+    total, quantidade = session.execute(stmt).one()
+    return Decimal(total), quantidade
+
+
+def calcular_total_recebido_no_dia(session: Session, dia: date) -> tuple[Decimal, int]:
+    """Soma o valor (e conta a quantidade) de pagamentos recebidos num dia.
+
+    Pela data do pagamento. Pagamentos estornados ficam de fora (o
+    dinheiro foi devolvido/desfeito), e os de clientes excluídos também —
+    mesmo critério das vendas do dia.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        dia: Data a considerar.
+
+    Returns:
+        Tupla (soma_do_valor, quantidade_de_pagamentos).
+    """
+    stmt = (
+        select(func.coalesce(func.sum(Pagamento.valor_pago), 0), func.count(Pagamento.id))
+        .select_from(Pagamento)
+        .join(Cliente, Cliente.id == Pagamento.cliente_id)
+        .where(Pagamento.ativo.is_(True), Cliente.ativo.is_(True), Pagamento.data_pagamento == dia)
     )
     total, quantidade = session.execute(stmt).one()
     return Decimal(total), quantidade

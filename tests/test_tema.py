@@ -44,3 +44,20 @@ def test_temas_suportam_classes_do_redesign_sidebar_card_e_status() -> None:
         assert 'papel="sucesso"' in css
         assert 'papel="aviso"' in css
         assert 'papel="perigo"' in css
+
+
+def test_graficos_recebem_as_cores_do_tema_aplicado() -> None:
+    from app.config import tema
+    from app.services.configuracao_service import ModoTema
+
+    try:
+        tema.obter_stylesheet(ModoTema.ESCURO)
+        escuro = tema.cores_do_tema_aplicado()
+        tema.obter_stylesheet(ModoTema.CLARO)
+        claro = tema.cores_do_tema_aplicado()
+    finally:
+        tema.obter_stylesheet(ModoTema.CLARO)
+
+    assert escuro["fundo_alt"] != claro["fundo_alt"]
+    for cores in (claro, escuro):
+        assert {"fundo_alt", "texto", "texto_secundario", "borda", "destaque", "grafico_neutro"} <= set(cores)

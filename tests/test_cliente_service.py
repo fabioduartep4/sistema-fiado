@@ -283,3 +283,78 @@ def test_funcionario_nao_pode_listar_clientes_com_status(usuario_admin_teste) ->
             cliente_service.listar_clientes_com_status(usuario_funcionario)
     finally:
         usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_busca_por_codigo_e_por_telefone(usuario_admin_teste) -> None:
+    import uuid as _uuid
+
+    # Telefone único por execução, para não casar com sobras de execuções anteriores.
+    telefone = "359" + str(_uuid.uuid4().int)[:8]
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Busca Telefone", [], [f"({telefone[:2]}) {telefone[2:]}"], []
+    )
+    try:
+        codigo = cliente_service.obter_ficha(cliente.id).id_visivel
+
+        por_codigo = cliente_service.buscar_clientes(str(codigo))
+        assert por_codigo[0].id == cliente.id  # o código digitado vem sempre em primeiro
+        assert por_codigo[0].nome_alternativo_encontrado == f"código {codigo}"
+
+        por_telefone = cliente_service.buscar_clientes(telefone[3:])  # só um pedaço do número
+        assert [c.id for c in por_telefone] == [cliente.id]
+        assert por_telefone[0].nome_alternativo_encontrado.startswith("tel. ")
+
+        formatado = cliente_service.buscar_clientes(f"({telefone[:2]}) {telefone[2:7]}-{telefone[7:]}")
+        assert [c.id for c in formatado] == [cliente.id]
+
+        # A tela Clientes do administrador usa outra consulta: tem que achar igual.
+        for termo in (str(codigo), telefone[3:]):
+            status = cliente_service.listar_clientes_com_status(usuario_admin_teste, termo=termo)
+            assert cliente.id in [c.id for c in status]
+
+        # Poucos dígitos não viram busca por telefone (casariam com quase todo mundo).
+        assert cliente.id not in [c.id for c in cliente_service.buscar_clientes(telefone[3:6])] or str(codigo) == telefone[3:6]
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_lembrete_escolhe_a_mensagem_pela_situacao_da_conta(usuario_admin_teste) -> None:
+    """Regra única da ficha e dos lembretes em lote: limite > atraso > só o total."""
+    from app.services import lembrete_service
+
+    hoje = obter_data_padrao()
+    em_dia = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Lembrete Em Dia", [], ["35999990001"], []
+    )
+    atrasado = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Lembrete Atrasado", [], [], []
+    )
+    estourado = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Lembrete Limite", [], [], [], limite_fiado=Decimal("50.00")
+    )
+    try:
+        compra_service.registrar_compra(usuario_admin_teste, em_dia.id, Decimal("15.00"), hoje, None)
+        compra_service.registrar_compra(
+            usuario_admin_teste, atrasado.id, Decimal("90.00"), hoje - timedelta(days=45), None
+        )
+        # Atrasado E acima do limite: vale a mensagem de limite.
+        compra_service.registrar_compra(
+            usuario_admin_teste, estourado.id, Decimal("80.00"), hoje - timedelta(days=45), None
+        )
+
+        lembrete = lembrete_service.montar_lembrete(em_dia.id)
+        assert lembrete.telefone == "35999990001"
+        assert "R$ 15,00" in lembrete.mensagem and "atraso" not in lembrete.mensagem
+
+        lembrete = lembrete_service.montar_lembrete(atrasado.id)
+        assert lembrete.telefone is None
+        assert "em atraso" in lembrete.mensagem and "R$ 90,00" in lembrete.mensagem
+
+        # Com um prazo maior que a idade da compra, deixa de contar como atraso.
+        assert "atraso" not in lembrete_service.montar_lembrete(atrasado.id, dias_atraso=60).mensagem
+
+        lembrete = lembrete_service.montar_lembrete(estourado.id)
+        assert "limite combinado de R$ 50,00" in lembrete.mensagem
+    finally:
+        for cliente in (em_dia, atrasado, estourado):
+            cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

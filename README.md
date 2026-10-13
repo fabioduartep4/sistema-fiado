@@ -22,12 +22,12 @@ Feito em Python com PySide6 (interface) e PostgreSQL (dados).
 
 | Tela | O que faz |
 |---|---|
-| **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. Escolha uma **data** no topo para ver as vendas daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
-| **Clientes** | Busca e lista de clientes com saldo, limite e situação. Filtros: Com saldo, Em atraso, Acima do limite. Botão **+ Novo Cliente**. Duplo clique abre a ficha. |
-| **Ficha do Cliente** | Saldo, limite e disponível; extrato na tela (compras em aberto com data, hora e valor). Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Imprimir Extrato, Histórico, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
-| **Histórico do cliente** | Aberto pelo botão Histórico da ficha: todas as compras e pagamentos, do mais novo para o mais antigo. Permite ver produtos, reimprimir o comprovante de um pagamento e abrir os detalhes/estorno. |
-| **Saldos** | Todos os clientes com saldo em aberto, com busca e exportação para CSV/Excel. |
-| **Histórico** | Vendas e recebimentos (com filtro de período, cliente e tipo), alterações feitas no sistema e log de erros. |
+| **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), recebidos do dia, clientes, vendas dos últimos 7 dias, movimentações recentes e quem mais comprou no mês. Escolha uma **data** no topo para ver as vendas e os recebimentos daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
+| **Clientes** | Busca (por nome, código ou telefone) e lista de clientes com saldo, limite e situação. Filtros: Com saldo, Em atraso, Acima do limite. Botão **+ Novo Cliente**. Duplo clique ou Enter abre a ficha. |
+| **Ficha do Cliente** | Saldo, limite e disponível; extrato na tela (compras em aberto com data, hora e valor, a mais recente em cima; no papel sai da mais antiga para a mais nova). Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Imprimir Extrato, Histórico, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
+| **Histórico do cliente** | Aberto pelo botão Histórico da ficha, em duas abas, do mais novo para o mais antigo: **Pagamentos** (abre nesta; reimprimir comprovante e detalhes/estorno) e **Compras** (ver produtos das vindas de XML). |
+| **Saldos** | Situação das contas: total em aberto, clientes acima do limite, clientes com maior atraso (com **Lembretes em lote**), evolução de vendas dos últimos 6 meses, maiores saldos e a lista de todos os clientes com saldo, com busca e exportação para CSV/Excel. |
+| **Histórico** | Vendas e recebimentos (com filtro de período, cliente e tipo), alterações feitas no sistema e log de erros. Cada tabela traz as 200 linhas mais recentes; **Carregar mais** traz as seguintes. |
 | **Backups** | Pasta de backup, backup manual e restauração. |
 | **Configurações** | Modo de data padrão, tema claro/escuro, pasta dos XMLs, importação de XML, clientes duplicados e usuários. |
 
@@ -53,9 +53,14 @@ O botão **+ Novo Lançamento**, no topo de todas as telas, abre direto
 - **Limite de fiado**: opcional, por cliente. Quem passa do limite aparece
   em destaque no Início e em Clientes.
 - **Atraso**: cliente com compra em aberto há mais de 30 dias (o número de
-  dias pode ser alterado nas telas Início e Clientes).
+  dias pode ser alterado nas telas Saldos e Clientes).
 - **Exclusão**: nada é apagado de verdade; clientes e usuários excluídos
-  só ficam inativos, e toda alteração fica registrada no Histórico.
+  só ficam inativos, e toda alteração fica registrada no Histórico. Ao
+  excluir um cliente que ainda deve, o sistema avisa o valor antes.
+- **Dois computadores na mesma conta**: receber e estornar travam a
+  conta do cliente enquanto gravam; se dois computadores fizerem
+  isso ao mesmo tempo, o segundo espera o primeiro e enxerga a conta já
+  atualizada.
 - **Vendas do dia**: contam as compras com aquela data. Não entram contas
   "Resto" (são sobra de pagamento, não venda nova) nem compras de clientes
   excluídos.
@@ -79,6 +84,12 @@ WhatsApp com a mensagem pronta para revisar e enviar:
 - **Acima do limite** → avisa que passou do limite combinado.
 - **Em atraso** → avisa do atraso, cita o último pagamento e o total da conta.
 - **Em dia** → só informa o total da conta.
+
+**Em lote**: na tela Saldos, na seção "Clientes com Maior Atraso", o botão
+**Lembretes em lote** lista os clientes em atraso com telefone, deixa
+marcar quem vai receber e abre a conversa de cada um, um por vez, com a
+mesma mensagem acima (editável). O envio em si é feito por você no
+WhatsApp — o programa não envia sozinho.
 
 ### Impressão
 
@@ -107,6 +118,12 @@ pré-visualização antes:
 | `Ctrl+N` | Novo cliente |
 | `Ctrl+F` | Buscar cliente |
 | `Ctrl+Q` | Sair |
+| `Enter` na busca de cliente | Escolhe o primeiro resultado (setas ↑ ↓ mudam o escolhido) |
+| `Enter` no valor | Salva a compra / confirma o pagamento |
+| `Enter` na tela Clientes | Abre a ficha do cliente |
+
+Adicionar Compra e Receber Conta já abrem com o cursor no campo certo, para
+lançar sem usar o mouse.
 
 ---
 
@@ -178,6 +195,20 @@ Assim os computadores não precisam ter Python.
    vez por servidor, não por computador.
 5. Abra o **`SistemaFiado.exe`**.
 
+### Atualizar um computador que já tem o sistema
+
+**Não cole a pasta nova por cima da antiga** — isso mistura arquivos de
+versões diferentes e o programa para de abrir.
+
+1. Gere a versão nova com `build_exe.bat` (ou copie a pasta
+   `dist\SistemaFiado` já gerada para o computador).
+2. Feche o sistema nesse computador.
+3. Dentro da pasta nova, rode **`atualizar_instalacao.bat`** e informe a
+   pasta onde o sistema está instalado. Ele troca os programas e mantém o
+   `.env` e a pasta `app` (backups e logs).
+4. Abra o sistema e confira o **número da versão**, que aparece na tela de
+   login e embaixo do botão Sair. O número fica em `app/versao.py`.
+
 Se o Windows bloquear o `CriarUsuarioAdmin.exe`, rode
 `criar_admin_emergencia.sql` no banco (pelo `psql` ou pgAdmin). Ele cria o
 usuário `admin` com senha `admin123`; troque a senha logo depois, em
@@ -193,9 +224,13 @@ pytest
 ```
 
 Por padrão rodam só os testes que não usam o banco. Para rodar também os
-testes de integração, aponte o `.env` para um **banco de testes** (eles
-criam e excluem dados de verdade) e rode:
+testes de integração:
 
 ```powershell
 $env:RODAR_TESTES_INTEGRACAO="1"; pytest
 ```
+
+Os testes de integração **nunca gravam no banco da loja**: usam um banco
+separado no mesmo servidor, com o nome do banco do `.env` mais `_teste`
+(ex.: `fiado_db_teste`), criado sozinho na primeira vez. Se por algum
+motivo o alvo não for um banco de testes, eles abortam antes de gravar.

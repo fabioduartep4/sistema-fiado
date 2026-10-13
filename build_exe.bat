@@ -10,24 +10,24 @@ echo  Sistema de Fiado - Gerar executavel (.exe)
 echo ============================================
 echo.
 
-echo [1/4] Criando ambiente virtual (venv), se ainda nao existir...
+echo [1/5] Criando ambiente virtual (venv), se ainda nao existir...
 if not exist venv (
     python -m venv venv
 )
 call venv\Scripts\activate.bat
 
 echo.
-echo [2/4] Instalando dependencias do projeto...
+echo [2/5] Instalando dependencias do projeto...
 pip install -r requirements.txt
 if errorlevel 1 goto erro
 
 echo.
-echo [3/4] Instalando o PyInstaller...
+echo [3/5] Instalando o PyInstaller...
 pip install pyinstaller
 if errorlevel 1 goto erro
 
 echo.
-echo [4/4] Gerando o executavel (pode demorar alguns minutos)...
+echo [4/5] Gerando o executavel (pode demorar alguns minutos)...
 pyinstaller fiado.spec --noconfirm
 if errorlevel 1 goto erro
 
@@ -37,6 +37,11 @@ copy /y .env.example dist\SistemaFiado\ >nul
 copy /y preparar_banco.bat dist\SistemaFiado\ >nul
 copy /y provisionar_banco.sql dist\SistemaFiado\ >nul
 copy /y criar_admin_emergencia.sql dist\SistemaFiado\ >nul
+copy /y atualizar_instalacao.bat dist\SistemaFiado\ >nul
+
+REM A pasta "build" e so rascunho do PyInstaller: os .exe que ficam la dentro
+REM NAO funcionam (falta a DLL do Python). Apaga para ninguem abrir o errado.
+if exist build rmdir /s /q build
 
 echo.
 echo ============================================
@@ -46,6 +51,8 @@ echo Os executaveis estao em dist\SistemaFiado\:
 echo  - SistemaFiado.exe        (o programa)
 echo  - CriarUsuarioAdmin.exe   (cria o 1o usuario administrador)
 echo.
+echo ATENCAO: use SEMPRE os .exe de dentro de dist\SistemaFiado.
+echo.
 echo PROXIMO PASSO: copie a pasta "dist\SistemaFiado" inteira para o
 echo computador de destino. Dentro dela:
 echo  - Copie ".env.example" para ".env" e preencha com os dados do
@@ -54,9 +61,12 @@ echo  - Se for um servidor PostgreSQL NOVO (ainda sem o banco do sistema):
 echo    1) rode "preparar_banco.bat" (cria o banco/usuario/schema)
 echo    2) rode "CriarUsuarioAdmin.exe" (cria o 1o login do sistema)
 echo    3) abra "SistemaFiado.exe" e logue com o usuario criado
+echo  - Se o computador JA tem o sistema instalado (atualizacao): rode
+echo    "atualizar_instalacao.bat" e informe a pasta instalada. Nao cole por cima.
 echo  - Se for so mais um computador se conectando a um servidor que os
 echo    outros ja usam, pule os passos acima e abra o SistemaFiado.exe direto.
 echo.
+start "" explorer "dist\SistemaFiado"
 pause
 exit /b 0
 

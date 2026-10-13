@@ -18,7 +18,7 @@ from app.services import historico_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
-from app.utils.text_normalizer import normalizar_texto
+from app.utils.text_normalizer import normalizar_telefone, normalizar_texto
 
 _TAMANHO_MAXIMO_NOME = 150
 _TAMANHO_MAXIMO_TELEFONE = 30
@@ -176,9 +176,30 @@ class ClienteFicha:
     limite_fiado: Optional[Decimal]
 
 
+# A partir de quantos dígitos um número digitado também é procurado nos
+# telefones (menos que isso casaria com quase todo mundo).
+_MINIMO_DIGITOS_BUSCA_TELEFONE = 4
+
+
+def _codigo_e_telefone_do_termo(termo: str) -> tuple[Optional[int], Optional[str]]:
+    """Interpreta um termo de busca numérico: (código do cliente, dígitos de telefone).
+
+    Só vale para termos sem letras ("12", "(35) 99999-8888"); num termo
+    como "Bar 24 Horas" os números fazem parte do nome.
+    """
+    if any(caractere.isalpha() for caractere in termo):
+        return None, None
+    digitos = normalizar_telefone(termo)
+    if not digitos:
+        return None, None
+    codigo = int(digitos) if termo.strip().isdigit() and len(digitos) <= 9 else None
+    telefone = digitos if len(digitos) >= _MINIMO_DIGITOS_BUSCA_TELEFONE else None
+    return codigo, telefone
+
+
 @tratar_erros
 def buscar_clientes(termo: str, limite: int = 30) -> list[ClienteBusca]:
-    """Busca clientes por nome principal ou nome alternativo.
+    """Busca clientes por nome (principal ou alternativo), código ou telefone.
 
     A busca ignora acentos, maiúsculas/minúsculas e espaços extras. Os
     resultados são ordenados priorizando, nesta ordem: (1) nome principal
@@ -186,6 +207,12 @@ def buscar_clientes(termo: str, limite: int = 30) -> list[ClienteBusca]:
     (3) nome principal que contém o termo, (4) nome alternativo que contém
     o termo — e, dentro de cada grupo, em ordem alfabética pelo nome
     principal. A busca não considera compradores.
+
+    Se o termo for um número, o cliente com esse **código** vem em primeiro
+    lugar. Com 4 dígitos ou mais, também entram os clientes com um
+    **telefone** que contenha esses dígitos (depois dos encontrados pelo
+    nome). Nos dois casos, ``nome_alternativo_encontrado`` diz por onde o
+    cliente foi achado (ex.: "código 12", "tel. 35999998888").
 
     Args:
         termo: Texto digitado pelo usuário.
@@ -241,6 +268,38 @@ def buscar_clientes(termo: str, limite: int = 30) -> list[ClienteBusca]:
                 ),
             )
 
+        codigo, digitos_telefone = _codigo_e_telefone_do_termo(termo)
+        if digitos_telefone:
+            for cliente, telefone in cliente_repository.buscar_por_telefone(session, digitos_telefone):
+                if str(cliente.id) in candidatos:
+                    continue
+                candidatos[str(cliente.id)] = (
+                    4,
+                    cliente.nome_principal_normalizado,
+                    ClienteBusca(
+                        id=str(cliente.id),
+                        id_visivel=cliente.id_visivel,
+                        nome_principal=cliente.nome_principal,
+                        nome_alternativo_encontrado=f"tel. {telefone.numero}",
+                        confirmado=cliente.confirmado,
+                    ),
+                )
+        if codigo is not None:
+            cliente = cliente_repository.buscar_por_codigo(session, codigo)
+            if cliente is not None:
+                # Sempre em primeiro: quem digita o código quer esse cliente.
+                candidatos[str(cliente.id)] = (
+                    -1,
+                    cliente.nome_principal_normalizado,
+                    ClienteBusca(
+                        id=str(cliente.id),
+                        id_visivel=cliente.id_visivel,
+                        nome_principal=cliente.nome_principal,
+                        nome_alternativo_encontrado=f"código {cliente.id_visivel}",
+                        confirmado=cliente.confirmado,
+                    ),
+                )
+
         resultados_ordenados = sorted(candidatos.values(), key=lambda item: (item[0], item[1]))
         return [item[2] for item in resultados_ordenados[:limite]]
 
@@ -278,8 +337,8 @@ def listar_clientes_com_status(
 
     Args:
         usuario_logado: Usuário que está consultando (precisa ser Administrador).
-        termo: Filtro opcional por nome (contém, ignora acento/maiúscula).
-            Vazio lista todos.
+        termo: Filtro opcional por nome (contém, ignora acento/maiúscula),
+            código ou telefone. Vazio lista todos.
         dias_atraso: Quantos dias sem pagamento pra uma compra em aberto
             contar como atrasada (mesmo critério de
             ``relatorio_service.listar_saldos_em_atraso``).
@@ -297,7 +356,8 @@ def listar_clientes_com_status(
     data_limite = date.today() - timedelta(days=dias_atraso)
 
     with session_scope() as session:
-        clientes = cliente_repository.listar_ativos(session, termo_normalizado)
+        codigo, digitos_telefone = _codigo_e_telefone_do_termo(termo)
+        clientes = cliente_repository.listar_ativos(session, termo_normalizado, codigo, digitos_telefone)
         saldos_por_cliente = compra_repository.listar_saldos_e_atrasos(session, data_limite)
 
         resultado = []

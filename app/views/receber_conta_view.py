@@ -17,10 +17,11 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -43,17 +44,29 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
-from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
+from app.views.componentes import (
+    TAMANHO_DIALOGO_LANCAMENTO,
+    TAMANHO_MINIMO_DIALOGO_LANCAMENTO,
+    CampoBuscaClienteWidget,
+    desligar_botao_padrao,
+)
 
 
 _ROTULO_VALOR_DIGITADO = "Valor pago:"
 _ROTULO_VALOR_SELECIONADO = "Valor a receber (soma das contas marcadas):"
 _TEXTO_SELECIONAR_TODAS = "Selecionar todas"
 _TEXTO_DESMARCAR_TODAS = "Desmarcar todas"
+_ICONE_NEM_TODAS = "SQUARE"
+_ICONE_TODAS = "SQUARE_CHECK"
+_COR_ICONE_SELECAO = "#2563eb"  # o azul de destaque do sistema
 
 
 class ReceberContaView(QWidget):
     """Tela de recebimento de pagamento (quitação de contas em aberto)."""
+
+    # Emitido depois que um pagamento é registrado e o aviso (ou a
+    # pré-visualização do recibo) é fechado — o diálogo usa para se fechar.
+    pagamento_registrado = Signal()
 
     def __init__(
         self,
@@ -126,19 +139,30 @@ class ReceberContaView(QWidget):
         dica_selecao.setProperty("papel", "secundario")
         dica_selecao.setWordWrap(True)
 
+        # Botão pequeno, no canto direito da linha do total. O ícone é uma
+        # caixinha azul que acompanha o estado: vazia, ou marcada quando
+        # todas as contas estão selecionadas.
         self._botao_selecionar_todas = QPushButton(_TEXTO_SELECIONAR_TODAS)
+        self._botao_selecionar_todas.setIcon(icone(_ICONE_NEM_TODAS, cor=_COR_ICONE_SELECAO))
+        self._botao_selecionar_todas.setMinimumHeight(38)
         self._botao_selecionar_todas.clicked.connect(self._alternar_todas)
 
         self._label_valor = QLabel(_ROTULO_VALOR_DIGITADO)
 
         self._label_total_em_aberto = QLabel()
-        self._label_total_em_aberto.setProperty("papel", "subtitulo")
+        self._label_total_em_aberto.setStyleSheet("font-size: 20px; font-weight: 700;")
+
+        layout_total = QHBoxLayout()
+        layout_total.addWidget(self._label_total_em_aberto)
+        layout_total.addStretch()
+        layout_total.addWidget(self._botao_selecionar_todas)
 
         self._campo_valor_pago = QLineEdit()
         self._campo_valor_pago.setPlaceholderText("Ex.: 25,50")
         self._campo_valor_pago.setMinimumHeight(36)
         # textEdited só dispara quando é o usuário que digita (não no setText).
         self._campo_valor_pago.textEdited.connect(self._ao_digitar_valor)
+        self._campo_valor_pago.returnPressed.connect(self._confirmar_pagamento)  # Enter confirma
 
         self._campo_data = QDateEdit()
         self._campo_data.setCalendarPopup(True)
@@ -162,9 +186,8 @@ class ReceberContaView(QWidget):
         layout.addWidget(self._botao_trocar_cliente)
         layout.addWidget(QLabel("Compras em aberto:"))
         layout.addWidget(dica_selecao)
-        layout.addWidget(self._botao_selecionar_todas)
         layout.addWidget(self._lista_compras_abertas)
-        layout.addWidget(self._label_total_em_aberto)
+        layout.addLayout(layout_total)
         layout.addWidget(self._label_valor)
         layout.addWidget(self._campo_valor_pago)
         layout.addWidget(QLabel("Data do pagamento:"))
@@ -185,6 +208,14 @@ class ReceberContaView(QWidget):
         self._carregar_contas_em_aberto(cliente_id)
 
         self._paginas.setCurrentIndex(1)
+        self._campo_valor_pago.setFocus()  # já pode digitar o valor, sem mouse
+
+    def focar_campo_inicial(self) -> None:
+        """Foco no campo por onde o usuário começa: o valor, ou a busca se ainda não há cliente."""
+        if self._paginas.currentIndex() == 1:
+            self._campo_valor_pago.setFocus()
+        else:
+            self._campo_busca_cliente.focar_campo()
 
     def _voltar_para_busca(self) -> None:
         self._paginas.setCurrentIndex(0)
@@ -292,8 +323,12 @@ class ReceberContaView(QWidget):
             self._havia_selecao = False
 
         self._botao_selecionar_todas.setEnabled(bool(itens))
+        todas_marcadas = bool(itens) and len(marcadas) == len(itens)
+        self._botao_selecionar_todas.setIcon(
+            icone(_ICONE_TODAS if todas_marcadas else _ICONE_NEM_TODAS, cor=_COR_ICONE_SELECAO)
+        )
         self._botao_selecionar_todas.setText(
-            _TEXTO_DESMARCAR_TODAS if itens and len(marcadas) == len(itens) else _TEXTO_SELECIONAR_TODAS
+            _TEXTO_DESMARCAR_TODAS if todas_marcadas else _TEXTO_SELECIONAR_TODAS
         )
 
     def _confirmar_pagamento(self) -> None:
@@ -359,6 +394,7 @@ class ReceberContaView(QWidget):
         self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._carregar_contas_em_aberto(self._cliente_id)
+        self.pagamento_registrado.emit()
 
 
 class ReceberContaDialog(QDialog):
@@ -380,11 +416,13 @@ class ReceberContaDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Receber Conta — {nome_principal}" if nome_principal else "Receber Conta")
-        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.setMinimumSize(*TAMANHO_MINIMO_DIALOGO_LANCAMENTO)
         self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
         self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
+        # Pagamento feito: não há mais o que fazer aqui, a tela se fecha.
+        self._view.pagamento_registrado.connect(self.accept)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))
@@ -395,3 +433,9 @@ class ReceberContaDialog(QDialog):
         layout.addWidget(self._view)
         layout.addWidget(botao_fechar)
         self.setLayout(layout)
+        desligar_botao_padrao(self)
+
+    def showEvent(self, evento) -> None:  # noqa: N802 (nome exigido pelo Qt)
+        super().showEvent(evento)
+        # Só depois de a janela aparecer: antes disso o foco pedido não "pega".
+        QTimer.singleShot(0, self._view.focar_campo_inicial)

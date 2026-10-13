@@ -39,7 +39,7 @@ from app.services.cliente_service import ClienteStatusResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.utils.tabelas import aplicar_estado_vazio, ajustar_colunas
+from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor
 from app.views.cadastrar_cliente_view import CadastrarClienteDialog
 from app.views.ficha_cliente_view import FichaClienteView
 
@@ -72,13 +72,14 @@ class ClientesView(QWidget):
         subtitulo.setProperty("papel", "secundario")
 
         self._campo_busca = QLineEdit()
-        self._campo_busca.setPlaceholderText("Buscar por nome...")
+        self._campo_busca.setPlaceholderText("Buscar por nome, código ou telefone...")
         self._campo_busca.setMinimumHeight(38)
         self._timer_busca = QTimer(self)
         self._timer_busca.setSingleShot(True)
         self._timer_busca.setInterval(_DEBOUNCE_BUSCA_MS)
         self._timer_busca.timeout.connect(self._carregar)
         self._campo_busca.textChanged.connect(lambda _texto: self._timer_busca.start())
+        self._campo_busca.returnPressed.connect(self._enter_na_busca)
 
         botao_novo_cliente = QPushButton("+ Novo Cliente")
         botao_novo_cliente.setIcon(icone("USER_PLUS"))
@@ -125,7 +126,8 @@ class ClientesView(QWidget):
             self._tabela.setHorizontalHeaderLabels(["Cliente", "Código"])
         self._tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._tabela.cellDoubleClicked.connect(self._abrir_ficha_da_linha)
+        # cellActivated cobre os dois: duplo clique e Enter com a linha selecionada.
+        self._tabela.cellActivated.connect(self._abrir_ficha_da_linha)
         ajustar_colunas(self._tabela, 0)  # Cliente
 
         self._label_vazio = QLabel("Nenhum cliente encontrado.")
@@ -180,9 +182,9 @@ class ClientesView(QWidget):
                 nome += " (pendente de confirmação)"
             self._tabela.setItem(linha, 0, QTableWidgetItem(nome))
             self._tabela.setItem(linha, 1, QTableWidgetItem(cliente.telefone or "-"))
-            self._tabela.setItem(linha, 2, QTableWidgetItem(f"{formatar_reais(cliente.saldo)}"))
+            self._tabela.setItem(linha, 2, item_valor(formatar_reais(cliente.saldo)))
             texto_limite = f"{formatar_reais(cliente.limite_fiado)}" if cliente.limite_fiado is not None else "-"
-            self._tabela.setItem(linha, 3, QTableWidgetItem(texto_limite))
+            self._tabela.setItem(linha, 3, item_valor(texto_limite))
             item_status = QTableWidgetItem(self._texto_status(cliente))
             self._tabela.setItem(linha, 4, item_status)
             self._tabela.item(linha, 0).setData(Qt.ItemDataRole.UserRole, cliente.id)
@@ -254,6 +256,16 @@ class ClientesView(QWidget):
         dialogo = CadastrarClienteDialog(self._usuario_logado, self)
         dialogo.exec()
         self._carregar()
+
+    def _enter_na_busca(self) -> None:
+        """Enter na busca abre a ficha da linha selecionada (ou da primeira)."""
+        if self._timer_busca.isActive():
+            # A tabela ainda é de uma digitação anterior: atualiza antes de abrir.
+            self._timer_busca.stop()
+            self._carregar()
+        if self._tabela.rowCount() == 0:
+            return
+        self._abrir_ficha_da_linha(max(self._tabela.currentRow(), 0), 0)
 
     def focar_busca(self) -> None:
         """Foca o campo de busca (atalho Ctrl+F, acionado pela janela principal)."""

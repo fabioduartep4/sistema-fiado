@@ -333,3 +333,55 @@ def test_valor_do_resto_para_reimprimir_o_comprovante(usuario_admin_teste) -> No
         assert pagamentos[exato.id].valor_resto_gerado == Decimal("0")
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_segundo_pagamento_simultaneo_espera_o_primeiro_e_ve_a_conta_atualizada(usuario_admin_teste) -> None:
+    """Dois computadores recebendo da mesma conta ao mesmo tempo.
+
+    O primeiro segura a trava da conta com a transação aberta; o segundo
+    tem que esperar e, quando roda, já enxerga o que o primeiro fez — por
+    isso é recusado (a conta escolhida já foi quitada), em vez de os dois
+    quitarem a mesma compra.
+    """
+    import threading
+    import time
+    import uuid as _uuid
+
+    from app.database.connection import session_scope
+    from app.models.compra import Compra, StatusCompra
+    from app.repositories import cliente_repository
+
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Pagamento Simultaneo", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        compra = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("50.00"), hoje, None)
+        resultado: dict = {}
+
+        def segundo_computador() -> None:
+            try:
+                pagamento_service.registrar_pagamento(
+                    usuario_admin_teste, cliente.id, Decimal("50.00"), hoje, None, compra_ids=[compra.id]
+                )
+                resultado["ok"] = True
+            except ValueError as exc:
+                resultado["erro"] = str(exc)
+
+        with session_scope() as session:
+            # "Primeiro computador": trava a conta e quita a compra, sem confirmar ainda.
+            cliente_repository.travar_conta(session, _uuid.UUID(cliente.id))
+            session.get(Compra, _uuid.UUID(compra.id)).status = StatusCompra.QUITADA
+            session.flush()
+
+            thread = threading.Thread(target=segundo_computador)
+            thread.start()
+            time.sleep(1.0)
+            assert thread.is_alive(), "o segundo pagamento deveria estar esperando a trava"
+            assert not resultado
+
+        thread.join(timeout=10)
+        assert not thread.is_alive()
+        assert "erro" in resultado and "ok" not in resultado
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

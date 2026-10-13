@@ -11,7 +11,7 @@ import uuid
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
@@ -68,6 +68,18 @@ def criar_cliente(
     return cliente
 
 
+def travar_conta(session: Session, cliente_id: uuid.UUID) -> None:
+    """Trava a conta do cliente até o fim da transação atual (``SELECT ... FOR UPDATE``).
+
+    Quem mexe nas compras em aberto de um cliente (receber, estornar)
+    chama isto primeiro. Se dois computadores fizerem
+    isso ao mesmo tempo para o mesmo cliente, o segundo espera o primeiro
+    terminar e só então lê as compras — já atualizadas —, em vez de os
+    dois decidirem em cima da mesma foto antiga da conta.
+    """
+    session.execute(select(Cliente.id).where(Cliente.id == cliente_id).with_for_update())
+
+
 def buscar_por_id(session: Session, cliente_id: uuid.UUID) -> Cliente | None:
     """Busca um cliente (ativo ou inativo) pelo ID.
 
@@ -94,7 +106,37 @@ def contar_ativos(session: Session) -> int:
     return session.execute(stmt).scalar_one()
 
 
-def listar_ativos(session: Session, termo_normalizado: Optional[str] = None) -> list[Cliente]:
+def buscar_por_codigo(session: Session, codigo: int) -> Cliente | None:
+    """Busca um cliente ativo pelo código exibido (``id_visivel``)."""
+    stmt = select(Cliente).where(Cliente.ativo.is_(True), Cliente.id_visivel == codigo)
+    return session.execute(stmt).scalars().first()
+
+
+def buscar_por_telefone(session: Session, digitos: str) -> list[tuple[Cliente, Telefone]]:
+    """Busca clientes ativos com algum telefone que contenha esses dígitos.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        digitos: Só os dígitos digitados (ver
+            ``app.utils.text_normalizer.normalizar_telefone``).
+
+    Returns:
+        Lista de tuplas (cliente, telefone correspondente).
+    """
+    stmt = (
+        select(Cliente, Telefone)
+        .join(Telefone, Telefone.cliente_id == Cliente.id)
+        .where(Cliente.ativo.is_(True), Telefone.numero_normalizado.like(f"%{digitos}%"))
+    )
+    return [(cliente, telefone) for cliente, telefone in session.execute(stmt).all()]
+
+
+def listar_ativos(
+    session: Session,
+    termo_normalizado: Optional[str] = None,
+    codigo: Optional[int] = None,
+    digitos_telefone: Optional[str] = None,
+) -> list[Cliente]:
     """Lista clientes ativos, opcionalmente filtrados por nome, ordenados por nome.
 
     Diferente de ``buscar_por_nome_principal``/``buscar_por_nome_alternativo``
@@ -108,13 +150,28 @@ def listar_ativos(session: Session, termo_normalizado: Optional[str] = None) -> 
         termo_normalizado: Filtro opcional por nome principal (contém, já
             normalizado — ver ``app.utils.text_normalizer.normalizar_texto``).
             ``None``/vazio lista todos os clientes ativos.
+        codigo: Também aceita quem tem este código (``id_visivel``).
+        digitos_telefone: Também aceita quem tem um telefone contendo
+            estes dígitos.
 
     Returns:
         Lista de :class:`Cliente` ativos, ordenada por nome principal.
     """
     stmt = select(Cliente).where(Cliente.ativo.is_(True))
     if termo_normalizado:
-        stmt = stmt.where(Cliente.nome_principal_normalizado.like(f"%{termo_normalizado}%"))
+        criterios = [Cliente.nome_principal_normalizado.like(f"%{termo_normalizado}%")]
+        if codigo is not None:
+            criterios.append(Cliente.id_visivel == codigo)
+        if digitos_telefone:
+            criterios.append(
+                select(Telefone.id)
+                .where(
+                    Telefone.cliente_id == Cliente.id,
+                    Telefone.numero_normalizado.like(f"%{digitos_telefone}%"),
+                )
+                .exists()
+            )
+        stmt = stmt.where(or_(*criterios))
     stmt = stmt.order_by(Cliente.nome_principal)
     return list(session.execute(stmt).scalars().all())
 

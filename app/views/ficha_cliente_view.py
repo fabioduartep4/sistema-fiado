@@ -5,8 +5,9 @@ Aberta ao dar duplo clique em um cliente na tela "Clientes"
 do redesign — não virou uma página navegável). Mostra:
 
 - Um cartão com o saldo em aberto, limite e valor disponível.
-- O extrato do cliente: as compras em aberto, com data, hora e valor
-  (as mesmas que saem no extrato impresso). Se a compra selecionada veio
+- O extrato do cliente: as compras em aberto, com data, hora e valor,
+  da mais recente para a mais antiga (as mesmas que saem no extrato
+  impresso, que vai na ordem contrária: da mais antiga para a mais nova). Se a compra selecionada veio
   de um XML importado, "Ver Produtos" fica habilitado.
 - Botão "Histórico", que abre a linha do tempo completa — compras e
   pagamentos, reimpressão de comprovante e estorno
@@ -22,9 +23,7 @@ assim que é aberta.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -42,6 +41,7 @@ from app.config.logging_config import logger
 from app.controllers.cliente_controller import ClienteController
 from app.controllers.pagamento_controller import PagamentoController
 from app.controllers.xml_importacao_controller import XmlImportacaoController
+from app.services import lembrete_service
 from app.services.auth_service import UsuarioAutenticado
 from app.services.cliente_service import ClienteFicha
 from app.utils.documentos import formatar_data_hora_compra, montar_html_extrato_cliente
@@ -49,17 +49,12 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
 from app.utils.formatacao import formatar_reais
-from app.utils.whatsapp import montar_mensagem_lembrete_limite, montar_mensagem_lembrete_saldo
 from app.views.adicionar_compra_view import AdicionarCompraDialog
 from app.views.editar_cliente_dialog import EditarClienteDialog
 from app.views.historico_cliente_view import HistoricoClienteDialog
 from app.views.receber_conta_view import ReceberContaDialog
 from app.views.relatorio_view import LembreteWhatsAppDialog
 from app.views.xml_importacao_view import BotaoVerProdutos
-
-# Mesmo critério usado em app.views.clientes_view / app.views.painel_inicio_view
-# pra considerar uma compra em aberto "atrasada".
-_DIAS_ATRASO_PADRAO = 30
 
 
 class FichaClienteView(QDialog):
@@ -76,6 +71,7 @@ class FichaClienteView(QDialog):
 
         self.setWindowTitle("Ficha do Cliente")
         self.setMinimumSize(560, 620)
+        self.resize(650, 680)
 
         self._label_nome = QLabel()
         self._label_nome.setProperty("papel", "titulo")
@@ -112,12 +108,15 @@ class FichaClienteView(QDialog):
         layout_card.addWidget(self._label_limite_disponivel)
 
         botao_adicionar_compra = QPushButton("+ Nova Compra")
-        botao_adicionar_compra.setIcon(icone("SHOPPING_CART_PLUS"))
+        botao_adicionar_compra.setIcon(icone("SHOPPING_CART_PLUS", tamanho=22, cor="#ffffff"))
         botao_receber_conta = QPushButton("Receber Pagamento")
-        botao_receber_conta.setIcon(icone("CASH_BANKNOTE"))
+        botao_receber_conta.setIcon(icone("CASH_BANKNOTE", tamanho=22, cor="#ffffff"))
         for botao_principal in (botao_adicionar_compra, botao_receber_conta):
             botao_principal.setProperty("importancia", "primaria")
-            botao_principal.setMinimumHeight(42)
+            botao_principal.setMinimumHeight(46)
+            # As duas ações principais da ficha: texto do tamanho do extrato (16px).
+            botao_principal.setStyleSheet("font-size: 16px; font-weight: 600;")
+            botao_principal.setIconSize(QSize(22, 22))
         botao_adicionar_compra.clicked.connect(self._adicionar_compra)
         botao_receber_conta.clicked.connect(self._receber_conta)
 
@@ -129,6 +128,8 @@ class FichaClienteView(QDialog):
         label_extrato.setProperty("papel", "subtitulo")
 
         self._lista_extrato = QListWidget()
+        # O extrato é o que mais se lê nesta tela: fonte um pouco maior que o padrão (13px).
+        self._lista_extrato.setStyleSheet("font-size: 16px;")
         self._lista_extrato.itemSelectionChanged.connect(self._atualizar_botao_ver_produtos)
 
         self._botao_ver_produtos = BotaoVerProdutos(XmlImportacaoController(usuario_logado))
@@ -222,12 +223,7 @@ class FichaClienteView(QDialog):
             texto_limite = "Sem limite de fiado definido"
         self._label_limite_disponivel.setText(texto_limite)
 
-        data_limite_atraso = date.today() - timedelta(days=_DIAS_ATRASO_PADRAO)
-        atrasado = any(
-            c.status == "aberta" and c.data <= data_limite_atraso for c in ficha.compras
-        )
         self._botao_lembrete.setVisible(ficha.total_em_aberto > 0)
-        self._excedido, self._atrasado = excedido, atrasado
 
         self._preencher_extrato()
 
@@ -236,14 +232,20 @@ class FichaClienteView(QDialog):
             self._perguntar_confirmacao_cliente()
 
     def _compras_em_aberto(self) -> list:
-        """Compras em aberto, da mais antiga para a mais nova (as mesmas do extrato impresso)."""
+        """Compras em aberto, da mais antiga para a mais nova (a ordem do extrato impresso)."""
         if self._ficha is None:
             return []
-        return sorted((c for c in self._ficha.compras if c.status == "aberta"), key=lambda c: c.data)
+        return sorted(
+            (c for c in self._ficha.compras if c.status == "aberta"),
+            # Mesma data: desempata pela hora (emissão da nota ou lançamento).
+            key=lambda c: (c.data, c.data_hora.timestamp() if c.data_hora else 0),
+        )
 
     def _preencher_extrato(self) -> None:
         self._lista_extrato.clear()
-        compras = self._compras_em_aberto()
+        # Na tela, a mais recente em cima (é a que se procura no balcão); no
+        # papel continua da mais antiga para a mais nova (ver _imprimir_extrato).
+        compras = list(reversed(self._compras_em_aberto()))
         if not compras:
             self._lista_extrato.addItem("Nenhuma conta em aberto.")
         for compra in compras:
@@ -263,36 +265,17 @@ class FichaClienteView(QDialog):
         self._botao_ver_produtos.definir_chave(compra.origem_nfe_xml if compra is not None else None)
 
     def _abrir_lembrete(self) -> None:
-        if self._ficha is None:
-            return
-        ficha = self._ficha
-        telefone = ficha.telefones[0] if ficha.telefones else None
-
-        if self._excedido:
-            mensagem = montar_mensagem_lembrete_limite(
-                ficha.nome_principal,
-                formatar_reais(ficha.total_em_aberto),
-                formatar_reais(ficha.limite_fiado),
-            )
-        else:
-            mensagem = montar_mensagem_lembrete_saldo(
-                ficha.nome_principal,
-                self._data_ultimo_pagamento() if self._atrasado else None,
-                formatar_reais(ficha.total_em_aberto),
-                self._atrasado,
-            )
-
-        dialogo = LembreteWhatsAppDialog(ficha.nome_principal, telefone, mensagem, self)
-        dialogo.exec()
-
-    def _data_ultimo_pagamento(self) -> str | None:
         try:
-            pagamentos = self._pagamento_controller.listar_pagamentos(self._cliente_id)
+            lembrete = lembrete_service.montar_lembrete(self._cliente_id)
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível montar o lembrete", str(exc))
+            return
         except Exception:
-            logger.exception("Falha ao buscar o último pagamento do cliente %s.", self._cliente_id)
-            return None
-        ultimo_ativo = next((p for p in pagamentos if p.ativo), None)
-        return ultimo_ativo.data_pagamento.strftime("%d/%m/%Y") if ultimo_ativo else None
+            logger.exception("Falha inesperada ao montar o lembrete do cliente %s.", self._cliente_id)
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível montar o lembrete.")
+            return
+
+        LembreteWhatsAppDialog(lembrete.nome_cliente, lembrete.telefone, lembrete.mensagem, self).exec()
 
     def _adicionar_compra(self) -> None:
         if self._ficha is None:
@@ -362,13 +345,27 @@ class FichaClienteView(QDialog):
         if self._ficha is None:
             return
 
-        resposta = QMessageBox.question(
-            self,
-            "Confirmar exclusão",
-            f"Deseja realmente excluir a conta de '{self._ficha.nome_principal}'?\n\n"
-            "O histórico e as compras não serão apagados, mas o cliente deixará de "
-            "aparecer nas buscas.",
-        )
+        nome = self._ficha.nome_principal
+        saldo = self._ficha.total_em_aberto
+        if saldo > 0:
+            resposta = QMessageBox.warning(
+                self,
+                "Cliente com saldo em aberto",
+                f"ATENÇÃO: '{nome}' ainda deve {formatar_reais(saldo)}.\n\n"
+                "Se a conta for excluída, essa dívida deixa de aparecer nos saldos e nas "
+                "buscas (o histórico e as compras não são apagados).\n\n"
+                "Deseja excluir mesmo assim?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+        else:
+            resposta = QMessageBox.question(
+                self,
+                "Confirmar exclusão",
+                f"Deseja realmente excluir a conta de '{nome}'?\n\n"
+                "O histórico e as compras não serão apagados, mas o cliente deixará de "
+                "aparecer nas buscas.",
+            )
         if resposta != QMessageBox.StandardButton.Yes:
             return
 
