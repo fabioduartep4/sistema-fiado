@@ -23,6 +23,7 @@ from app.utils.error_handler import tratar_erros
 CHAVE_MODO_DATA_PADRAO = "modo_data_padrao"
 CHAVE_PASTA_BACKUP = "pasta_backup"
 CHAVE_DATA_ULTIMO_BACKUP_AUTOMATICO = "data_ultimo_backup_automatico"
+CHAVE_DATA_ULTIMO_BACKUP_AGENDADO = "data_ultimo_backup_agendado"
 CHAVE_PASTA_XML = "pasta_xml"
 CHAVE_TEMA = "tema"
 
@@ -202,6 +203,33 @@ def definir_data_ultimo_backup_automatico(data_backup: date) -> None:
     with session_scope() as session:
         configuracao_repository.definir(
             session, CHAVE_DATA_ULTIMO_BACKUP_AUTOMATICO, data_backup.isoformat()
+        )
+
+
+def obter_data_ultimo_backup_agendado() -> date | None:
+    """Data do último backup feito pelo agendamento do servidor
+    (``BackupAgendado.exe`` — ver ``backup_service.fazer_backup_agendado``).
+
+    É por ela que os outros computadores sabem que o servidor está cuidando
+    do backup diário. ``None`` se o agendamento nunca rodou.
+    """
+    with session_scope() as session:
+        configuracao = configuracao_repository.buscar_por_chave(
+            session, CHAVE_DATA_ULTIMO_BACKUP_AGENDADO
+        )
+        if configuracao is None:
+            return None
+        try:
+            return date.fromisoformat(configuracao.valor)
+        except ValueError:
+            return None
+
+
+def definir_data_ultimo_backup_agendado(data_backup: date) -> None:
+    """Registra a data em que o backup agendado do servidor foi concluído."""
+    with session_scope() as session:
+        configuracao_repository.definir(
+            session, CHAVE_DATA_ULTIMO_BACKUP_AGENDADO, data_backup.isoformat()
         )
 
 

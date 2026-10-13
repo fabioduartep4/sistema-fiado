@@ -6,13 +6,16 @@ camada de serviço (``app.services.backup_service``/``configuracao_service``).
 
 O backup automático diário roda em segundo plano, sem UI própria — é
 disparado pela janela principal (``app.views.main_window``). Esta tela
-cobre apenas backup manual, restauração e a pasta de destino.
+cobre apenas backup manual, restauração, a pasta de destino e a cópia na
+nuvem (uma pasta sincronizada pelo Google Drive — ver
+``app.services.nuvem_service``).
 """
 
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -24,6 +27,7 @@ from PySide6.QtWidgets import (
 from app.config.logging_config import logger
 from app.controllers.backup_controller import BackupController
 from app.services.auth_service import UsuarioAutenticado
+from app.services.nuvem_service import QUANTIDADE_MANTIDA_NA_NUVEM
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
 
@@ -57,13 +61,52 @@ class BackupView(QWidget):
         botao_restaurar.setMinimumHeight(44)
         botao_restaurar.clicked.connect(self._restaurar_backup)
 
+        # -- Cópia na nuvem ----------------------------------------------------
+        titulo_nuvem = QLabel("Cópia na nuvem (Google Drive)")
+        titulo_nuvem.setProperty("papel", "subtitulo")
+
+        explicacao_nuvem = QLabel(
+            "Instale o \"Google Drive para computador\" nesta máquina e escolha abaixo uma "
+            "pasta de dentro dele. Cada backup feito aqui é copiado para essa pasta, e o "
+            "Google Drive envia para a nuvem. Ficam guardados os "
+            f"{QUANTIDADE_MANTIDA_NA_NUVEM} mais recentes. Vale só para este computador."
+        )
+        explicacao_nuvem.setWordWrap(True)
+        explicacao_nuvem.setProperty("papel", "secundario")
+
+        self._campo_pasta_nuvem = QLineEdit()
+        self._campo_pasta_nuvem.setReadOnly(True)
+        self._campo_pasta_nuvem.setMinimumHeight(36)
+        self._campo_pasta_nuvem.setPlaceholderText("Desativada neste computador")
+
+        botao_escolher_nuvem = QPushButton("Escolher Pasta do Google Drive")
+        botao_escolher_nuvem.setIcon(icone("CLOUD_UPLOAD"))
+        botao_escolher_nuvem.setMinimumHeight(40)
+        botao_escolher_nuvem.clicked.connect(self._escolher_pasta_nuvem)
+
+        self._botao_desativar_nuvem = QPushButton("Desativar")
+        self._botao_desativar_nuvem.setIcon(icone("CLOUD_OFF"))
+        self._botao_desativar_nuvem.setMinimumHeight(40)
+        self._botao_desativar_nuvem.clicked.connect(self._desativar_nuvem)
+
+        layout_botoes_nuvem = QHBoxLayout()
+        layout_botoes_nuvem.addWidget(botao_escolher_nuvem, 1)
+        layout_botoes_nuvem.addWidget(self._botao_desativar_nuvem)
+
+        self._label_status_nuvem = QLabel()
+        self._label_status_nuvem.setWordWrap(True)
+
         aviso = QLabel(
-            "O backup automático diário roda em segundo plano ao abrir o sistema. "
-            "Requer que 'pg_dump' e 'psql' (ferramentas do PostgreSQL) estejam "
-            "instalados e no PATH deste computador."
+            "Backup e restauração requerem que 'pg_dump' e 'psql' (ferramentas do "
+            "PostgreSQL) estejam instalados e no PATH do computador que os executa."
         )
         aviso.setWordWrap(True)
         aviso.setProperty("papel", "secundario")
+
+        # Quem está fazendo o backup diário: o agendamento do servidor, ou
+        # (sem ele) o primeiro computador que abre o sistema no dia.
+        self._label_backup_diario = QLabel()
+        self._label_backup_diario.setWordWrap(True)
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)
@@ -74,11 +117,98 @@ class BackupView(QWidget):
         layout.addWidget(botao_backup_manual)
         layout.addWidget(botao_restaurar)
         layout.addSpacing(12)
+        layout.addWidget(self._label_backup_diario)
         layout.addWidget(aviso)
+        layout.addSpacing(16)
+        layout.addWidget(titulo_nuvem)
+        layout.addWidget(explicacao_nuvem)
+        layout.addWidget(self._campo_pasta_nuvem)
+        layout.addLayout(layout_botoes_nuvem)
+        layout.addWidget(self._label_status_nuvem)
         layout.addStretch()
         self.setLayout(layout)
 
         self._carregar_pasta_atual()
+        self._carregar_status_nuvem()
+        self._carregar_status_backup_diario()
+
+    def _definir_texto_com_papel(self, label: QLabel, texto: str, papel: str) -> None:
+        label.setText(texto)
+        label.setProperty("papel", papel)
+        # A cor vem do "papel": o estilo precisa ser reaplicado quando ele muda.
+        label.style().unpolish(label)
+        label.style().polish(label)
+
+    def _carregar_status_backup_diario(self) -> None:
+        try:
+            ultimo = self._controller.data_ultimo_backup_agendado()
+            ativo = self._controller.servidor_esta_fazendo_o_backup()
+        except Exception:
+            logger.exception("Falha ao consultar o backup agendado do servidor.")
+            self._definir_texto_com_papel(self._label_backup_diario, "", "secundario")
+            return
+
+        if ativo:
+            texto = (
+                f"Backup diário: feito pelo agendamento do servidor (último em {ultimo:%d/%m/%Y}). "
+                "Os outros computadores não fazem backup automático."
+            )
+            papel = "sucesso"
+        elif ultimo is not None and ultimo.year > 2000:
+            texto = (
+                f"ATENÇÃO: o backup agendado do servidor não roda desde {ultimo:%d/%m/%Y}. "
+                "Enquanto isso, o backup diário volta a ser feito pelo primeiro computador "
+                "que abre o sistema. Confira a tarefa no Agendador de Tarefas do servidor."
+            )
+            papel = "perigo"
+        else:
+            texto = (
+                "Backup diário: feito pelo primeiro computador que abre o sistema no dia. "
+                "Para o servidor fazer sozinho, rode lá o \"instalar_backup_agendado.bat\"."
+            )
+            papel = "secundario"
+        self._definir_texto_com_papel(self._label_backup_diario, texto, papel)
+
+    # -- Cópia na nuvem --------------------------------------------------------
+
+    def _carregar_status_nuvem(self) -> None:
+        status = self._controller.status_nuvem()
+        self._campo_pasta_nuvem.setText(status.pasta or "")
+        self._botao_desativar_nuvem.setEnabled(status.pasta is not None)
+
+        if status.pasta is None:
+            texto, papel = "", "secundario"
+        elif status.ultimo_erro:
+            texto = f"A última cópia para a nuvem FALHOU: {status.ultimo_erro}"
+            if status.ultima_copia:
+                texto += f" (a última que deu certo foi em {status.ultima_copia:%d/%m/%Y às %H:%M})"
+            papel = "perigo"
+        elif status.ultima_copia:
+            texto, papel = f"Última cópia para a nuvem: {status.ultima_copia:%d/%m/%Y às %H:%M}", "sucesso"
+        else:
+            texto = "Ainda nenhum backup foi copiado. O próximo backup já vai para a nuvem."
+            papel = "secundario"
+        self._definir_texto_com_papel(self._label_status_nuvem, texto, papel)
+
+    def _salvar_pasta_nuvem(self, pasta: str | None) -> None:
+        try:
+            self._controller.definir_pasta_nuvem(pasta)
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível salvar a pasta da nuvem", str(exc))
+        except Exception:
+            logger.exception("Falha inesperada ao salvar a pasta da nuvem.")
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível salvar a pasta da nuvem.")
+        self._carregar_status_nuvem()
+
+    def _escolher_pasta_nuvem(self) -> None:
+        pasta = QFileDialog.getExistingDirectory(
+            self, "Escolher a pasta do Google Drive", self._campo_pasta_nuvem.text()
+        )
+        if pasta:
+            self._salvar_pasta_nuvem(pasta)
+
+    def _desativar_nuvem(self) -> None:
+        self._salvar_pasta_nuvem(None)
 
     def _carregar_pasta_atual(self) -> None:
         try:
@@ -115,9 +245,14 @@ class BackupView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível fazer o backup.")
             return
 
-        QMessageBox.information(
-            self, "Backup concluído", f"Backup salvo em:\n{resultado.caminho_arquivo}"
-        )
+        self._carregar_status_nuvem()
+        status = self._controller.status_nuvem()
+        mensagem = f"Backup salvo em:\n{resultado.caminho_arquivo}"
+        if status.pasta and status.ultimo_erro:
+            mensagem += f"\n\nATENÇÃO: a cópia para a nuvem falhou.\n{status.ultimo_erro}"
+        elif status.pasta:
+            mensagem += f"\n\nCopiado também para a pasta da nuvem:\n{status.pasta}"
+        QMessageBox.information(self, "Backup concluído", mensagem)
 
     def _restaurar_backup(self) -> None:
         caminho_arquivo, _ = QFileDialog.getOpenFileName(

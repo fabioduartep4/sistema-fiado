@@ -16,7 +16,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from PySide6.QtCore import QDate, QTimer
+from PySide6.QtCore import QDate, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -52,6 +52,10 @@ _ID_NENHUM_COMPRADOR = "__nenhum__"
 
 class AdicionarCompraView(QWidget):
     """Tela de lançamento de uma nova compra (fiado)."""
+
+    # Emitido depois que uma compra é registrada e o aviso é fechado — o
+    # diálogo usa para se fechar.
+    compra_registrada = Signal()
 
     def __init__(
         self,
@@ -216,10 +220,10 @@ class AdicionarCompraView(QWidget):
             f"Compra de {formatar_reais(compra.valor)} registrada com sucesso para {data_compra.strftime('%d/%m/%Y')}.",
         )
         self._campo_valor.clear()
-        self._campo_valor.setFocus()  # pronto para o próximo lançamento
         self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._campo_comprador.setCurrentIndex(0)
+        self.compra_registrada.emit()
 
 
 class AdicionarCompraDialog(QDialog):
@@ -247,6 +251,8 @@ class AdicionarCompraDialog(QDialog):
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
         self._view = AdicionarCompraView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
+        # Compra lançada: não há mais o que fazer aqui, a tela se fecha.
+        self._view.compra_registrada.connect(self.accept)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))

@@ -105,11 +105,44 @@ pré-visualização antes:
 
 ### Backup
 
-- **Automático**: uma vez por dia, verificado ao abrir o sistema e enquanto
-  ele estiver aberto.
+- **Automático**: uma vez por dia. Sem o agendamento do servidor (abaixo),
+  quem faz é o primeiro computador que abre o sistema no dia — e o arquivo
+  fica no disco dele, então os backups acabam espalhados pelas máquinas.
+- **Agendado no servidor (recomendado)**: no computador onde o banco fica,
+  rode uma vez o **`instalar_backup_agendado.bat`** (está na pasta do
+  sistema) e escolha um horário. O Windows passa a rodar o
+  `BackupAgendado.exe` todo dia nesse horário — ou assim que o computador
+  ligar, se estava desligado —, sem ninguém abrir o sistema. Os outros
+  computadores param de fazer o backup automático; se o agendamento ficar
+  mais de 2 dias sem rodar, eles reassumem e a tela Backups avisa em
+  vermelho. Para desinstalar: `instalar_backup_agendado.bat remover`.
 - **Manual** e **restauração**: na tela Backups.
 - Usa `pg_dump` e `psql`, que precisam estar instalados (vêm com o
   PostgreSQL) e no PATH do computador.
+
+**Cópia na nuvem (Google Drive)** — opcional, configurada por computador:
+
+1. Instale o **Google Drive para computador** numa máquina da loja e entre
+   com a sua conta. Ele cria uma unidade/pasta no Windows (ex.: `G:\Meu Drive`).
+2. Crie uma pasta dentro dela (ex.: `G:\Meu Drive\Backups Fiado`).
+3. No sistema, em **Backups > Escolher Pasta do Google Drive**, selecione
+   essa pasta.
+
+A partir daí, todo backup feito nesse computador (o automático do dia e os
+manuais) é copiado para a pasta, e o Google Drive envia para a nuvem. Ficam
+guardados os **30 mais recentes**; os mais antigos são apagados da pasta. Se
+o backup do dia tiver sido feito por outro computador, o que tem a pasta da
+nuvem manda um mesmo assim. A tela Backups mostra quando foi a última cópia
+— ou o erro, se ela falhou (o backup local é feito do mesmo jeito).
+
+Com o backup agendado no servidor, o ideal é configurar a pasta do Google
+Drive **no próprio servidor**: abra o sistema lá uma vez e escolha a pasta
+em Backups. Daí em diante o backup do dia sai e vai para a nuvem sozinho.
+
+O sistema só copia para a pasta: quem envia para a nuvem é o aplicativo do
+Google, que precisa estar aberto e conectado. Para restaurar, baixe o
+arquivo do Drive e use **Restaurar Backup**. A configuração fica em
+`app/config_local.json`, ao lado dos backups e dos logs.
 
 ### Atalhos de teclado
 
@@ -193,6 +226,8 @@ Assim os computadores não precisam ter Python.
 4. Servidor novo: rode `preparar_banco.bat` e depois
    `CriarUsuarioAdmin.exe` para criar o primeiro login. Isso é feito uma
    vez por servidor, não por computador.
+   No servidor, rode também `instalar_backup_agendado.bat`, para o backup
+   diário sair sozinho (ver "Backup").
 5. Abra o **`SistemaFiado.exe`**.
 
 ### Atualizar um computador que já tem o sistema
@@ -208,6 +243,23 @@ versões diferentes e o programa para de abrir.
    `.env` e a pasta `app` (backups e logs).
 4. Abra o sistema e confira o **número da versão**, que aparece na tela de
    login e embaixo do botão Sair. O número fica em `app/versao.py`.
+
+#### Atualizar pela internet (`atualizar.bat`)
+
+Quando a versão nova já está publicada no GitHub, não é preciso copiar
+nada: feche o sistema e rode o **`atualizar.bat`** que fica na pasta
+instalada. Ele consulta a última versão publicada, compara com a instalada
+(arquivo `versao.txt`), baixa, confere se o arquivo chegou inteiro e troca
+os programas, mantendo o `.env` e a pasta `app`. Se a troca falhar no
+meio, a versão anterior é colocada de volta.
+
+Numa instalação antiga, que ainda não tem o atualizador, basta copiar o
+`atualizar.bat` e o `atualizar.ps1` para dentro da pasta do sistema.
+
+Para publicar uma versão: aumente o número em `app/versao.py`, gere o
+`.exe` com `build_exe.bat`, compacte a pasta `dist\SistemaFiado` em
+`SistemaFiado.zip` e crie no GitHub uma *Release* com a tag `vX.Y.Z` (o
+mesmo número) e esse `.zip` anexado. O `.env` nunca vai no pacote.
 
 Se o Windows bloquear o `CriarUsuarioAdmin.exe`, rode
 `criar_admin_emergencia.sql` no banco (pelo `psql` ou pgAdmin). Ele cria o
