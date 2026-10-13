@@ -48,7 +48,7 @@ echo [1/2] Removendo os programas antigos de:
 echo       %DESTINO%
 if exist "%DESTINO%\_internal" rmdir /s /q "%DESTINO%\_internal"
 if exist "%DESTINO%\_internal" goto falha_ao_apagar
-del /q "%DESTINO%\SistemaFiado.exe" "%DESTINO%\CriarUsuarioAdmin.exe" 2>nul
+del /q "%DESTINO%\SistemaFiado.exe" "%DESTINO%\CriarUsuarioAdmin.exe" "%DESTINO%\BackupAgendado.exe" 2>nul
 
 echo [2/2] Copiando a versao nova...
 robocopy "%ORIGEM%" "%DESTINO%" /E /XF .env /XD app /NFL /NDL /NJH /NJS /NP >nul

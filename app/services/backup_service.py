@@ -29,7 +29,7 @@ import subprocess
 import uuid
 import zipfile
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -240,6 +240,57 @@ def restaurar_backup(usuario_logado: UsuarioAutenticado, caminho_arquivo_zip: st
         shutil.rmtree(pasta_temporaria, ignore_errors=True)
 
 
+# Quantos dias sem backup agendado até os outros computadores voltarem a
+# fazer o backup automático por conta própria (rede de segurança para o
+# caso de o agendamento do servidor parar de rodar).
+DIAS_DE_TOLERANCIA_DO_AGENDAMENTO = 2
+
+
+def servidor_esta_fazendo_o_backup(hoje: Optional[date] = None) -> bool:
+    """True se o backup agendado do servidor rodou nos últimos dias.
+
+    Enquanto for True, os outros computadores não fazem o backup automático
+    ao abrir o sistema. Passados ``DIAS_DE_TOLERANCIA_DO_AGENDAMENTO`` dias
+    sem o agendamento rodar, volta a ser False e eles reassumem.
+    """
+    ultima = configuracao_service.obter_data_ultimo_backup_agendado()
+    if ultima is None:
+        return False
+    hoje = hoje or date.today()
+    return (hoje - ultima) <= timedelta(days=DIAS_DE_TOLERANCIA_DO_AGENDAMENTO)
+
+
+def fazer_backup_agendado(forcar: bool = False) -> Optional[BackupResultado]:
+    """Backup diário feito pelo agendamento do Windows no servidor.
+
+    Chamado pelo ``BackupAgendado.exe`` (``app.scripts.backup_agendado``),
+    sem ninguém logado no sistema — por isso não recebe usuário. Faz no
+    máximo um backup por dia, não importa quantas vezes o agendamento
+    dispare (horário marcado, computador que acabou de ligar etc.).
+
+    Salva na pasta de backup configurada e, se este computador tiver uma
+    pasta da nuvem, copia para ela (``nuvem_service``).
+
+    Args:
+        forcar: Faz o backup mesmo que o de hoje já tenha sido feito.
+
+    Returns:
+        O :class:`BackupResultado`, ou None se o de hoje já estava feito.
+
+    Raises:
+        FerramentaBackupNaoEncontradaError: Se ``pg_dump`` não for encontrado.
+        BackupError: Se ``pg_dump`` falhar.
+    """
+    hoje = date.today()
+    if not forcar and configuracao_service.obter_data_ultimo_backup_agendado() == hoje:
+        return None
+
+    resultado = _executar_backup(pasta_destino=None)
+    configuracao_service.definir_data_ultimo_backup_agendado(hoje)
+    configuracao_service.definir_data_ultimo_backup_automatico(hoje)
+    return resultado
+
+
 def _backup_local_de_hoje() -> Optional[Path]:
     """O backup mais recente de hoje na pasta de backup configurada, se existir."""
     pasta = Path(configuracao_service.obter_pasta_backup())
@@ -260,6 +311,11 @@ def verificar_e_executar_backup_automatico_se_necessario() -> Optional[BackupRes
         O :class:`BackupResultado`, se um backup foi executado agora; None
         se o backup de hoje já tinha sido feito anteriormente.
     """
+    if servidor_esta_fazendo_o_backup():
+        # O agendamento do servidor cuida do backup diário: este computador
+        # não faz o dele, para os arquivos não ficarem espalhados.
+        return None
+
     ultima_data = configuracao_service.obter_data_ultimo_backup_automatico()
     hoje = date.today()
 

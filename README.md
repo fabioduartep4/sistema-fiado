@@ -105,8 +105,17 @@ pré-visualização antes:
 
 ### Backup
 
-- **Automático**: uma vez por dia, verificado ao abrir o sistema e enquanto
-  ele estiver aberto.
+- **Automático**: uma vez por dia. Sem o agendamento do servidor (abaixo),
+  quem faz é o primeiro computador que abre o sistema no dia — e o arquivo
+  fica no disco dele, então os backups acabam espalhados pelas máquinas.
+- **Agendado no servidor (recomendado)**: no computador onde o banco fica,
+  rode uma vez o **`instalar_backup_agendado.bat`** (está na pasta do
+  sistema) e escolha um horário. O Windows passa a rodar o
+  `BackupAgendado.exe` todo dia nesse horário — ou assim que o computador
+  ligar, se estava desligado —, sem ninguém abrir o sistema. Os outros
+  computadores param de fazer o backup automático; se o agendamento ficar
+  mais de 2 dias sem rodar, eles reassumem e a tela Backups avisa em
+  vermelho. Para desinstalar: `instalar_backup_agendado.bat remover`.
 - **Manual** e **restauração**: na tela Backups.
 - Usa `pg_dump` e `psql`, que precisam estar instalados (vêm com o
   PostgreSQL) e no PATH do computador.
@@ -125,6 +134,10 @@ guardados os **30 mais recentes**; os mais antigos são apagados da pasta. Se
 o backup do dia tiver sido feito por outro computador, o que tem a pasta da
 nuvem manda um mesmo assim. A tela Backups mostra quando foi a última cópia
 — ou o erro, se ela falhou (o backup local é feito do mesmo jeito).
+
+Com o backup agendado no servidor, o ideal é configurar a pasta do Google
+Drive **no próprio servidor**: abra o sistema lá uma vez e escolha a pasta
+em Backups. Daí em diante o backup do dia sai e vai para a nuvem sozinho.
 
 O sistema só copia para a pasta: quem envia para a nuvem é o aplicativo do
 Google, que precisa estar aberto e conectado. Para restaurar, baixe o
@@ -213,6 +226,8 @@ Assim os computadores não precisam ter Python.
 4. Servidor novo: rode `preparar_banco.bat` e depois
    `CriarUsuarioAdmin.exe` para criar o primeiro login. Isso é feito uma
    vez por servidor, não por computador.
+   No servidor, rode também `instalar_backup_agendado.bat`, para o backup
+   diário sair sozinho (ver "Backup").
 5. Abra o **`SistemaFiado.exe`**.
 
 ### Atualizar um computador que já tem o sistema

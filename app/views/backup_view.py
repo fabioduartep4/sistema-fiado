@@ -97,12 +97,16 @@ class BackupView(QWidget):
         self._label_status_nuvem.setWordWrap(True)
 
         aviso = QLabel(
-            "O backup automático diário roda em segundo plano ao abrir o sistema. "
-            "Requer que 'pg_dump' e 'psql' (ferramentas do PostgreSQL) estejam "
-            "instalados e no PATH deste computador."
+            "Backup e restauração requerem que 'pg_dump' e 'psql' (ferramentas do "
+            "PostgreSQL) estejam instalados e no PATH do computador que os executa."
         )
         aviso.setWordWrap(True)
         aviso.setProperty("papel", "secundario")
+
+        # Quem está fazendo o backup diário: o agendamento do servidor, ou
+        # (sem ele) o primeiro computador que abre o sistema no dia.
+        self._label_backup_diario = QLabel()
+        self._label_backup_diario.setWordWrap(True)
 
         layout = QVBoxLayout()
         layout.addWidget(titulo)
@@ -113,6 +117,7 @@ class BackupView(QWidget):
         layout.addWidget(botao_backup_manual)
         layout.addWidget(botao_restaurar)
         layout.addSpacing(12)
+        layout.addWidget(self._label_backup_diario)
         layout.addWidget(aviso)
         layout.addSpacing(16)
         layout.addWidget(titulo_nuvem)
@@ -125,6 +130,44 @@ class BackupView(QWidget):
 
         self._carregar_pasta_atual()
         self._carregar_status_nuvem()
+        self._carregar_status_backup_diario()
+
+    def _definir_texto_com_papel(self, label: QLabel, texto: str, papel: str) -> None:
+        label.setText(texto)
+        label.setProperty("papel", papel)
+        # A cor vem do "papel": o estilo precisa ser reaplicado quando ele muda.
+        label.style().unpolish(label)
+        label.style().polish(label)
+
+    def _carregar_status_backup_diario(self) -> None:
+        try:
+            ultimo = self._controller.data_ultimo_backup_agendado()
+            ativo = self._controller.servidor_esta_fazendo_o_backup()
+        except Exception:
+            logger.exception("Falha ao consultar o backup agendado do servidor.")
+            self._definir_texto_com_papel(self._label_backup_diario, "", "secundario")
+            return
+
+        if ativo:
+            texto = (
+                f"Backup diário: feito pelo agendamento do servidor (último em {ultimo:%d/%m/%Y}). "
+                "Os outros computadores não fazem backup automático."
+            )
+            papel = "sucesso"
+        elif ultimo is not None and ultimo.year > 2000:
+            texto = (
+                f"ATENÇÃO: o backup agendado do servidor não roda desde {ultimo:%d/%m/%Y}. "
+                "Enquanto isso, o backup diário volta a ser feito pelo primeiro computador "
+                "que abre o sistema. Confira a tarefa no Agendador de Tarefas do servidor."
+            )
+            papel = "perigo"
+        else:
+            texto = (
+                "Backup diário: feito pelo primeiro computador que abre o sistema no dia. "
+                "Para o servidor fazer sozinho, rode lá o \"instalar_backup_agendado.bat\"."
+            )
+            papel = "secundario"
+        self._definir_texto_com_papel(self._label_backup_diario, texto, papel)
 
     # -- Cópia na nuvem --------------------------------------------------------
 
@@ -145,11 +188,7 @@ class BackupView(QWidget):
         else:
             texto = "Ainda nenhum backup foi copiado. O próximo backup já vai para a nuvem."
             papel = "secundario"
-        self._label_status_nuvem.setText(texto)
-        self._label_status_nuvem.setProperty("papel", papel)
-        # A cor vem do "papel": o estilo precisa ser reaplicado quando ele muda.
-        self._label_status_nuvem.style().unpolish(self._label_status_nuvem)
-        self._label_status_nuvem.style().polish(self._label_status_nuvem)
+        self._definir_texto_com_papel(self._label_status_nuvem, texto, papel)
 
     def _salvar_pasta_nuvem(self, pasta: str | None) -> None:
         try:

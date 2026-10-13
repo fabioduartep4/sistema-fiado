@@ -38,6 +38,7 @@ copy /y preparar_banco.bat dist\SistemaFiado\ >nul
 copy /y provisionar_banco.sql dist\SistemaFiado\ >nul
 copy /y criar_admin_emergencia.sql dist\SistemaFiado\ >nul
 copy /y atualizar_instalacao.bat dist\SistemaFiado\ >nul
+copy /y instalar_backup_agendado.bat dist\SistemaFiado\ >nul
 
 REM A pasta "build" e so rascunho do PyInstaller: os .exe que ficam la dentro
 REM NAO funcionam (falta a DLL do Python). Apaga para ninguem abrir o errado.
@@ -50,6 +51,7 @@ echo ============================================
 echo Os executaveis estao em dist\SistemaFiado\:
 echo  - SistemaFiado.exe        (o programa)
 echo  - CriarUsuarioAdmin.exe   (cria o 1o usuario administrador)
+echo  - BackupAgendado.exe      (backup diario sem abrir o sistema)
 echo.
 echo ATENCAO: use SEMPRE os .exe de dentro de dist\SistemaFiado.
 echo.
@@ -63,6 +65,8 @@ echo    2) rode "CriarUsuarioAdmin.exe" (cria o 1o login do sistema)
 echo    3) abra "SistemaFiado.exe" e logue com o usuario criado
 echo  - Se o computador JA tem o sistema instalado (atualizacao): rode
 echo    "atualizar_instalacao.bat" e informe a pasta instalada. Nao cole por cima.
+echo  - No computador onde o banco fica (servidor): rode
+echo    "instalar_backup_agendado.bat" uma vez, para o backup diario rodar sozinho.
 echo  - Se for so mais um computador se conectando a um servidor que os
 echo    outros ja usam, pule os passos acima e abra o SistemaFiado.exe direto.
 echo.

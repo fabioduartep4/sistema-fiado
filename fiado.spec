@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Especificação do PyInstaller para o Sistema de Gestão de Fiado.
 
-Gera uma pasta (modo --onedir) com dois executáveis e todas as
+Gera uma pasta (modo --onedir) com três executáveis e todas as
 dependências — inicialização mais rápida e mais confiável para aplicações
 Qt do que o modo --onefile (que extrai tudo para uma pasta temporária a
 cada abertura):
@@ -12,7 +12,11 @@ cada abertura):
   app/scripts/criar_usuario_admin.py) — sem isso, não haveria como logar
   pela primeira vez num banco vazio sem ter Python instalado.
 
-Os dois compartilham as mesmas bibliotecas na mesma pasta de saída (via
+- ``BackupAgendado.exe``: faz o backup do dia sem abrir o sistema, para o
+  Agendador de Tarefas do Windows (ver app/scripts/backup_agendado.py e
+  instalar_backup_agendado.bat). Sem janela: o resultado vai para o log.
+
+Os três compartilham as mesmas bibliotecas na mesma pasta de saída (via
 ``MERGE``), então não duplicam espaço em disco.
 
 Uso (a partir da raiz do projeto, no Windows):
@@ -89,13 +93,32 @@ a_admin = Analysis(
     cipher=block_cipher,
 )
 
+a_backup = Analysis(
+    ["app/scripts/backup_agendado.py"],
+    pathex=[],
+    binaries=[],
+    datas=[
+        ("alembic.ini", "."),
+        ("app/database/migrations", "app/database/migrations"),
+    ],
+    hiddenimports=hidden_imports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    cipher=block_cipher,
+)
+
 MERGE(
     (a_app, "SistemaFiado", "SistemaFiado"),
     (a_admin, "CriarUsuarioAdmin", "CriarUsuarioAdmin"),
+    (a_backup, "BackupAgendado", "BackupAgendado"),
 )
 
 pyz_app = PYZ(a_app.pure, a_app.zipped_data, cipher=block_cipher)
 pyz_admin = PYZ(a_admin.pure, a_admin.zipped_data, cipher=block_cipher)
+pyz_backup = PYZ(a_backup.pure, a_backup.zipped_data, cipher=block_cipher)
 
 exe_app = EXE(
     pyz_app,
@@ -135,6 +158,25 @@ exe_admin = EXE(
     entitlements_file=None,
 )
 
+exe_backup = EXE(
+    pyz_backup,
+    a_backup.scripts,
+    [],
+    exclude_binaries=True,
+    name="BackupAgendado",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,  # roda pelo Agendador de Tarefas: sem janela piscando na tela
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon="app/assets/icon.ico",
+)
+
 coll = COLLECT(
     exe_app,
     a_app.binaries,
@@ -144,6 +186,10 @@ coll = COLLECT(
     a_admin.binaries,
     a_admin.zipfiles,
     a_admin.datas,
+    exe_backup,
+    a_backup.binaries,
+    a_backup.zipfiles,
+    a_backup.datas,
     strip=False,
     upx=True,
     upx_exclude=[],
