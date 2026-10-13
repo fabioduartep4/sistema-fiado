@@ -15,7 +15,7 @@ diário, e registra os atalhos de teclado globais do sistema.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QThread, QTimer, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
@@ -41,6 +41,7 @@ from app.views.relatorio_view import RelatorioView
 from app.views.saldos_view import SaldosView
 from app.views.xml_importacao_view import ImportarXmlDialog
 from app.utils.icons import icone
+from app.versao import VERSAO
 
 _INTERVALO_VERIFICACAO_BACKUP_MS = 60 * 60 * 1000  # verifica a cada hora
 _LARGURA_SIDEBAR = 230
@@ -192,6 +193,11 @@ class MainWindow(QMainWindow):
         botao_sair.setIcon(icone("LOGOUT"))
         botao_sair.clicked.connect(self._sair)
         layout.addWidget(botao_sair)
+
+        label_versao = QLabel(f"Versão {VERSAO}")
+        label_versao.setProperty("papel", "secundario")
+        label_versao.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label_versao)
 
         # A primeira aba disponível abre selecionada (Início pra
         # Administrador, Clientes pra Funcionário — não há Início pra

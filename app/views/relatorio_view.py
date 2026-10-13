@@ -122,6 +122,40 @@ class LembreteWhatsAppDialog(QDialog):
         self.accept()
 
 
+# Quantas linhas cada tabela do Histórico traz por vez.
+_TAMANHO_PAGINA = 200
+
+
+class _Paginacao:
+    """Botão "Carregar mais" de uma tabela do Histórico.
+
+    As tabelas trazem as ``_TAMANHO_PAGINA`` linhas mais recentes. Quando
+    vêm todas elas (sinal de que pode haver mais), o botão aparece e cada
+    clique traz mais uma leva. "Atualizar" e mudança de filtro voltam ao
+    tamanho inicial.
+    """
+
+    def __init__(self, recarregar) -> None:
+        self.limite = _TAMANHO_PAGINA
+        self._recarregar = recarregar
+        self.botao = QPushButton(f"Carregar mais {_TAMANHO_PAGINA}")
+        self.botao.setIcon(icone("CHEVRON_DOWN"))
+        self.botao.setVisible(False)
+        self.botao.clicked.connect(self._carregar_mais)
+
+    def _carregar_mais(self) -> None:
+        self.limite += _TAMANHO_PAGINA
+        self._recarregar()
+
+    def reiniciar_e_recarregar(self) -> None:
+        self.limite = _TAMANHO_PAGINA
+        self._recarregar()
+
+    def atualizar(self, quantidade_carregada: int) -> None:
+        """Chamar depois de preencher a tabela, com quantas linhas vieram."""
+        self.botao.setVisible(quantidade_carregada >= self.limite)
+
+
 class RelatorioView(QWidget):
     """Tela com as sub-abas de histórico."""
 
@@ -166,9 +200,11 @@ class RelatorioView(QWidget):
         self._campo_tipo_mov = QComboBox()
         self._campo_tipo_mov.addItems(_TIPOS_FILTRO)
 
+        self._paginacao_mov = _Paginacao(self._carregar_movimentacoes)
+
         botao_atualizar = QPushButton("Atualizar")
         botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_movimentacoes)
+        botao_atualizar.clicked.connect(self._paginacao_mov.reiniciar_e_recarregar)
 
         layout_filtro = QHBoxLayout()
         layout_filtro.addWidget(QLabel("De:"))
@@ -194,6 +230,7 @@ class RelatorioView(QWidget):
         layout.addLayout(layout_filtro)
         layout.addWidget(self._tabela_movimentacoes)
         layout.addWidget(self._label_movimentacoes_vazio)
+        layout.addWidget(self._paginacao_mov.botao)
 
         self._carregar_movimentacoes()
         return pagina
@@ -207,7 +244,11 @@ class RelatorioView(QWidget):
 
         try:
             registros = self._controller.listar_movimentacoes(
-                data_inicio=data_inicio, data_fim=data_fim, cliente_nome=cliente_nome, tipo=tipo
+                limite=self._paginacao_mov.limite,
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                cliente_nome=cliente_nome,
+                tipo=tipo,
             )
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível carregar as movimentações", str(exc))
@@ -233,6 +274,7 @@ class RelatorioView(QWidget):
             self._tabela_movimentacoes.setItem(linha, 4, QTableWidgetItem(registro.usuario_nome))
 
         aplicar_estado_vazio(self._tabela_movimentacoes, self._label_movimentacoes_vazio)
+        self._paginacao_mov.atualizar(len(registros))
 
     # -- Sub-aba: Alterações ---------------------------------------------------
 
@@ -241,11 +283,14 @@ class RelatorioView(QWidget):
 
         self._campo_filtro_entidade = QComboBox()
         self._campo_filtro_entidade.addItems(_ENTIDADES_FILTRO)
-        self._campo_filtro_entidade.currentTextChanged.connect(self._carregar_historico)
+        self._paginacao_historico = _Paginacao(self._carregar_historico)
+        self._campo_filtro_entidade.currentTextChanged.connect(
+            lambda _texto: self._paginacao_historico.reiniciar_e_recarregar()
+        )
 
         botao_atualizar = QPushButton("Atualizar")
         botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_historico)
+        botao_atualizar.clicked.connect(self._paginacao_historico.reiniciar_e_recarregar)
 
         self._tabela_historico = QTableWidget(0, 3)
         self._tabela_historico.setHorizontalHeaderLabels(["Data/Hora", "Ação", "Usuário"])
@@ -261,6 +306,7 @@ class RelatorioView(QWidget):
         layout = QVBoxLayout(pagina)
         layout.addLayout(layout_filtro)
         layout.addWidget(self._tabela_historico)
+        layout.addWidget(self._paginacao_historico.botao)
 
         self._carregar_historico()
         return pagina
@@ -270,7 +316,9 @@ class RelatorioView(QWidget):
         filtro = None if entidade == "Todas" else entidade
 
         try:
-            registros = self._controller.listar_historico(entidade=filtro)
+            registros = self._controller.listar_historico(
+                entidade=filtro, limite=self._paginacao_historico.limite
+            )
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível carregar o histórico", str(exc))
             return
@@ -286,15 +334,18 @@ class RelatorioView(QWidget):
             )
             self._tabela_historico.setItem(linha, 1, QTableWidgetItem(registro.descricao))
             self._tabela_historico.setItem(linha, 2, QTableWidgetItem(registro.usuario_nome))
+        self._paginacao_historico.atualizar(len(registros))
 
     # -- Sub-aba: Log de Erros -----------------------------------------------
 
     def _construir_aba_log_erros(self) -> QWidget:
         pagina = QWidget()
 
+        self._paginacao_log = _Paginacao(self._carregar_log_erros)
+
         botao_atualizar = QPushButton("Atualizar")
         botao_atualizar.setIcon(icone("REFRESH"))
-        botao_atualizar.clicked.connect(self._carregar_log_erros)
+        botao_atualizar.clicked.connect(self._paginacao_log.reiniciar_e_recarregar)
 
         self._tabela_log_erros = QTableWidget(0, 3)
         self._tabela_log_erros.setHorizontalHeaderLabels(["Data/Hora", "Usuário", "Erro"])
@@ -306,6 +357,7 @@ class RelatorioView(QWidget):
         layout.addWidget(QLabel("Dê duplo clique em um erro para ver o stacktrace completo."))
         layout.addWidget(botao_atualizar)
         layout.addWidget(self._tabela_log_erros)
+        layout.addWidget(self._paginacao_log.botao)
 
         self._log_erros_carregados: list = []
         self._carregar_log_erros()
@@ -313,7 +365,7 @@ class RelatorioView(QWidget):
 
     def _carregar_log_erros(self) -> None:
         try:
-            registros = self._controller.listar_log_erros()
+            registros = self._controller.listar_log_erros(limite=self._paginacao_log.limite)
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível carregar o log de erros", str(exc))
             return
@@ -330,6 +382,7 @@ class RelatorioView(QWidget):
             )
             self._tabela_log_erros.setItem(linha, 1, QTableWidgetItem(registro.usuario))
             self._tabela_log_erros.setItem(linha, 2, QTableWidgetItem(registro.erro))
+        self._paginacao_log.atualizar(len(registros))
 
     def _exibir_stacktrace(self) -> None:
         linha = self._tabela_log_erros.currentRow()

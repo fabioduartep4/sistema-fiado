@@ -8,6 +8,8 @@ __pycache__/
 
 # Dados gerados em tempo de execução (contêm dados reais de clientes)
 app/backups/*.zip
+backup_fiado_*.zip
+backups/
 app/logs/*.log
 
 # Build do executável (PyInstaller)

@@ -90,6 +90,7 @@ def registrar_pagamento(
         if cliente is None or not cliente.ativo:
             raise ValueError("Cliente não encontrado.")
 
+        cliente_repository.travar_conta(session, cliente.id)
         compras_abertas = compra_repository.listar_em_aberto_por_cliente(session, cliente.id)
         if not compras_abertas:
             raise ValueError("Este cliente não possui contas em aberto.")
@@ -293,6 +294,11 @@ def estornar_pagamento(usuario_logado: UsuarioAutenticado, pagamento_id: str) ->
     with session_scope() as session:
         pagamento = pagamento_repository.buscar_por_id(session, uuid.UUID(pagamento_id))
         if pagamento is None or not pagamento.ativo:
+            raise ValueError("Pagamento não encontrado ou já estornado.")
+
+        cliente_repository.travar_conta(session, pagamento.cliente_id)
+        session.refresh(pagamento)  # outro computador pode ter estornado enquanto esperávamos a trava
+        if not pagamento.ativo:
             raise ValueError("Pagamento não encontrado ou já estornado.")
 
         aplicacoes = pagamento_repository.listar_aplicacoes(session, pagamento.id)

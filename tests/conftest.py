@@ -6,15 +6,19 @@ Os testes são divididos em duas categorias:
   não tocam no banco de dados nem no PySide6. Rodam sempre, em qualquer
   máquina com as dependências instaladas.
 - **Testes de integração** (ex.: ``test_pagamento_service_fifo.py``):
-  exercitam a camada de serviço de verdade, contra o PostgreSQL
-  configurado em ``.env``. Por segurança, **só rodam se a variável de
-  ambiente ``RODAR_TESTES_INTEGRACAO`` estiver definida como "1"** — um
-  ``pytest`` comum roda só os testes puros, para nunca gravar dados de
-  teste sem querer no banco configurado.
+  exercitam a camada de serviço de verdade, contra um PostgreSQL. **Só
+  rodam se a variável de ambiente ``RODAR_TESTES_INTEGRACAO`` estiver
+  definida como "1"** — um ``pytest`` comum roda só os testes puros.
 
-Para rodar TUDO, inclusive os testes de integração (aponte o ``.env``
-para um banco de testes descartável, não para o banco de produção da
-loja, já que esses testes criam e apagam usuários/clientes de verdade):
+**Os testes de integração nunca gravam no banco da loja.** Eles usam um
+banco separado, no mesmo servidor do ``.env``, com o nome do banco
+configurado mais o sufixo ``_teste`` (ex.: ``fiado_db`` → ``fiado_db_teste``).
+Esse banco é criado sozinho na primeira vez (o usuário do ``.env`` precisa
+poder criar bancos) e as tabelas dele são criadas/atualizadas a cada
+execução. Se ``DB_NAME`` já for um banco de testes (termina em ``_teste``,
+``_test`` ou ``_ci``, como no CI), é usado como está.
+
+Para rodar TUDO, inclusive os testes de integração:
 
     # Linux/Mac
     RODAR_TESTES_INTEGRACAO=1 pytest
@@ -38,7 +42,55 @@ _RODAR_INTEGRACAO = os.getenv("RODAR_TESTES_INTEGRACAO") == "1"
 
 _SENHA_USUARIO_TESTE = "senha-teste-automatizado-123"
 
+_SUFIXOS_BANCO_DE_TESTE = ("_teste", "_test", "_ci")
+
+
+def _preparar_banco_de_testes() -> None:
+    """Aponta a aplicação para o banco de testes, criando-o se ainda não existir.
+
+    Precisa rodar ANTES de qualquer import de ``app.*``: é ``app.config.settings``
+    que lê ``DB_NAME``, uma única vez, quando é importado.
+    """
+    from pathlib import Path
+
+    import psycopg
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+    nome = os.environ["DB_NAME"]
+    if not nome.endswith(_SUFIXOS_BANCO_DE_TESTE):
+        nome = f"{nome}_teste"
+        os.environ["DB_NAME"] = nome
+
+    with psycopg.connect(
+        host=os.environ["DB_HOST"],
+        port=os.environ.get("DB_PORT", "5432"),
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        dbname="postgres",
+        autocommit=True,
+    ) as conexao:
+        existe = conexao.execute("SELECT 1 FROM pg_database WHERE datname = %s", (nome,)).fetchone()
+        if not existe:
+            conexao.execute(psycopg.sql.SQL("CREATE DATABASE {}").format(psycopg.sql.Identifier(nome)))
+
+    from app.config.settings import settings
+    from app.database.migrar import aplicar_esquema_banco
+
+    # Última trava: se por qualquer motivo a aplicação não estiver apontando
+    # para um banco de testes, para tudo antes de gravar uma linha sequer.
+    if not settings.database.name.endswith(_SUFIXOS_BANCO_DE_TESTE):
+        raise RuntimeError(
+            f"Os testes de integração iam rodar no banco '{settings.database.name}', "
+            "que não é um banco de testes. Abortado."
+        )
+    aplicar_esquema_banco()
+
+
 if _RODAR_INTEGRACAO:
+    _preparar_banco_de_testes()
+
     # Fora do app.main (que registra isso na inicialização), os listeners
     # que preenchem as colunas normalizadas de busca (nome_principal_normalizado
     # etc.) nunca são ligados — sem isso, testes de integração que dependem de

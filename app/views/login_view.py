@@ -17,6 +17,7 @@ from app.config.logging_config import logger
 from app.controllers.login_controller import LoginController
 from app.services.auth_service import CredenciaisInvalidasError, UsuarioAutenticado
 from app.utils.icons import icone
+from app.versao import VERSAO
 
 
 class LoginView(QDialog):
@@ -33,7 +34,7 @@ class LoginView(QDialog):
         self._controller = LoginController()
         self.usuario_autenticado: UsuarioAutenticado | None = None
 
-        self.setWindowTitle("Sistema de Fiado — Login")
+        self.setWindowTitle(f"Sistema de Fiado — Login (versão {VERSAO})")
         self.setMinimumWidth(360)
         self.setModal(True)
 

@@ -362,13 +362,27 @@ class FichaClienteView(QDialog):
         if self._ficha is None:
             return
 
-        resposta = QMessageBox.question(
-            self,
-            "Confirmar exclusão",
-            f"Deseja realmente excluir a conta de '{self._ficha.nome_principal}'?\n\n"
-            "O histórico e as compras não serão apagados, mas o cliente deixará de "
-            "aparecer nas buscas.",
-        )
+        nome = self._ficha.nome_principal
+        saldo = self._ficha.total_em_aberto
+        if saldo > 0:
+            resposta = QMessageBox.warning(
+                self,
+                "Cliente com saldo em aberto",
+                f"ATENÇÃO: '{nome}' ainda deve {formatar_reais(saldo)}.\n\n"
+                "Se a conta for excluída, essa dívida deixa de aparecer nos saldos e nas "
+                "buscas (o histórico e as compras não são apagados).\n\n"
+                "Deseja excluir mesmo assim?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+        else:
+            resposta = QMessageBox.question(
+                self,
+                "Confirmar exclusão",
+                f"Deseja realmente excluir a conta de '{nome}'?\n\n"
+                "O histórico e as compras não serão apagados, mas o cliente deixará de "
+                "aparecer nas buscas.",
+            )
         if resposta != QMessageBox.StandardButton.Yes:
             return
 
