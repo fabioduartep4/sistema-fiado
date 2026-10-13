@@ -42,6 +42,7 @@ from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.views.componentes import (
     TAMANHO_DIALOGO_LANCAMENTO,
+    TAMANHO_MINIMO_DIALOGO_LANCAMENTO,
     CampoBuscaClienteWidget,
     desligar_botao_padrao,
 )
@@ -241,7 +242,7 @@ class AdicionarCompraDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Adicionar Compra — {nome_principal}" if nome_principal else "Adicionar Compra")
-        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.setMinimumSize(*TAMANHO_MINIMO_DIALOGO_LANCAMENTO)
         self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None

@@ -45,6 +45,7 @@ from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
 from app.views.componentes import (
     TAMANHO_DIALOGO_LANCAMENTO,
+    TAMANHO_MINIMO_DIALOGO_LANCAMENTO,
     CampoBuscaClienteWidget,
     desligar_botao_padrao,
 )
@@ -393,7 +394,7 @@ class ReceberContaDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Receber Conta — {nome_principal}" if nome_principal else "Receber Conta")
-        self.setMinimumSize(*TAMANHO_DIALOGO_LANCAMENTO)
+        self.setMinimumSize(*TAMANHO_MINIMO_DIALOGO_LANCAMENTO)
         self.resize(*TAMANHO_DIALOGO_LANCAMENTO)
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
