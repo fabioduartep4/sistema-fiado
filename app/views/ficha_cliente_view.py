@@ -125,6 +125,8 @@ class FichaClienteView(QDialog):
         label_extrato.setProperty("papel", "subtitulo")
 
         self._lista_extrato = QListWidget()
+        # O extrato é o que mais se lê nesta tela: fonte um pouco maior que o padrão (13px).
+        self._lista_extrato.setStyleSheet("font-size: 16px;")
         self._lista_extrato.itemSelectionChanged.connect(self._atualizar_botao_ver_produtos)
 
         self._botao_ver_produtos = BotaoVerProdutos(XmlImportacaoController(usuario_logado))
