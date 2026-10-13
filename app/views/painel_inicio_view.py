@@ -665,9 +665,8 @@ class PainelInicioView(QWidget):
             return
         for item in itens:
             sinal = "+" if item.tipo == "Venda" else "-"
-            marca_estorno = " [Estornado]" if item.estornado else ""
             texto = (
                 f"{item.data_hora.strftime('%d/%m %H:%M')} — {item.cliente_nome} — "
-                f"{item.tipo}: {sinal} {formatar_reais(item.valor)}{marca_estorno}"
+                f"{item.tipo}: {sinal} {formatar_reais(item.valor)}{item.marca}"
             )
             self._lista_movimentacoes.addItem(texto)

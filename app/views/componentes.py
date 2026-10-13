@@ -18,13 +18,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
+from app.config.logging_config import logger
 from app.controllers.cliente_controller import ClienteController
+from app.controllers.compra_controller import CompraController
 from app.services.cliente_service import ClienteBusca
+from app.utils.exceptions import ErroDeNegocio
+from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.views.busca_cliente_worker import BuscaClienteWorker
 
@@ -135,7 +140,7 @@ class CampoBuscaClienteWidget(QWidget):
     def __init__(
         self,
         controller: ClienteController,
-        placeholder: str = "Digite o nome do cliente...",
+        placeholder: str = "Nome, código ou telefone do cliente...",
         mostrar_pendente_confirmacao: bool = False,
         parent: QWidget | None = None,
     ) -> None:
@@ -221,3 +226,42 @@ class CampoBuscaClienteWidget(QWidget):
         if not dados:
             return
         self.resultado_ativado.emit(*dados)
+
+
+def confirmar_e_cancelar_compra(parent: QWidget, usuario_logado, compra) -> bool:
+    """Pergunta e cancela uma compra em aberto lançada errada (só Administrador).
+
+    Usado pela Ficha do Cliente e pelo Histórico do cliente.
+
+    Args:
+        parent: Janela "dona" das mensagens.
+        usuario_logado: Usuário autenticado.
+        compra: ``CompraResumo`` da compra selecionada.
+
+    Returns:
+        True se a compra foi cancelada (a tela deve recarregar).
+    """
+    resposta = QMessageBox.question(
+        parent,
+        "Cancelar compra",
+        f"Cancelar a compra de {formatar_reais(compra.valor)} do dia "
+        f"{compra.data.strftime('%d/%m/%Y')}?\n\n"
+        "Ela sai da conta do cliente e fica registrada no Histórico como cancelada. "
+        "Para corrigir o valor, cancele e lance de novo.",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if resposta != QMessageBox.StandardButton.Yes:
+        return False
+
+    try:
+        CompraController(usuario_logado).cancelar(compra.id)
+    except (ErroDeNegocio, ValueError) as exc:
+        QMessageBox.warning(parent, "Não foi possível cancelar a compra", str(exc))
+        return False
+    except Exception:
+        logger.exception("Falha inesperada ao cancelar a compra %s.", compra.id)
+        QMessageBox.critical(parent, "Erro inesperado", "Não foi possível cancelar a compra.")
+        return False
+    return True
+

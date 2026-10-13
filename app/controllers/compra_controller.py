@@ -42,3 +42,7 @@ class CompraController:
         return compra_service.registrar_compra(
             self.usuario_logado, cliente_id, valor, data_compra, comprador_id, observacoes
         )
+
+    def cancelar(self, compra_id: str) -> None:
+        """Cancela uma compra em aberto lançada errada (só Administrador)."""
+        compra_service.cancelar_compra(self.usuario_logado, compra_id)

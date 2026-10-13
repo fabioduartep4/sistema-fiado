@@ -283,3 +283,36 @@ def test_funcionario_nao_pode_listar_clientes_com_status(usuario_admin_teste) ->
             cliente_service.listar_clientes_com_status(usuario_funcionario)
     finally:
         usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)
+
+
+def test_busca_por_codigo_e_por_telefone(usuario_admin_teste) -> None:
+    import uuid as _uuid
+
+    # Telefone único por execução, para não casar com sobras de execuções anteriores.
+    telefone = "359" + str(_uuid.uuid4().int)[:8]
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Busca Telefone", [], [f"({telefone[:2]}) {telefone[2:]}"], []
+    )
+    try:
+        codigo = cliente_service.obter_ficha(cliente.id).id_visivel
+
+        por_codigo = cliente_service.buscar_clientes(str(codigo))
+        assert por_codigo[0].id == cliente.id  # o código digitado vem sempre em primeiro
+        assert por_codigo[0].nome_alternativo_encontrado == f"código {codigo}"
+
+        por_telefone = cliente_service.buscar_clientes(telefone[3:])  # só um pedaço do número
+        assert [c.id for c in por_telefone] == [cliente.id]
+        assert por_telefone[0].nome_alternativo_encontrado.startswith("tel. ")
+
+        formatado = cliente_service.buscar_clientes(f"({telefone[:2]}) {telefone[2:7]}-{telefone[7:]}")
+        assert [c.id for c in formatado] == [cliente.id]
+
+        # A tela Clientes do administrador usa outra consulta: tem que achar igual.
+        for termo in (str(codigo), telefone[3:]):
+            status = cliente_service.listar_clientes_com_status(usuario_admin_teste, termo=termo)
+            assert cliente.id in [c.id for c in status]
+
+        # Poucos dígitos não viram busca por telefone (casariam com quase todo mundo).
+        assert cliente.id not in [c.id for c in cliente_service.buscar_clientes(telefone[3:6])] or str(codigo) == telefone[3:6]
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)

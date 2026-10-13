@@ -7,6 +7,7 @@ os pagamentos (inclusive estornados), do mais novo para o mais antigo.
 A partir daqui dá para:
 
 - ver os produtos de uma compra vinda de XML;
+- cancelar uma compra em aberto lançada errada (só Administrador);
 - reimprimir o comprovante de um pagamento (sai marcado como "2ª VIA";
   pagamento estornado não pode ser reimpresso);
 - abrir os detalhes de um pagamento — as compras que ele quitou e o
@@ -38,6 +39,7 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
+from app.views.componentes import confirmar_e_cancelar_compra
 from app.views.historico_pagamentos_view import HistoricoPagamentosDialog
 from app.views.xml_importacao_view import BotaoVerProdutos
 
@@ -76,6 +78,11 @@ class HistoricoClienteDialog(QDialog):
 
         self._botao_ver_produtos = BotaoVerProdutos(XmlImportacaoController(usuario_logado))
 
+        self._botao_cancelar_compra = QPushButton("Cancelar Compra")
+        self._botao_cancelar_compra.setIcon(icone("TRASH_X"))
+        self._botao_cancelar_compra.setVisible(usuario_logado.eh_administrador)
+        self._botao_cancelar_compra.clicked.connect(self._cancelar_compra)
+
         self._botao_reimprimir = QPushButton("Reimprimir Comprovante")
         self._botao_reimprimir.setIcon(icone("PRINTER"))
         self._botao_reimprimir.clicked.connect(self._reimprimir)
@@ -88,11 +95,18 @@ class HistoricoClienteDialog(QDialog):
         botao_fechar.setIcon(icone("X"))
         botao_fechar.clicked.connect(self.accept)
 
-        for botao in (self._botao_ver_produtos, self._botao_reimprimir, self._botao_detalhes, botao_fechar):
+        for botao in (
+            self._botao_ver_produtos,
+            self._botao_cancelar_compra,
+            self._botao_reimprimir,
+            self._botao_detalhes,
+            botao_fechar,
+        ):
             botao.setMinimumHeight(38)
 
         layout_acoes = QHBoxLayout()
         layout_acoes.addWidget(self._botao_ver_produtos)
+        layout_acoes.addWidget(self._botao_cancelar_compra)
         layout_acoes.addWidget(self._botao_reimprimir)
         layout_acoes.addWidget(self._botao_detalhes)
 
@@ -157,6 +171,10 @@ class HistoricoClienteDialog(QDialog):
     def _atualizar_botoes(self) -> None:
         tipo, dado = self._selecionado()
         self._botao_ver_produtos.definir_chave(dado.origem_nfe_xml if tipo == _TIPO_COMPRA else None)
+        # Só compra ainda em aberto e que não seja "Resto" pode ser cancelada.
+        self._botao_cancelar_compra.setEnabled(
+            tipo == _TIPO_COMPRA and dado.status == "aberta" and not dado.eh_resto
+        )
         eh_pagamento = tipo == _TIPO_PAGAMENTO
         self._botao_detalhes.setEnabled(eh_pagamento)
         # Pagamento estornado não vale mais: não se reimprime comprovante dele.
@@ -176,6 +194,11 @@ class HistoricoClienteDialog(QDialog):
             self._usuario_logado, self._cliente_id, self._nome_principal, self
         ).exec()
         self._carregar()  # um estorno muda a lista (pagamento estornado, compras reabertas)
+
+    def _cancelar_compra(self) -> None:
+        tipo, compra = self._selecionado()
+        if tipo == _TIPO_COMPRA and confirmar_e_cancelar_compra(self, self._usuario_logado, compra):
+            self._carregar()
 
     def _reimprimir(self) -> None:
         tipo, pagamento = self._selecionado()

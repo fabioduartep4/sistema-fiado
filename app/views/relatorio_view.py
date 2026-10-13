@@ -58,7 +58,7 @@ from app.utils.whatsapp import montar_link_whatsapp
 # "Compra" não entra aqui: toda entrada de histórico com essa entidade
 # vira a aba "Vendas e Recebimentos" (ver app.repositories.historico_repository.listar),
 # então o filtro nunca teria nada pra mostrar.
-_ENTIDADES_FILTRO = ["Todas", "Cliente", "Pagamento", "Usuario"]
+_ENTIDADES_FILTRO = ["Todas", "Cliente", "Compra", "Pagamento", "Usuario"]
 
 _TIPOS_FILTRO = ["Todos", "Venda", "Recebimento"]
 
@@ -262,14 +262,13 @@ class RelatorioView(QWidget):
 
         self._tabela_movimentacoes.setRowCount(len(registros))
         for linha, registro in enumerate(registros):
-            marca_estorno = " [Estornado]" if registro.estornado else ""
             self._tabela_movimentacoes.setItem(
                 linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M"))
             )
             self._tabela_movimentacoes.setItem(linha, 1, QTableWidgetItem(registro.cliente_nome))
             self._tabela_movimentacoes.setItem(linha, 2, QTableWidgetItem(registro.tipo))
             self._tabela_movimentacoes.setItem(
-                linha, 3, QTableWidgetItem(f"{formatar_reais(registro.valor)}{marca_estorno}")
+                linha, 3, QTableWidgetItem(f"{formatar_reais(registro.valor)}{registro.marca}")
             )
             self._tabela_movimentacoes.setItem(linha, 4, QTableWidgetItem(registro.usuario_nome))
 

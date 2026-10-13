@@ -385,3 +385,78 @@ def test_segundo_pagamento_simultaneo_espera_o_primeiro_e_ve_a_conta_atualizada(
         assert "erro" in resultado and "ok" not in resultado
     finally:
         cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_cancelar_compra_tira_da_conta_e_registra_no_historico(usuario_admin_teste) -> None:
+    import uuid as _uuid
+
+    from app.services import relatorio_service
+
+    # Nome único: o filtro por nome do histórico é "contém", e pegaria clientes
+    # de outros testes/execuções com nome parecido.
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, f"Teste Automatizado Cancelar Compra {_uuid.uuid4().hex[:8]}", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        errada = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("999.00"), hoje, None)
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("10.00"), hoje, None)
+
+        compra_service.cancelar_compra(usuario_admin_teste, errada.id)
+
+        ficha = cliente_service.obter_ficha(cliente.id)
+        assert [c.valor for c in ficha.compras] == [Decimal("10.00")]
+        assert ficha.total_em_aberto == Decimal("10.00")
+
+        alteracoes = relatorio_service.listar_historico(usuario_admin_teste, "Compra", 20)
+        assert any(
+            "Cancelou uma compra de R$ 999,00" in a.descricao and cliente.nome_principal in a.descricao
+            for a in alteracoes
+        )
+        vendas = relatorio_service.listar_historico_vendas(usuario_admin_teste, cliente_nome=cliente.nome_principal)
+        assert {v.valor: v.marca for v in vendas} == {Decimal("999.00"): " [Cancelada]", Decimal("10.00"): ""}
+
+        with pytest.raises(ValueError):  # já cancelada
+            compra_service.cancelar_compra(usuario_admin_teste, errada.id)
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_cancelar_compra_so_admin_e_so_compra_em_aberto(usuario_admin_teste) -> None:
+    import uuid as _uuid
+
+    from app.models.usuario import PerfilUsuario
+    from app.services import auth_service, usuario_service
+    from app.services.usuario_service import PermissaoNegadaError
+
+    login = f"teste_func_cancelar_{_uuid.uuid4().hex[:10]}"
+    funcionario = usuario_service.criar_usuario(
+        usuario_admin_teste, "Funcionário de Teste Cancelar", login, "senha-func-123", PerfilUsuario.FUNCIONARIO
+    )
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Cancelar Compra Regras", [], [], []
+    )
+    hoje = obter_data_padrao()
+    try:
+        usuario_funcionario = auth_service.autenticar(login, "senha-func-123")
+        c20 = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("20.00"), hoje, None)
+        c30 = compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("30.00"), hoje, None)
+
+        with pytest.raises(PermissaoNegadaError):
+            compra_service.cancelar_compra(usuario_funcionario, c20.id)
+
+        pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("40.00"), hoje, None)
+        ficha = cliente_service.obter_ficha(cliente.id)
+        resto = next(c for c in ficha.compras if c.eh_resto)
+
+        with pytest.raises(ValueError):  # já paga
+            compra_service.cancelar_compra(usuario_admin_teste, c20.id)
+        with pytest.raises(ValueError):  # paga em parte (virou quitada + Resto)
+            compra_service.cancelar_compra(usuario_admin_teste, c30.id)
+        with pytest.raises(ValueError):  # conta Resto
+            compra_service.cancelar_compra(usuario_admin_teste, resto.id)
+
+        assert cliente_service.obter_ficha(cliente.id).total_em_aberto == Decimal("10.00")
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+        usuario_service.definir_ativo(usuario_admin_teste, funcionario.id, False)

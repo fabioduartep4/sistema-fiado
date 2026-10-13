@@ -72,7 +72,7 @@ class ClientesView(QWidget):
         subtitulo.setProperty("papel", "secundario")
 
         self._campo_busca = QLineEdit()
-        self._campo_busca.setPlaceholderText("Buscar por nome...")
+        self._campo_busca.setPlaceholderText("Buscar por nome, código ou telefone...")
         self._campo_busca.setMinimumHeight(38)
         self._timer_busca = QTimer(self)
         self._timer_busca.setSingleShot(True)
