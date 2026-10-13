@@ -17,7 +17,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QTimer, Qt
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
@@ -43,7 +43,11 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
-from app.views.componentes import TAMANHO_DIALOGO_LANCAMENTO, CampoBuscaClienteWidget
+from app.views.componentes import (
+    TAMANHO_DIALOGO_LANCAMENTO,
+    CampoBuscaClienteWidget,
+    desligar_botao_padrao,
+)
 
 
 _ROTULO_VALOR_DIGITADO = "Valor pago:"
@@ -139,6 +143,7 @@ class ReceberContaView(QWidget):
         self._campo_valor_pago.setMinimumHeight(36)
         # textEdited só dispara quando é o usuário que digita (não no setText).
         self._campo_valor_pago.textEdited.connect(self._ao_digitar_valor)
+        self._campo_valor_pago.returnPressed.connect(self._confirmar_pagamento)  # Enter confirma
 
         self._campo_data = QDateEdit()
         self._campo_data.setCalendarPopup(True)
@@ -185,6 +190,14 @@ class ReceberContaView(QWidget):
         self._carregar_contas_em_aberto(cliente_id)
 
         self._paginas.setCurrentIndex(1)
+        self._campo_valor_pago.setFocus()  # já pode digitar o valor, sem mouse
+
+    def focar_campo_inicial(self) -> None:
+        """Foco no campo por onde o usuário começa: o valor, ou a busca se ainda não há cliente."""
+        if self._paginas.currentIndex() == 1:
+            self._campo_valor_pago.setFocus()
+        else:
+            self._campo_busca_cliente.focar_campo()
 
     def _voltar_para_busca(self) -> None:
         self._paginas.setCurrentIndex(0)
@@ -395,3 +408,9 @@ class ReceberContaDialog(QDialog):
         layout.addWidget(self._view)
         layout.addWidget(botao_fechar)
         self.setLayout(layout)
+        desligar_botao_padrao(self)
+
+    def showEvent(self, evento) -> None:  # noqa: N802 (nome exigido pelo Qt)
+        super().showEvent(evento)
+        # Só depois de a janela aparecer: antes disso o foco pedido não "pega".
+        QTimer.singleShot(0, self._view.focar_campo_inicial)

@@ -79,6 +79,7 @@ class ClientesView(QWidget):
         self._timer_busca.setInterval(_DEBOUNCE_BUSCA_MS)
         self._timer_busca.timeout.connect(self._carregar)
         self._campo_busca.textChanged.connect(lambda _texto: self._timer_busca.start())
+        self._campo_busca.returnPressed.connect(self._enter_na_busca)
 
         botao_novo_cliente = QPushButton("+ Novo Cliente")
         botao_novo_cliente.setIcon(icone("USER_PLUS"))
@@ -125,7 +126,8 @@ class ClientesView(QWidget):
             self._tabela.setHorizontalHeaderLabels(["Cliente", "Código"])
         self._tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tabela.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._tabela.cellDoubleClicked.connect(self._abrir_ficha_da_linha)
+        # cellActivated cobre os dois: duplo clique e Enter com a linha selecionada.
+        self._tabela.cellActivated.connect(self._abrir_ficha_da_linha)
         ajustar_colunas(self._tabela, 0)  # Cliente
 
         self._label_vazio = QLabel("Nenhum cliente encontrado.")
@@ -254,6 +256,16 @@ class ClientesView(QWidget):
         dialogo = CadastrarClienteDialog(self._usuario_logado, self)
         dialogo.exec()
         self._carregar()
+
+    def _enter_na_busca(self) -> None:
+        """Enter na busca abre a ficha da linha selecionada (ou da primeira)."""
+        if self._timer_busca.isActive():
+            # A tabela ainda é de uma digitação anterior: atualiza antes de abrir.
+            self._timer_busca.stop()
+            self._carregar()
+        if self._tabela.rowCount() == 0:
+            return
+        self._abrir_ficha_da_linha(max(self._tabela.currentRow(), 0), 0)
 
     def focar_busca(self) -> None:
         """Foca o campo de busca (atalho Ctrl+F, acionado pela janela principal)."""
