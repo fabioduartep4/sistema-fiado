@@ -37,6 +37,7 @@ copy /y .env.example dist\SistemaFiado\ >nul
 copy /y preparar_banco.bat dist\SistemaFiado\ >nul
 copy /y provisionar_banco.sql dist\SistemaFiado\ >nul
 copy /y criar_admin_emergencia.sql dist\SistemaFiado\ >nul
+copy /y atualizar_instalacao.bat dist\SistemaFiado\ >nul
 
 REM A pasta "build" e so rascunho do PyInstaller: os .exe que ficam la dentro
 REM NAO funcionam (falta a DLL do Python). Apaga para ninguem abrir o errado.
@@ -60,6 +61,8 @@ echo  - Se for um servidor PostgreSQL NOVO (ainda sem o banco do sistema):
 echo    1) rode "preparar_banco.bat" (cria o banco/usuario/schema)
 echo    2) rode "CriarUsuarioAdmin.exe" (cria o 1o login do sistema)
 echo    3) abra "SistemaFiado.exe" e logue com o usuario criado
+echo  - Se o computador JA tem o sistema instalado (atualizacao): rode
+echo    "atualizar_instalacao.bat" e informe a pasta instalada. Nao cole por cima.
 echo  - Se for so mais um computador se conectando a um servidor que os
 echo    outros ja usam, pule os passos acima e abra o SistemaFiado.exe direto.
 echo.
