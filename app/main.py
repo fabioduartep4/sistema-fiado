@@ -12,6 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -23,6 +24,23 @@ from app.database.migrar import aplicar_esquema_banco
 from app.services import configuracao_service
 from app.views.login_view import LoginView
 from app.views.main_window import MainWindow
+
+
+def _traduzir_qt_para_portugues(app: QApplication) -> None:
+    """Põe em português o que o próprio Qt escreve na tela.
+
+    Sem isso, os botões das caixas de mensagem saem em inglês ("Yes"/"No"/
+    "Cancel"), assim como a pré-visualização de impressão e os nomes dos
+    meses no calendário. A tradução já vem com o PySide6 (e é empacotada
+    no .exe); se por algum motivo não for encontrada, o programa abre
+    normalmente, só com esses textos em inglês.
+    """
+    QLocale.setDefault(QLocale(QLocale.Language.Portuguese, QLocale.Country.Brazil))
+    tradutor = QTranslator(app)
+    if tradutor.load("qtbase_pt_BR", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+        app.installTranslator(tradutor)
+    else:
+        logger.warning("Tradução do Qt para português (qtbase_pt_BR) não encontrada.")
 
 
 def main() -> int:
@@ -41,6 +59,7 @@ def main() -> int:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SistemaFiado.App")
 
     app = QApplication(sys.argv)
+    _traduzir_qt_para_portugues(app)
 
     base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     app.setWindowIcon(QIcon(str(base_dir / "app" / "assets" / "icon.ico")))
