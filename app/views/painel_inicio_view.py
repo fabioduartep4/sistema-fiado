@@ -252,8 +252,8 @@ class PainelInicioView(QWidget):
         for card in (
             self._card_em_aberto,
             self._card_vendas_hoje,
-            self._card_clientes,
             self._card_recebidos,
+            self._card_clientes,
         ):
             layout.addWidget(card)
 
