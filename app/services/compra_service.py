@@ -14,11 +14,9 @@ from decimal import Decimal
 from typing import Optional
 
 from app.database.connection import session_scope
-from app.models.compra import StatusCompra
 from app.repositories import cliente_repository, compra_repository
 from app.services import historico_service
 from app.services.auth_service import UsuarioAutenticado
-from app.services.usuario_service import PermissaoNegadaError
 from app.utils.error_handler import tratar_erros
 
 
@@ -119,54 +117,3 @@ def registrar_compra(
             valor_novo=f"valor={valor}, data={data_compra}",
         )
         return CompraCriada(id=str(compra.id), valor=compra.valor, data=compra.data)
-
-
-@tratar_erros
-def cancelar_compra(usuario_logado: UsuarioAutenticado, compra_id: str) -> None:
-    """Cancela uma compra lançada errada (exclusão lógica; fica no Histórico).
-
-    Só vale para compra ainda em aberto. Compra já quitada precisa primeiro
-    do estorno do pagamento; conta "Resto" não é uma compra de verdade, é a
-    sobra de um pagamento parcial — some estornando esse pagamento.
-
-    Args:
-        usuario_logado: Quem está cancelando (precisa ser Administrador).
-        compra_id: UUID (como texto) da compra.
-
-    Raises:
-        PermissaoNegadaError: Se ``usuario_logado`` não for Administrador.
-        ValueError: Se a compra não existir, já estiver cancelada, não
-            estiver em aberto, ou for uma conta "Resto".
-    """
-    if not usuario_logado.eh_administrador:
-        raise PermissaoNegadaError("Apenas administradores podem cancelar compras.")
-
-    with session_scope() as session:
-        compra = compra_repository.buscar_por_id(session, uuid.UUID(compra_id))
-        if compra is None or not compra.ativo:
-            raise ValueError("Compra não encontrada ou já cancelada.")
-
-        cliente_repository.travar_conta(session, compra.cliente_id)
-        session.refresh(compra)  # outro computador pode ter recebido/cancelado enquanto esperávamos a trava
-        if not compra.ativo:
-            raise ValueError("Compra não encontrada ou já cancelada.")
-        if compra.eh_resto:
-            raise ValueError(
-                'Conta "Resto" não pode ser cancelada: ela é a sobra de um pagamento parcial. '
-                "Estorne esse pagamento para desfazê-la."
-            )
-        if compra.status != StatusCompra.ABERTA:
-            raise ValueError(
-                "Esta compra já foi paga. Estorne o pagamento antes de cancelá-la."
-            )
-
-        compra_repository.definir_ativo(session, compra, False)
-        historico_service.registrar_historico(
-            session,
-            entidade="Compra",
-            entidade_id=compra.id,
-            usuario_id=uuid.UUID(usuario_logado.id),
-            acao="cancelamento",
-            valor_antigo=f"valor={compra.valor}, data={compra.data}",
-        )
-

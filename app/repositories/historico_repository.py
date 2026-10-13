@@ -42,8 +42,7 @@ def listar(
         select(HistoricoAlteracao)
         .options(joinedload(HistoricoAlteracao.usuario))
         .where(
-            # De Compra, só o cancelamento é uma "alteração"; a criação é venda.
-            ~and_(HistoricoAlteracao.entidade == "Compra", HistoricoAlteracao.acao != "cancelamento"),
+            HistoricoAlteracao.entidade != "Compra",
             ~and_(HistoricoAlteracao.entidade == "Pagamento", HistoricoAlteracao.acao == "criacao"),
             ~and_(
                 HistoricoAlteracao.entidade == "Usuario",

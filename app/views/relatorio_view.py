@@ -58,7 +58,7 @@ from app.utils.whatsapp import montar_link_whatsapp
 # "Compra" não entra aqui: toda entrada de histórico com essa entidade
 # vira a aba "Vendas e Recebimentos" (ver app.repositories.historico_repository.listar),
 # então o filtro nunca teria nada pra mostrar.
-_ENTIDADES_FILTRO = ["Todas", "Cliente", "Compra", "Pagamento", "Usuario"]
+_ENTIDADES_FILTRO = ["Todas", "Cliente", "Pagamento", "Usuario"]
 
 _TIPOS_FILTRO = ["Todos", "Venda", "Recebimento"]
 

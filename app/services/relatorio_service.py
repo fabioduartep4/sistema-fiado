@@ -30,7 +30,6 @@ from app.database.connection import session_scope
 from app.models.usuario import PerfilUsuario
 from app.repositories import (
     cliente_repository,
-    compra_repository,
     historico_repository,
     log_erro_repository,
     pagamento_repository,
@@ -70,9 +69,10 @@ class HistoricoFinanceiroResumo:
     ou "Movimentações Recentes" no Início) — cada função que monta uma
     lista já sabe o próprio tipo, não precisa vir do banco.
 
-    ``estornado`` marca o que foi desfeito depois: um pagamento estornado
-    ou uma venda cancelada. Os dois continuam aparecendo (aconteceram
-    naquele dia), só marcados — ver :attr:`marca`.
+    ``estornado`` só é usado pelo histórico de Recebimentos — um
+    pagamento estornado continua aparecendo (o dinheiro foi recebido
+    naquele dia), só marcado para deixar claro que foi desfeito depois
+    (ver :attr:`marca`). Nunca é True vindo do histórico de Vendas.
     """
 
     data_hora: datetime
@@ -84,10 +84,8 @@ class HistoricoFinanceiroResumo:
 
     @property
     def marca(self) -> str:
-        """Sufixo para exibição: " [Cancelada]", " [Estornado]" ou vazio."""
-        if not self.estornado:
-            return ""
-        return " [Cancelada]" if self.tipo == "Venda" else " [Estornado]"
+        """Sufixo para exibição: " [Estornado]" ou vazio."""
+        return " [Estornado]" if self.estornado else ""
 
 
 @dataclass(frozen=True)
@@ -234,14 +232,6 @@ def _descrever_acao(
         if acao == "exclusao_logica":
             return f'Inativou o usuário "{nome}".'
 
-    if entidade == "Compra" and acao == "cancelamento":
-        valor_texto = _extrair_campo(valor_antigo, "valor")
-        valor = formatar_reais(Decimal(valor_texto)) if valor_texto else "R$ ?"
-        compra = compra_repository.buscar_por_id(session, entidade_id)
-        cliente = cliente_repository.buscar_por_id(session, compra.cliente_id) if compra else None
-        nome_cliente = cliente.nome_principal if cliente else "?"
-        return f'Cancelou uma compra de {valor} do cliente "{nome_cliente}".'
-
     if entidade == "Pagamento" and acao == "estorno":
         valor_texto = _extrair_campo(valor_antigo, "valor_pago")
         valor = formatar_reais(Decimal(valor_texto)) if valor_texto else "R$ ?"
@@ -330,9 +320,8 @@ def listar_historico_vendas(
                 valor=Decimal(valor),
                 usuario_nome=usuario_nome,
                 tipo="Venda",
-                estornado=not compra_ativa,
             )
-            for data_hora, cliente_nome_registro, valor, usuario_nome, compra_ativa in registros
+            for data_hora, cliente_nome_registro, valor, usuario_nome in registros
         ]
 
 

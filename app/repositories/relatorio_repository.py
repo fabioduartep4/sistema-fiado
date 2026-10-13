@@ -365,10 +365,8 @@ def listar_historico_vendas(
             case-insensitive).
 
     Returns:
-        Lista de tuplas (data_hora, nome_cliente, valor, nome_usuario,
-        compra_ativa), da mais recente para a mais antiga. ``compra_ativa``
-        é False para uma venda cancelada depois (continua na lista,
-        marcada). ``data_hora`` é a emissão da nota
+        Lista de tuplas (data_hora, nome_cliente, valor, nome_usuario), da
+        mais recente para a mais antiga. ``data_hora`` é a emissão da nota
         para compras importadas de XML, e o momento do lançamento para as
         demais — os filtros de data e a ordenação usam esse mesmo valor.
     """
@@ -379,7 +377,6 @@ def listar_historico_vendas(
             Cliente.nome_principal,
             Compra.valor,
             Usuario.nome,
-            Compra.ativo,
         )
         .select_from(HistoricoAlteracao)
         .join(Compra, Compra.id == HistoricoAlteracao.entidade_id)

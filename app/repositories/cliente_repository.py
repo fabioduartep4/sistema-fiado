@@ -71,8 +71,8 @@ def criar_cliente(
 def travar_conta(session: Session, cliente_id: uuid.UUID) -> None:
     """Trava a conta do cliente até o fim da transação atual (``SELECT ... FOR UPDATE``).
 
-    Quem mexe nas compras em aberto de um cliente (receber, estornar,
-    cancelar compra) chama isto primeiro. Se dois computadores fizerem
+    Quem mexe nas compras em aberto de um cliente (receber, estornar)
+    chama isto primeiro. Se dois computadores fizerem
     isso ao mesmo tempo para o mesmo cliente, o segundo espera o primeiro
     terminar e só então lê as compras — já atualizadas —, em vez de os
     dois decidirem em cima da mesma foto antiga da conta.

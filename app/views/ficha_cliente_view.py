@@ -49,7 +49,6 @@ from app.utils.icons import icone
 from app.utils.impressao import exibir_pre_visualizacao_impressao
 from app.utils.formatacao import formatar_reais
 from app.views.adicionar_compra_view import AdicionarCompraDialog
-from app.views.componentes import confirmar_e_cancelar_compra
 from app.views.editar_cliente_dialog import EditarClienteDialog
 from app.views.historico_cliente_view import HistoricoClienteDialog
 from app.views.receber_conta_view import ReceberContaDialog
@@ -133,14 +132,6 @@ class FichaClienteView(QDialog):
         botao_historico = QPushButton("Histórico")
         botao_historico.setIcon(icone("HISTORY"))
 
-        # Só Administrador cancela compra (o serviço também confere).
-        self._botao_cancelar_compra = QPushButton("Cancelar Compra")
-        self._botao_cancelar_compra.setIcon(icone("TRASH_X"))
-        self._botao_cancelar_compra.setMinimumHeight(38)
-        self._botao_cancelar_compra.setEnabled(False)
-        self._botao_cancelar_compra.setVisible(usuario_logado.eh_administrador)
-        self._botao_cancelar_compra.clicked.connect(self._cancelar_compra)
-
         botao_editar = QPushButton("Editar Cliente")
         botao_editar.setIcon(icone("EDIT"))
         botao_excluir = QPushButton("Excluir Conta")
@@ -166,7 +157,6 @@ class FichaClienteView(QDialog):
 
         layout_botoes_extrato = QHBoxLayout()
         layout_botoes_extrato.addWidget(self._botao_ver_produtos)
-        layout_botoes_extrato.addWidget(self._botao_cancelar_compra)
         layout_botoes_extrato.addWidget(botao_extrato)
         layout_botoes_extrato.addWidget(botao_historico)
 
@@ -260,14 +250,6 @@ class FichaClienteView(QDialog):
         item = self._lista_extrato.currentItem()
         compra = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
         self._botao_ver_produtos.definir_chave(compra.origem_nfe_xml if compra is not None else None)
-        # Conta "Resto" não se cancela: ela some estornando o pagamento que a gerou.
-        self._botao_cancelar_compra.setEnabled(compra is not None and not compra.eh_resto)
-
-    def _cancelar_compra(self) -> None:
-        item = self._lista_extrato.currentItem()
-        compra = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
-        if compra is not None and confirmar_e_cancelar_compra(self, self._usuario_logado, compra):
-            self._carregar_ficha()
 
     def _abrir_lembrete(self) -> None:
         try:

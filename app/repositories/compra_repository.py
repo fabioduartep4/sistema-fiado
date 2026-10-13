@@ -150,11 +150,6 @@ def criar_compra(
     return compra
 
 
-def buscar_por_id(session: Session, compra_id: uuid.UUID) -> Optional[Compra]:
-    """Busca uma compra (ativa ou cancelada) pelo ID."""
-    return session.get(Compra, compra_id)
-
-
 def listar_em_aberto_por_cliente(session: Session, cliente_id: uuid.UUID) -> list[Compra]:
     """Lista as compras em aberto de um cliente, da mais antiga para a mais nova.
 

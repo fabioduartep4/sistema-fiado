@@ -24,8 +24,8 @@ Feito em Python com PySide6 (interface) e PostgreSQL (dados).
 |---|---|
 | **Início** | Resumo do dia: total em aberto, vendas do dia (total e lista de cada venda), clientes, quem está acima do limite, clientes com maior atraso, movimentações recentes e gráficos. Escolha uma **data** no topo para ver as vendas daquele dia; **Atualizar** recarrega tudo e procura XMLs novos. |
 | **Clientes** | Busca (por nome, código ou telefone) e lista de clientes com saldo, limite e situação. Filtros: Com saldo, Em atraso, Acima do limite. Botão **+ Novo Cliente**. Duplo clique ou Enter abre a ficha. |
-| **Ficha do Cliente** | Saldo, limite e disponível; extrato na tela (compras em aberto com data, hora e valor). Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Imprimir Extrato, Histórico, Ver Produtos (compras vindas de XML), Cancelar Compra (só Administrador), Editar Cliente e Excluir Conta. |
-| **Histórico do cliente** | Aberto pelo botão Histórico da ficha: todas as compras e pagamentos, do mais novo para o mais antigo. Permite ver produtos, cancelar uma compra em aberto (só Administrador), reimprimir o comprovante de um pagamento e abrir os detalhes/estorno. |
+| **Ficha do Cliente** | Saldo, limite e disponível; extrato na tela (compras em aberto com data, hora e valor). Botões: + Nova Compra, Receber Pagamento, Enviar Lembrete, Imprimir Extrato, Histórico, Ver Produtos (compras vindas de XML), Editar Cliente e Excluir Conta. |
+| **Histórico do cliente** | Aberto pelo botão Histórico da ficha: todas as compras e pagamentos, do mais novo para o mais antigo. Permite ver produtos, reimprimir o comprovante de um pagamento e abrir os detalhes/estorno. |
 | **Saldos** | Todos os clientes com saldo em aberto, com busca e exportação para CSV/Excel. |
 | **Histórico** | Vendas e recebimentos (com filtro de período, cliente e tipo), alterações feitas no sistema e log de erros. Cada tabela traz as 200 linhas mais recentes; **Carregar mais** traz as seguintes. |
 | **Backups** | Pasta de backup, backup manual e restauração. |
@@ -54,16 +54,11 @@ O botão **+ Novo Lançamento**, no topo de todas as telas, abre direto
   em destaque no Início e em Clientes.
 - **Atraso**: cliente com compra em aberto há mais de 30 dias (o número de
   dias pode ser alterado nas telas Início e Clientes).
-- **Compra lançada errada**: o Administrador pode **cancelar** uma compra
-  ainda em aberto (pela ficha ou pelo histórico do cliente). Ela sai da
-  conta e continua no Histórico, marcada como "[Cancelada]". Compra já
-  paga precisa antes do estorno do pagamento; conta "Resto" some
-  estornando o pagamento que a gerou.
 - **Exclusão**: nada é apagado de verdade; clientes e usuários excluídos
   só ficam inativos, e toda alteração fica registrada no Histórico. Ao
   excluir um cliente que ainda deve, o sistema avisa o valor antes.
-- **Dois computadores na mesma conta**: receber, estornar e cancelar
-  travam a conta do cliente enquanto gravam; se dois computadores fizerem
+- **Dois computadores na mesma conta**: receber e estornar travam a
+  conta do cliente enquanto gravam; se dois computadores fizerem
   isso ao mesmo tempo, o segundo espera o primeiro e enxerga a conta já
   atualizada.
 - **Vendas do dia**: contam as compras com aquela data. Não entram contas
