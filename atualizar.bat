@@ -16,4 +16,4 @@ if not exist "%~dp0atualizar.ps1" (
 
 REM Tudo numa linha so: a atualizacao troca este proprio arquivo, e o Windows
 REM le os .bat aos poucos - uma linha ja lida nao e afetada pela troca.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0atualizar.ps1" %* & (if "%~1"=="" pause) & exit /b
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0atualizar.ps1" %* && ((if "%~1"=="" pause) & exit /b 0) || ((if "%~1"=="" pause) & exit /b 1)
