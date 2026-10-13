@@ -17,7 +17,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from PySide6.QtCore import QDate, QTimer, Qt
+from PySide6.QtCore import QDate, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
@@ -63,6 +63,10 @@ _COR_ICONE_SELECAO = "#2563eb"  # o azul de destaque do sistema
 
 class ReceberContaView(QWidget):
     """Tela de recebimento de pagamento (quitação de contas em aberto)."""
+
+    # Emitido depois que um pagamento é registrado e o aviso (ou a
+    # pré-visualização do recibo) é fechado — o diálogo usa para se fechar.
+    pagamento_registrado = Signal()
 
     def __init__(
         self,
@@ -390,6 +394,7 @@ class ReceberContaView(QWidget):
         self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._carregar_contas_em_aberto(self._cliente_id)
+        self.pagamento_registrado.emit()
 
 
 class ReceberContaDialog(QDialog):
@@ -416,6 +421,8 @@ class ReceberContaDialog(QDialog):
 
         pre_selecionado = (cliente_id, nome_principal) if cliente_id else None
         self._view = ReceberContaView(usuario_logado, cliente_pre_selecionado=pre_selecionado)
+        # Pagamento feito: não há mais o que fazer aqui, a tela se fecha.
+        self._view.pagamento_registrado.connect(self.accept)
 
         botao_fechar = QPushButton("Fechar")
         botao_fechar.setIcon(icone("X"))
