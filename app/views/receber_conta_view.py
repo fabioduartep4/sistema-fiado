@@ -58,6 +58,7 @@ _TEXTO_SELECIONAR_TODAS = "Selecionar todas"
 _TEXTO_DESMARCAR_TODAS = "Desmarcar todas"
 _ICONE_NEM_TODAS = "SQUARE"
 _ICONE_TODAS = "SQUARE_CHECK"
+_COR_ICONE_SELECAO = "#2563eb"  # o azul de destaque do sistema
 
 
 class ReceberContaView(QWidget):
@@ -134,21 +135,23 @@ class ReceberContaView(QWidget):
         dica_selecao.setProperty("papel", "secundario")
         dica_selecao.setWordWrap(True)
 
-        # Botão pequeno, à esquerda. O ícone é uma caixinha que acompanha o
-        # estado: vazia, ou marcada quando todas as contas estão selecionadas.
+        # Botão pequeno, no canto direito da linha do total. O ícone é uma
+        # caixinha azul que acompanha o estado: vazia, ou marcada quando
+        # todas as contas estão selecionadas.
         self._botao_selecionar_todas = QPushButton(_TEXTO_SELECIONAR_TODAS)
-        self._botao_selecionar_todas.setIcon(icone(_ICONE_NEM_TODAS))
+        self._botao_selecionar_todas.setIcon(icone(_ICONE_NEM_TODAS, cor=_COR_ICONE_SELECAO))
         self._botao_selecionar_todas.setMinimumHeight(38)
         self._botao_selecionar_todas.clicked.connect(self._alternar_todas)
-
-        layout_selecionar_todas = QHBoxLayout()
-        layout_selecionar_todas.addWidget(self._botao_selecionar_todas)
-        layout_selecionar_todas.addStretch()
 
         self._label_valor = QLabel(_ROTULO_VALOR_DIGITADO)
 
         self._label_total_em_aberto = QLabel()
-        self._label_total_em_aberto.setStyleSheet("font-size: 18px; font-weight: 700;")
+        self._label_total_em_aberto.setStyleSheet("font-size: 20px; font-weight: 700;")
+
+        layout_total = QHBoxLayout()
+        layout_total.addWidget(self._label_total_em_aberto)
+        layout_total.addStretch()
+        layout_total.addWidget(self._botao_selecionar_todas)
 
         self._campo_valor_pago = QLineEdit()
         self._campo_valor_pago.setPlaceholderText("Ex.: 25,50")
@@ -179,9 +182,8 @@ class ReceberContaView(QWidget):
         layout.addWidget(self._botao_trocar_cliente)
         layout.addWidget(QLabel("Compras em aberto:"))
         layout.addWidget(dica_selecao)
-        layout.addLayout(layout_selecionar_todas)
         layout.addWidget(self._lista_compras_abertas)
-        layout.addWidget(self._label_total_em_aberto)
+        layout.addLayout(layout_total)
         layout.addWidget(self._label_valor)
         layout.addWidget(self._campo_valor_pago)
         layout.addWidget(QLabel("Data do pagamento:"))
@@ -318,7 +320,9 @@ class ReceberContaView(QWidget):
 
         self._botao_selecionar_todas.setEnabled(bool(itens))
         todas_marcadas = bool(itens) and len(marcadas) == len(itens)
-        self._botao_selecionar_todas.setIcon(icone(_ICONE_TODAS if todas_marcadas else _ICONE_NEM_TODAS))
+        self._botao_selecionar_todas.setIcon(
+            icone(_ICONE_TODAS if todas_marcadas else _ICONE_NEM_TODAS, cor=_COR_ICONE_SELECAO)
+        )
         self._botao_selecionar_todas.setText(
             _TEXTO_DESMARCAR_TODAS if todas_marcadas else _TEXTO_SELECIONAR_TODAS
         )
