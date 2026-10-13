@@ -4,9 +4,9 @@ Reúne a situação **atual** das contas do negócio — nada aqui depende de
 uma data escolhida (diferente da tela de Início). De cima para baixo:
 
 - três cartões (Total em Aberto, Clientes com saldo, Acima do Limite);
+- "Evolução de Vendas" (janela fixa dos últimos 6 meses);
 - "Clientes Acima do Limite de Fiado" e "Clientes com Maior Atraso" (com
   o filtro de dias e o botão "Lembretes em lote") — quem precisa de atenção;
-- "Evolução de Vendas" (janela fixa dos últimos 6 meses);
 - "Clientes com Maior Saldo em Aberto";
 - "Saldo em Aberto" (tabela completa, com busca e exportação para CSV/Excel).
 
@@ -90,13 +90,16 @@ class SaldosView(QWidget):
         self._area_scroll = QScrollArea()
         self._area_scroll.setWidgetResizable(True)
         self._container = QWidget()
-        # De cima para baixo: cartões (refeitos a cada carga), as duas listas
-        # de quem precisa de atenção (fixas, para o filtro de dias não se
-        # perder ao atualizar) e o resto (gráficos e tabela, refeitos a cada carga).
+        # De cima para baixo: cartões e evolução de vendas (refeitos a cada
+        # carga), as duas listas de quem precisa de atenção (fixas, para o
+        # filtro de dias não se perder ao atualizar) e o resto (maiores
+        # saldos e tabela, refeitos a cada carga).
         layout_container = QVBoxLayout(self._container)
         self._layout_cards = QVBoxLayout()
+        self._layout_evolucao = QVBoxLayout()
         self._layout_conteudo = QVBoxLayout()
         layout_container.addLayout(self._layout_cards)
+        layout_container.addLayout(self._layout_evolucao)
         layout_container.addWidget(self._construir_caixa_acima_do_limite())
         layout_container.addWidget(self._construir_caixa_maior_atraso())
         layout_container.addLayout(self._layout_conteudo)
@@ -110,7 +113,7 @@ class SaldosView(QWidget):
         self._carregar()
 
     def _limpar_conteudo(self) -> None:
-        for layout in (self._layout_cards, self._layout_conteudo):
+        for layout in (self._layout_cards, self._layout_evolucao, self._layout_conteudo):
             while layout.count():
                 item = layout.takeAt(0)
                 widget = item.widget()
@@ -178,7 +181,7 @@ class SaldosView(QWidget):
                     indice_destaque=len(pontos) - 1,  # o último é o mês atual
                 )
             )
-            self._layout_conteudo.addWidget(caixa)
+            self._layout_evolucao.addWidget(caixa)
 
         if painel.maiores_saldos_em_aberto:
             caixa = QGroupBox("Clientes com Maior Saldo em Aberto")
