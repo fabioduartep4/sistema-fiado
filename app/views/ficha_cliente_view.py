@@ -71,7 +71,7 @@ class FichaClienteView(QDialog):
 
         self.setWindowTitle("Ficha do Cliente")
         self.setMinimumSize(560, 620)
-        self.resize(800, 680)
+        self.resize(650, 680)
 
         self._label_nome = QLabel()
         self._label_nome.setProperty("papel", "titulo")
