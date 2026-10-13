@@ -3,12 +3,13 @@
 No topo, uma **data** (padrão: hoje) e o botão "Atualizar". A data
 escolhida define:
 
-- o cartão de vendas e a tabela "Vendas do Dia" (cada venda daquela data);
+- os cartões de vendas e de recebidos, e a tabela "Vendas do Dia" (cada
+  venda daquela data);
 - o gráfico dos 7 dias que terminam nela;
 - os gráficos "Maior Valor Gasto" e "Mais Contas Lançadas", que mostram o
   **mês** da data escolhida.
 
-Os demais cartões (Em Aberto, Clientes, Acima do Limite) e as seções
+Os demais cartões (Em Aberto, Clientes) e as seções
 "Clientes Acima do Limite de Fiado", "Clientes com Maior Atraso" e
 "Movimentações Recentes" são sempre a situação atual.
 
@@ -223,8 +224,8 @@ class PainelInicioView(QWidget):
 
     # -- Cartões de indicador ---------------------------------------------------
     #
-    # Em Aberto, Clientes e Acima do Limite são sempre a situação atual. O
-    # cartão de vendas segue a data escolhida no topo (ver
+    # Em Aberto e Clientes são sempre a situação atual. Os cartões de vendas
+    # e de recebidos seguem a data escolhida no topo (ver
     # _carregar_vendas_do_dia).
 
     def _construir_cards(self) -> QWidget:
@@ -241,17 +242,18 @@ class PainelInicioView(QWidget):
         self._card_clientes, self._label_clientes_valor, self._label_clientes_sub = self._criar_card(
             "CLIENTES"
         )
-        self._card_acima_limite, self._label_acima_limite_valor, self._label_acima_limite_sub = (
-            self._criar_card("ACIMA DO LIMITE")
+        self._card_recebidos, self._label_recebidos_valor, self._label_recebidos_sub = self._criar_card(
+            "RECEBIDOS HOJE"
         )
 
         self._label_vendas_titulo = self._card_vendas_hoje.findChild(QLabel)
+        self._label_recebidos_titulo = self._card_recebidos.findChild(QLabel)
 
         for card in (
             self._card_em_aberto,
             self._card_vendas_hoje,
             self._card_clientes,
-            self._card_acima_limite,
+            self._card_recebidos,
         ):
             layout.addWidget(card)
 
@@ -280,7 +282,6 @@ class PainelInicioView(QWidget):
             saldos_painel = self._controller_relatorio.obter_saldos()
             saldos_em_aberto = self._controller_relatorio.listar_saldos_em_aberto()
             total_clientes = self._controller_cliente.contar_ativos()
-            acima_do_limite = self._controller_relatorio.listar_clientes_acima_do_limite()
         except (ErroDeNegocio, ValueError) as exc:
             QMessageBox.warning(self, "Não foi possível carregar", str(exc))
             return
@@ -294,11 +295,6 @@ class PainelInicioView(QWidget):
 
         self._label_clientes_valor.setText(str(total_clientes))
         self._label_clientes_sub.setText(f"{len(saldos_em_aberto)} com saldo")
-
-        self._label_acima_limite_valor.setText(str(len(acima_do_limite)))
-        self._label_acima_limite_sub.setText(
-            "precisam atenção" if acima_do_limite else "nenhum no momento"
-        )
 
     # -- Vendas do Dia ----------------------------------------------------------
     #
@@ -370,6 +366,15 @@ class PainelInicioView(QWidget):
         self._label_vendas_hoje_valor.setText(formatar_reais(resumo.total_vendido))
         self._label_vendas_hoje_sub.setText(
             "1 venda" if resumo.quantidade == 1 else f"{resumo.quantidade} vendas"
+        )
+        self._label_recebidos_titulo.setText(
+            "RECEBIDOS HOJE" if eh_hoje else f"RECEBIDOS EM {dia.strftime('%d/%m')}"
+        )
+        self._label_recebidos_valor.setText(formatar_reais(resumo.total_recebido))
+        self._label_recebidos_sub.setText(
+            "1 pagamento"
+            if resumo.quantidade_recebimentos == 1
+            else f"{resumo.quantidade_recebimentos} pagamentos"
         )
 
         # Tabela

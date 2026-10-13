@@ -506,3 +506,33 @@ def test_listar_movimentacoes_combina_vendas_e_recebimentos_ordenado(usuario_adm
     assert any(m.cliente_nome == "Teste Automatizado Movimentacoes Combinadas" for m in apenas_vendas)
 
     cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+
+
+def test_recebidos_do_dia_somam_pagamentos_e_ignoram_estornados(usuario_admin_teste) -> None:
+    cliente = cliente_service.cadastrar_cliente(
+        usuario_admin_teste, "Teste Automatizado Recebidos Do Dia", [], [], []
+    )
+    dia_da_compra = date.today() - timedelta(days=9)
+    dia = date.today() - timedelta(days=8)
+    try:
+        compra_service.registrar_compra(usuario_admin_teste, cliente.id, Decimal("100.00"), dia_da_compra, None)
+        antes = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia)
+        antes_no_dia_da_compra = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia_da_compra)
+
+        pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("30.00"), dia, None)
+        segundo = pagamento_service.registrar_pagamento(usuario_admin_teste, cliente.id, Decimal("20.00"), dia, None)
+        depois = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia)
+        assert depois.total_recebido - antes.total_recebido == Decimal("50.00")
+        assert depois.quantidade_recebimentos - antes.quantidade_recebimentos == 2
+
+        pagamento_service.estornar_pagamento(usuario_admin_teste, segundo.id)
+        apos_estorno = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia)
+        assert apos_estorno.total_recebido - antes.total_recebido == Decimal("30.00")
+        assert apos_estorno.quantidade_recebimentos - antes.quantidade_recebimentos == 1
+
+        # Pagamento conta no dia dele, não no dia da compra.
+        no_dia_da_compra = relatorio_service.obter_vendas_do_dia(usuario_admin_teste, dia_da_compra)
+        assert no_dia_da_compra.total_recebido == antes_no_dia_da_compra.total_recebido
+    finally:
+        cliente_service.excluir_cliente(usuario_admin_teste, cliente.id)
+

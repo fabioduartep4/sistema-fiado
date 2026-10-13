@@ -661,6 +661,8 @@ class VendasDoDiaResumo:
         total_vendido: Soma de tudo que foi vendido no fiado nesse dia.
         quantidade: Quantidade de vendas do dia.
         vendas: Cada venda do dia, da mais cedo para a mais tarde.
+        total_recebido: Soma dos pagamentos recebidos nesse dia (sem os estornados).
+        quantidade_recebimentos: Quantidade de pagamentos recebidos nesse dia.
         vendas_ultimos_7_dias: Total vendido por dia, nos 7 dias até ``dia``.
     """
 
@@ -669,6 +671,8 @@ class VendasDoDiaResumo:
     quantidade: int
     vendas: list[VendaDoDiaResumo]
     vendas_ultimos_7_dias: list[PontoVendaDiaria]
+    total_recebido: Decimal = Decimal("0")
+    quantidade_recebimentos: int = 0
 
 
 @tratar_erros
@@ -695,6 +699,9 @@ def obter_vendas_do_dia(
         total, quantidade = relatorio_repository.calcular_total_vendido_no_dia(session, dia)
         vendas = relatorio_repository.listar_vendas_do_dia(session, dia)
         vendas_diarias = relatorio_repository.listar_vendas_ultimos_dias(session, dias=7, ate=dia)
+        total_recebido, quantidade_recebimentos = relatorio_repository.calcular_total_recebido_no_dia(
+            session, dia
+        )
         return VendasDoDiaResumo(
             dia=dia,
             total_vendido=total,
@@ -712,6 +719,8 @@ def obter_vendas_do_dia(
             vendas_ultimos_7_dias=[
                 PontoVendaDiaria(dia=d.strftime("%d/%m"), total=t) for d, t in vendas_diarias
             ],
+            total_recebido=total_recebido,
+            quantidade_recebimentos=quantidade_recebimentos,
         )
 
 

@@ -270,6 +270,30 @@ def calcular_total_vendido_no_dia(session: Session, dia: date) -> tuple[Decimal,
     return Decimal(total), quantidade
 
 
+def calcular_total_recebido_no_dia(session: Session, dia: date) -> tuple[Decimal, int]:
+    """Soma o valor (e conta a quantidade) de pagamentos recebidos num dia.
+
+    Pela data do pagamento. Pagamentos estornados ficam de fora (o
+    dinheiro foi devolvido/desfeito), e os de clientes excluídos também —
+    mesmo critério das vendas do dia.
+
+    Args:
+        session: Sessão SQLAlchemy ativa.
+        dia: Data a considerar.
+
+    Returns:
+        Tupla (soma_do_valor, quantidade_de_pagamentos).
+    """
+    stmt = (
+        select(func.coalesce(func.sum(Pagamento.valor_pago), 0), func.count(Pagamento.id))
+        .select_from(Pagamento)
+        .join(Cliente, Cliente.id == Pagamento.cliente_id)
+        .where(Pagamento.ativo.is_(True), Cliente.ativo.is_(True), Pagamento.data_pagamento == dia)
+    )
+    total, quantidade = session.execute(stmt).one()
+    return Decimal(total), quantidade
+
+
 def listar_vendas_do_dia(session: Session, dia: date) -> list[tuple]:
     """Lista as vendas no fiado de um dia, uma por linha (mesmo critério de
     :func:`calcular_total_vendido_no_dia`, então a soma bate com o total).
