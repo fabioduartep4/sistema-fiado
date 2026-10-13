@@ -40,6 +40,14 @@ function Mover([string]$de, [string]$para) {
     else { [IO.File]::Move($de, $para) }
 }
 
+# Apaga uma pasta inteira. O prefixo \\?\ faz o Windows aceitar caminhos com
+# mais de 260 letras, que o Remove-Item nao consegue apagar.
+function Apagar-Pasta([string]$caminho) {
+    if (-not (Test-Path -LiteralPath $caminho)) { return }
+    try { [IO.Directory]::Delete('\\?\' + $caminho, $true) }
+    catch { Remove-Item -LiteralPath $caminho -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 function Ler-Versao([string]$texto) {
     $limpo = ($texto -replace '^[vV]', '').Trim()
     try { return [version]$limpo } catch { return $null }
@@ -134,7 +142,8 @@ try {
     # ------------------------------------------------------------- troca
     Write-Host '[3/3] Trocando os programas...'
     $itens = Get-ChildItem -LiteralPath $nova -Force | Where-Object { $PRESERVADOS -notcontains $_.Name }
-    if (Test-Path $anterior) { Remove-Item -LiteralPath $anterior -Recurse -Force }
+    Apagar-Pasta $anterior
+    if (Test-Path $anterior) { throw 'Nao consegui apagar a pasta _versao_anterior, que sobrou de uma atualizacao passada. Apague-a a mao.' }
     New-Item -ItemType Directory -Path $anterior | Out-Null
     $movidos = @()
     try {
@@ -162,11 +171,11 @@ try {
         if (-not (Get-ChildItem -LiteralPath $anterior -Force)) { Remove-Item -LiteralPath $anterior -Force }
         throw
     }
-    Remove-Item -LiteralPath $anterior -Recurse -Force -ErrorAction SilentlyContinue
+    Apagar-Pasta $anterior
 } catch {
     Sair 1 "A atualizacao NAO foi concluida: $($_.Exception.Message)`nO sistema continua na versao anterior. Se o motivo for arquivo em uso ou acesso negado, feche o sistema e rode de novo."
 } finally {
-    Remove-Item -LiteralPath $temporaria -Recurse -Force -ErrorAction SilentlyContinue
+    Apagar-Pasta $temporaria
 }
 
 Write-Host ''
@@ -175,4 +184,5 @@ Write-Host " Pronto! Sistema atualizado para a versao $disponivel."
 Write-Host '============================================'
 Write-Host 'O ".env" e a pasta "app" (configuracoes, backups e logs) foram mantidos.'
 Write-Host 'Abra o SistemaFiado.exe e confira o numero da versao na tela de login.'
+if (Test-Path $anterior) { Write-Host 'Sobrou a pasta "_versao_anterior" (a versao antiga). Pode apagar a mao.' }
 exit 0
