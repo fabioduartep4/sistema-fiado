@@ -202,6 +202,11 @@ def _descrever_acao(
             cliente = cliente_repository.buscar_por_id(session, entidade_id)
             nome = cliente.nome_principal if cliente else "?"
             return f'Confirmou o cadastro do cliente "{nome}" (criado via XML).'
+        if acao == "novo_comprador":
+            cliente = cliente_repository.buscar_por_id(session, entidade_id)
+            nome = cliente.nome_principal if cliente else "?"
+            comprador = _extrair_campo(valor_novo, "comprador") or "?"
+            return f'Cadastrou o comprador "{comprador}" no cliente "{nome}".'
         if acao == "mesclagem":
             nome_duplicado = _extrair_campo(valor_antigo, "nome_principal") or "?"
             id_principal = _extrair_campo(valor_novo, "mesclado_em")

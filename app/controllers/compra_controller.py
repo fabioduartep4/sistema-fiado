@@ -30,6 +30,10 @@ class CompraController:
         """Lista os compradores ativos de um cliente."""
         return compra_service.listar_compradores(cliente_id)
 
+    def criar_comprador(self, cliente_id: str, nome: str) -> CompradorOpcao:
+        """Cadastra um comprador no cliente e devolve ele (já existente, se o nome repetir)."""
+        return compra_service.criar_comprador(self.usuario_logado, cliente_id, nome)
+
     def registrar(
         self,
         cliente_id: str,

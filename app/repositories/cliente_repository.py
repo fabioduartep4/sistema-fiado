@@ -280,6 +280,32 @@ def atualizar_cliente(
     session.flush()
 
 
+def adicionar_comprador(session: Session, cliente: Cliente, nome: str) -> tuple[Comprador, bool]:
+    """Cadastra um comprador no cliente, sem mexer nos demais.
+
+    Se o cliente já tem um comprador com esse nome (sem diferenciar
+    maiúsculas), reaproveita ele — reativando, se tinha sido removido —
+    em vez de criar um repetido.
+
+    Returns:
+        O comprador e ``True`` se ele foi criado/reativado agora (``False``
+        se já existia ativo).
+    """
+    chave = nome.strip().lower()
+    for comprador in cliente.compradores:
+        if comprador.nome.strip().lower() == chave:
+            if comprador.ativo:
+                return comprador, False
+            comprador.ativo = True
+            session.flush()
+            return comprador, True
+
+    comprador = Comprador(nome=nome.strip())
+    cliente.compradores.append(comprador)
+    session.flush()
+    return comprador, True
+
+
 def definir_ativo(session: Session, cliente: Cliente, ativo: bool) -> None:
     """Inativa (exclusão lógica) ou reativa um cliente.
 
