@@ -4,4 +4,4 @@ Aumente este número a cada versão entregue à loja — é por ele que se
 confere, em cada computador, se a atualização foi mesmo aplicada.
 """
 
-VERSAO = "1.2.0"
+VERSAO = "1.2.1"
