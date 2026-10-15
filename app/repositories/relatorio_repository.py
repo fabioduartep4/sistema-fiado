@@ -279,7 +279,7 @@ def listar_vendas_do_dia(session: Session, dia: date) -> list[tuple]:
 
     Returns:
         Lista de tuplas (cliente_id, nome_cliente, valor, data_hora,
-        origem_nfe_xml), da mais cedo para a mais tarde. ``data_hora`` é a
+        origem_nfe_xml), da mais recente para a mais antiga. ``data_hora`` é a
         emissão da nota para compras vindas de XML, e o momento do
         lançamento para as demais.
     """
@@ -289,7 +289,7 @@ def listar_vendas_do_dia(session: Session, dia: date) -> list[tuple]:
         .select_from(Compra)
         .join(Cliente, Cliente.id == Compra.cliente_id)
         .where(*_filtros_de_venda(), Compra.data == dia)
-        .order_by(data_hora)
+        .order_by(data_hora.desc(), Compra.id.desc())
     )
     return list(session.execute(stmt).all())
 
