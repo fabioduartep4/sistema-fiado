@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
-    QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -50,6 +49,7 @@ from app.views.componentes import (
 )
 
 _ID_NENHUM_COMPRADOR = "__nenhum__"
+_ID_NOVO_COMPRADOR = "__novo__"  # última opção da lista: cadastra um comprador na hora
 
 
 class AdicionarCompraView(QWidget):
@@ -127,15 +127,8 @@ class AdicionarCompraView(QWidget):
 
         self._campo_comprador = QComboBox()
         self._campo_comprador.setMinimumHeight(36)
-
-        botao_novo_comprador = QPushButton("+ Novo")
-        botao_novo_comprador.setMinimumHeight(36)
-        botao_novo_comprador.setToolTip("Cadastrar um comprador novo neste cliente")
-        botao_novo_comprador.clicked.connect(self._criar_comprador)
-
-        linha_comprador = QHBoxLayout()
-        linha_comprador.addWidget(self._campo_comprador, 1)
-        linha_comprador.addWidget(botao_novo_comprador)
+        self._campo_comprador.activated.connect(self._ao_escolher_comprador)
+        self._indice_comprador_anterior = 0
 
         self._campo_observacoes = QTextEdit()
         self._campo_observacoes.setPlaceholderText("Observações (opcional)")
@@ -155,7 +148,7 @@ class AdicionarCompraView(QWidget):
         layout.addWidget(QLabel("Data:"))
         layout.addWidget(self._campo_data)
         layout.addWidget(QLabel("Comprador (opcional):"))
-        layout.addLayout(linha_comprador)
+        layout.addWidget(self._campo_comprador)
         layout.addWidget(QLabel("Observações:"))
         layout.addWidget(self._campo_observacoes)
         layout.addWidget(botao_salvar)
@@ -194,6 +187,17 @@ class AdicionarCompraView(QWidget):
             compradores = []
         for comprador in compradores:
             self._campo_comprador.addItem(comprador.nome, userData=comprador.id)
+        self._campo_comprador.addItem(icone("PLUS"), "Novo comprador...", userData=_ID_NOVO_COMPRADOR)
+        self._indice_comprador_anterior = 0
+
+    def _ao_escolher_comprador(self, indice: int) -> None:
+        if self._campo_comprador.itemData(indice) == _ID_NOVO_COMPRADOR:
+            # Volta para a escolha anterior; se o cadastro der certo, o
+            # comprador novo é selecionado em seguida.
+            self._campo_comprador.setCurrentIndex(self._indice_comprador_anterior)
+            self._criar_comprador()
+        else:
+            self._indice_comprador_anterior = indice
 
     def _criar_comprador(self) -> None:
         if self._cliente_id is None:
@@ -213,8 +217,9 @@ class AdicionarCompraView(QWidget):
             return
 
         self._carregar_compradores(self._cliente_id)
-        indice = self._campo_comprador.findData(comprador.id)
-        self._campo_comprador.setCurrentIndex(max(indice, 0))
+        indice = max(self._campo_comprador.findData(comprador.id), 0)
+        self._campo_comprador.setCurrentIndex(indice)
+        self._indice_comprador_anterior = indice
         self._campo_valor.setFocus()
 
     def _salvar_compra(self) -> None:
@@ -229,7 +234,7 @@ class AdicionarCompraView(QWidget):
 
         data_compra = self._campo_data.date().toPython()
         comprador_id = self._campo_comprador.currentData()
-        if comprador_id == _ID_NENHUM_COMPRADOR:
+        if comprador_id in (_ID_NENHUM_COMPRADOR, _ID_NOVO_COMPRADOR):
             comprador_id = None
         observacoes = self._campo_observacoes.toPlainText().strip() or None
 
@@ -256,6 +261,7 @@ class AdicionarCompraView(QWidget):
         self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._campo_comprador.setCurrentIndex(0)
+        self._indice_comprador_anterior = 0
         self.compra_registrada.emit()
 
 
