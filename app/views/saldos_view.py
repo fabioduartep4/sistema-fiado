@@ -41,7 +41,7 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.graficos import GraficoColunas, ItemRanking, ListaRanking, PontoColuna
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_altura_as_linhas, ajustar_colunas, aplicar_estado_vazio, item_valor
+from app.utils.tabelas import ajustar_altura_as_linhas, ajustar_colunas, aplicar_estado_vazio, item_valor, preparar_linhas
 from app.views.ficha_cliente_view import FichaClienteView
 from app.views.lembretes_em_lote_view import LembretesEmLoteDialog
 
@@ -308,7 +308,7 @@ class SaldosView(QWidget):
         self._atrasos_carregados = saldos
         self._dias_atraso_carregado = self._campo_dias_atraso.value()
         self._botao_lembretes_em_lote.setEnabled(bool(saldos))
-        self._tabela_atrasos.setRowCount(len(saldos))
+        preparar_linhas(self._tabela_atrasos, len(saldos))
         for linha, saldo in enumerate(saldos):
             item_nome = QTableWidgetItem(saldo.nome_principal)
             item_nome.setData(Qt.ItemDataRole.UserRole, saldo.id)
@@ -384,7 +384,7 @@ class SaldosView(QWidget):
             )
             return
 
-        self._tabela_acima_do_limite.setRowCount(len(clientes))
+        preparar_linhas(self._tabela_acima_do_limite, len(clientes))
         for linha, item in enumerate(clientes):
             item_nome = QTableWidgetItem(item.nome_principal)
             item_nome.setData(Qt.ItemDataRole.UserRole, item.id)
@@ -411,7 +411,7 @@ class SaldosView(QWidget):
         aplicar_estado_vazio(self._tabela_acima_do_limite, self._label_acima_limite_vazio)
 
     def _preencher_tabela(self, saldos: list[SaldoClienteResumo]) -> None:
-        self._tabela_saldos.setRowCount(len(saldos))
+        preparar_linhas(self._tabela_saldos, len(saldos))
         for linha, saldo in enumerate(saldos):
             item_codigo = QTableWidgetItem(str(saldo.id_visivel))
             item_codigo.setData(Qt.ItemDataRole.UserRole, saldo.id)

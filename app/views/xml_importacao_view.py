@@ -31,7 +31,7 @@ from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
 from app.utils.nfe_parser import ProdutoXml
-from app.utils.tabelas import ajustar_colunas, item_valor
+from app.utils.tabelas import ajustar_colunas, item_valor, preparar_linhas
 
 
 class ObterProdutosWorker(QThread):
@@ -289,7 +289,7 @@ class ImportarXmlDialog(QDialog):
 
         self._candidatos = candidatos
         self._combos = []
-        self._tabela.setRowCount(len(self._candidatos))
+        preparar_linhas(self._tabela, len(self._candidatos))
 
         if not self._candidatos:
             self._label_status.setText(

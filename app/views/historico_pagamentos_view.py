@@ -35,7 +35,7 @@ from app.services.pagamento_service import PagamentoResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas, item_valor
+from app.utils.tabelas import ajustar_colunas, item_valor, preparar_linhas
 from app.views.xml_importacao_view import ObterProdutosWorker, ProdutosXmlDialog
 
 
@@ -112,7 +112,7 @@ class HistoricoPagamentosDialog(QDialog):
             )
             return
 
-        self._tabela.setRowCount(len(self._pagamentos_carregados))
+        preparar_linhas(self._tabela, len(self._pagamentos_carregados))
         if not self._pagamentos_carregados:
             self._tabela.setRowCount(1)
             self._tabela.setItem(0, 0, QTableWidgetItem("Nenhum pagamento registrado ainda."))

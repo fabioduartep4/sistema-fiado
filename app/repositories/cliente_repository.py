@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.cliente import Cliente
 from app.models.comprador import Comprador
@@ -172,7 +172,9 @@ def listar_ativos(
                 .exists()
             )
         stmt = stmt.where(or_(*criterios))
-    stmt = stmt.order_by(Cliente.nome_principal)
+    # Telefones de todos numa consulta só (a lista mostra o primeiro de
+    # cada um) — sem isso, seria uma consulta por cliente, pela rede.
+    stmt = stmt.options(selectinload(Cliente.telefones)).order_by(Cliente.nome_principal)
     return list(session.execute(stmt).scalars().all())
 
 
