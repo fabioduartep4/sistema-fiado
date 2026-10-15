@@ -49,6 +49,15 @@ REM A pasta "build" e so rascunho do PyInstaller: os .exe que ficam la dentro
 REM NAO funcionam (falta a DLL do Python). Apaga para ninguem abrir o errado.
 if exist build rmdir /s /q build
 
+REM Confere se os arquivos que o sistema le em tempo de execucao entraram no
+REM pacote. Sem eles o programa nao consegue preparar o banco (migracoes) e
+REM fica sem icone.
+set "PACOTE=dist\SistemaFiado\_internal"
+if not exist "%PACOTE%\alembic.ini" goto pacote_incompleto
+if not exist "%PACOTE%\app\database\migrations\env.py" goto pacote_incompleto
+if not exist "%PACOTE%\app\database\migrations\versions\775425f06865_estrutura_inicial.py" goto pacote_incompleto
+if not exist "%PACOTE%\app\assets\icon.ico" goto pacote_incompleto
+
 echo.
 echo ============================================
 echo  Pronto!
@@ -80,6 +89,15 @@ echo.
 start "" explorer "dist\SistemaFiado"
 pause
 exit /b 0
+
+:pacote_incompleto
+echo.
+echo ERRO: o executavel foi gerado INCOMPLETO - faltam as migracoes do banco
+echo (_internal\app\database\migrations), o alembic.ini ou o icone.
+echo NAO use esta pasta. Confira se a pasta "app\database\migrations" existe no
+echo projeto e rode o build_exe.bat de novo.
+pause
+exit /b 1
 
 :erro
 echo.
