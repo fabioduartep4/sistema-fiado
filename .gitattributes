@@ -1,0 +1,5 @@
+# Scripts do Windows sempre com fim de linha CRLF, inclusive no ZIP baixado
+# do GitHub: com fim de linha LF, o cmd pode errar ao procurar os rotulos
+# (goto) e o .bat se comporta de forma imprevisivel.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

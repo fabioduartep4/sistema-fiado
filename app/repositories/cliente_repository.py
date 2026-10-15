@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.cliente import Cliente
 from app.models.comprador import Comprador
@@ -172,7 +172,9 @@ def listar_ativos(
                 .exists()
             )
         stmt = stmt.where(or_(*criterios))
-    stmt = stmt.order_by(Cliente.nome_principal)
+    # Telefones de todos numa consulta só (a lista mostra o primeiro de
+    # cada um) — sem isso, seria uma consulta por cliente, pela rede.
+    stmt = stmt.options(selectinload(Cliente.telefones)).order_by(Cliente.nome_principal)
     return list(session.execute(stmt).scalars().all())
 
 
@@ -276,6 +278,32 @@ def atualizar_cliente(
             cliente.compradores.append(Comprador(nome=nome))
 
     session.flush()
+
+
+def adicionar_comprador(session: Session, cliente: Cliente, nome: str) -> tuple[Comprador, bool]:
+    """Cadastra um comprador no cliente, sem mexer nos demais.
+
+    Se o cliente já tem um comprador com esse nome (sem diferenciar
+    maiúsculas), reaproveita ele — reativando, se tinha sido removido —
+    em vez de criar um repetido.
+
+    Returns:
+        O comprador e ``True`` se ele foi criado/reativado agora (``False``
+        se já existia ativo).
+    """
+    chave = nome.strip().lower()
+    for comprador in cliente.compradores:
+        if comprador.nome.strip().lower() == chave:
+            if comprador.ativo:
+                return comprador, False
+            comprador.ativo = True
+            session.flush()
+            return comprador, True
+
+    comprador = Comprador(nome=nome.strip())
+    cliente.compradores.append(comprador)
+    session.flush()
+    return comprador, True
 
 
 def definir_ativo(session: Session, cliente: Cliente, ativo: bool) -> None:

@@ -52,6 +52,7 @@ from app.utils.formatacao import formatar_reais
 from app.utils.graficos import GraficoColunas, ItemRanking, ListaRanking, PontoColuna
 from app.utils.icons import icone
 from app.utils.tabelas import (
+    preparar_linhas,
     ajustar_altura_aos_itens,
     ajustar_altura_as_linhas,
     ajustar_colunas,
@@ -367,7 +368,7 @@ class PainelInicioView(QWidget):
         self._caixa_vendas_do_dia.setTitle(
             f"Vendas de Hoje ({data_formatada})" if eh_hoje else f"Vendas do Dia {data_formatada}"
         )
-        self._tabela_vendas_do_dia.setRowCount(len(resumo.vendas))
+        preparar_linhas(self._tabela_vendas_do_dia, len(resumo.vendas))
         for linha, venda in enumerate(resumo.vendas):
             item_hora = QTableWidgetItem(venda.data_hora.strftime("%H:%M"))
             item_hora.setData(Qt.ItemDataRole.UserRole, venda.cliente_id)

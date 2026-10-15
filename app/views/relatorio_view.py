@@ -51,7 +51,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor
+from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor, preparar_linhas
 from app.utils.text_normalizer import normalizar_telefone
 from app.utils.whatsapp import montar_link_whatsapp
 
@@ -260,7 +260,7 @@ class RelatorioView(QWidget):
             )
             return
 
-        self._tabela_movimentacoes.setRowCount(len(registros))
+        preparar_linhas(self._tabela_movimentacoes, len(registros))
         for linha, registro in enumerate(registros):
             self._tabela_movimentacoes.setItem(
                 linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M"))
@@ -326,7 +326,7 @@ class RelatorioView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível carregar o histórico.")
             return
 
-        self._tabela_historico.setRowCount(len(registros))
+        preparar_linhas(self._tabela_historico, len(registros))
         for linha, registro in enumerate(registros):
             self._tabela_historico.setItem(
                 linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M"))
@@ -374,7 +374,7 @@ class RelatorioView(QWidget):
             return
 
         self._log_erros_carregados = registros
-        self._tabela_log_erros.setRowCount(len(registros))
+        preparar_linhas(self._tabela_log_erros, len(registros))
         for linha, registro in enumerate(registros):
             self._tabela_log_erros.setItem(
                 linha, 0, QTableWidgetItem(registro.data_hora.strftime("%d/%m/%Y %H:%M"))

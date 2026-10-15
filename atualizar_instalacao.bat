@@ -51,8 +51,12 @@ if exist "%DESTINO%\_internal" goto falha_ao_apagar
 del /q "%DESTINO%\SistemaFiado.exe" "%DESTINO%\CriarUsuarioAdmin.exe" "%DESTINO%\BackupAgendado.exe" 2>nul
 
 echo [2/2] Copiando a versao nova...
-robocopy "%ORIGEM%" "%DESTINO%" /E /XF .env /XD app /NFL /NDL /NJH /NJS /NP >nul
+REM Exclusoes com o caminho completo: so o ".env" e a pasta "app" da raiz.
+REM Com o nome solto ("/XD app"), o robocopy pulava TODA pasta "app" - inclusive
+REM _internal\app, onde ficam as migracoes do banco e o icone do sistema.
+robocopy "%ORIGEM%" "%DESTINO%" /E /XF "%ORIGEM%\.env" /XD "%ORIGEM%\app" /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 goto falha_ao_copiar
+if not exist "%DESTINO%\_internal\app\database\migrations\versions" goto falha_ao_copiar
 
 echo.
 echo ============================================

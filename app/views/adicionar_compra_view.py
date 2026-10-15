@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -48,6 +49,7 @@ from app.views.componentes import (
 )
 
 _ID_NENHUM_COMPRADOR = "__nenhum__"
+_ID_NOVO_COMPRADOR = "__novo__"  # última opção da lista: cadastra um comprador na hora
 
 
 class AdicionarCompraView(QWidget):
@@ -125,6 +127,8 @@ class AdicionarCompraView(QWidget):
 
         self._campo_comprador = QComboBox()
         self._campo_comprador.setMinimumHeight(36)
+        self._campo_comprador.activated.connect(self._ao_escolher_comprador)
+        self._indice_comprador_anterior = 0
 
         self._campo_observacoes = QTextEdit()
         self._campo_observacoes.setPlaceholderText("Observações (opcional)")
@@ -183,6 +187,40 @@ class AdicionarCompraView(QWidget):
             compradores = []
         for comprador in compradores:
             self._campo_comprador.addItem(comprador.nome, userData=comprador.id)
+        self._campo_comprador.addItem(icone("PLUS"), "Novo comprador...", userData=_ID_NOVO_COMPRADOR)
+        self._indice_comprador_anterior = 0
+
+    def _ao_escolher_comprador(self, indice: int) -> None:
+        if self._campo_comprador.itemData(indice) == _ID_NOVO_COMPRADOR:
+            # Volta para a escolha anterior; se o cadastro der certo, o
+            # comprador novo é selecionado em seguida.
+            self._campo_comprador.setCurrentIndex(self._indice_comprador_anterior)
+            self._criar_comprador()
+        else:
+            self._indice_comprador_anterior = indice
+
+    def _criar_comprador(self) -> None:
+        if self._cliente_id is None:
+            return
+        nome, confirmou = QInputDialog.getText(self, "Novo comprador", "Nome do comprador:")
+        if not confirmou or not nome.strip():
+            return
+
+        try:
+            comprador = self._compra_controller.criar_comprador(self._cliente_id, nome)
+        except (ErroDeNegocio, ValueError) as exc:
+            QMessageBox.warning(self, "Não foi possível cadastrar o comprador", str(exc))
+            return
+        except Exception:
+            logger.exception("Falha inesperada ao cadastrar comprador no cliente %s.", self._cliente_id)
+            QMessageBox.critical(self, "Erro inesperado", "Não foi possível cadastrar o comprador.")
+            return
+
+        self._carregar_compradores(self._cliente_id)
+        indice = max(self._campo_comprador.findData(comprador.id), 0)
+        self._campo_comprador.setCurrentIndex(indice)
+        self._indice_comprador_anterior = indice
+        self._campo_valor.setFocus()
 
     def _salvar_compra(self) -> None:
         if self._cliente_id is None:
@@ -196,7 +234,7 @@ class AdicionarCompraView(QWidget):
 
         data_compra = self._campo_data.date().toPython()
         comprador_id = self._campo_comprador.currentData()
-        if comprador_id == _ID_NENHUM_COMPRADOR:
+        if comprador_id in (_ID_NENHUM_COMPRADOR, _ID_NOVO_COMPRADOR):
             comprador_id = None
         observacoes = self._campo_observacoes.toPlainText().strip() or None
 
@@ -223,6 +261,7 @@ class AdicionarCompraView(QWidget):
         self._campo_observacoes.clear()
         self._campo_data.setDate(QDate(obter_data_padrao()))
         self._campo_comprador.setCurrentIndex(0)
+        self._indice_comprador_anterior = 0
         self.compra_registrada.emit()
 
 

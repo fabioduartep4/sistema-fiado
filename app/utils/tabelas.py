@@ -16,7 +16,7 @@ faz o botão esticar de forma estranha e o nome ficar sem espaço garantido.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QHeaderView, QLabel, QListWidget, QTableWidget, QTableWidgetItem
 
 
@@ -83,3 +83,42 @@ def ajustar_colunas(tabela: QTableWidget, *colunas_para_esticar: int) -> None:
     cabecalho.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     for coluna in colunas_para_esticar:
         cabecalho.setSectionResizeMode(coluna, QHeaderView.ResizeMode.Stretch)
+
+
+def preparar_linhas(tabela: QTableWidget, quantidade: int) -> None:
+    """Prepara a tabela para ser preenchida de novo com ``quantidade`` linhas.
+
+    Use no lugar de ``tabela.setRowCount(quantidade)`` ao recarregar uma
+    tabela. Esvazia a tabela antes: escrever células por cima das antigas,
+    com as colunas no modo "ResizeToContents", faz o Qt medir a coluna
+    inteira a cada célula — o tempo cresce com o quadrado do número de
+    linhas (75 linhas: quase 1 s; 300: mais de 13 s, com a tela travada).
+
+    Mantém a linha selecionada e a posição da rolagem, como era antes:
+    quem fecha a ficha de um cliente volta para o mesmo ponto da lista.
+    """
+    linha = tabela.currentRow()
+    coluna = max(tabela.currentColumn(), 0)
+    rolagem = tabela.verticalScrollBar().value()
+
+    if 0 <= linha < quantidade:
+        # A seleção continua a mesma de antes: a tela não é avisada de
+        # nenhuma mudança (as células ainda nem foram preenchidas).
+        tabela.blockSignals(True)
+        tabela.selectionModel().blockSignals(True)
+        tabela.setRowCount(0)
+        tabela.setRowCount(quantidade)
+        tabela.setCurrentCell(linha, coluna)
+        tabela.selectionModel().blockSignals(False)
+        tabela.blockSignals(False)
+    else:
+        # Sem seleção, ou a linha selecionada deixou de existir: aí a tela
+        # é avisada normalmente, como acontecia antes.
+        tabela.setRowCount(0)
+        tabela.setRowCount(quantidade)
+
+    # A rolagem só tem o tamanho certo depois que o Qt mede as linhas novas.
+    barra = tabela.verticalScrollBar()
+    barra.setValue(rolagem)
+    QTimer.singleShot(0, tabela, lambda: barra.setValue(rolagem))
+

@@ -39,7 +39,7 @@ from app.services.cliente_service import ClienteStatusResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.formatacao import formatar_reais
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor
+from app.utils.tabelas import ajustar_colunas, aplicar_estado_vazio, item_valor, preparar_linhas
 from app.views.cadastrar_cliente_view import CadastrarClienteDialog
 from app.views.ficha_cliente_view import FichaClienteView
 
@@ -175,7 +175,7 @@ class ClientesView(QWidget):
 
         clientes = self._aplicar_filtro(clientes)
 
-        self._tabela.setRowCount(len(clientes))
+        preparar_linhas(self._tabela, len(clientes))
         for linha, cliente in enumerate(clientes):
             nome = cliente.nome_principal
             if not cliente.confirmado:
@@ -210,7 +210,7 @@ class ClientesView(QWidget):
             QMessageBox.critical(self, "Erro inesperado", "Não foi possível buscar os clientes.")
             return
 
-        self._tabela.setRowCount(len(clientes))
+        preparar_linhas(self._tabela, len(clientes))
         for linha, cliente in enumerate(clientes):
             nome = cliente.nome_principal
             if cliente.nome_alternativo_encontrado:

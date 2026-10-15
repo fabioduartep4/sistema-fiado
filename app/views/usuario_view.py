@@ -32,7 +32,7 @@ from app.services.auth_service import UsuarioAutenticado
 from app.services.usuario_service import UsuarioResumo
 from app.utils.exceptions import ErroDeNegocio
 from app.utils.icons import icone
-from app.utils.tabelas import ajustar_colunas
+from app.utils.tabelas import ajustar_colunas, preparar_linhas
 
 _ROTULOS_PERFIL = {
     PerfilUsuario.ADMINISTRADOR: "Administrador",
@@ -295,7 +295,7 @@ class UsuarioView(QWidget):
             )
             return
 
-        self._tabela.setRowCount(len(self._usuarios_carregados))
+        preparar_linhas(self._tabela, len(self._usuarios_carregados))
         for linha, usuario in enumerate(self._usuarios_carregados):
             self._tabela.setItem(linha, 0, QTableWidgetItem(usuario.nome))
             self._tabela.setItem(linha, 1, QTableWidgetItem(usuario.login))

@@ -52,6 +52,48 @@ def listar_compradores(cliente_id: str) -> list[CompradorOpcao]:
         return [CompradorOpcao(id=str(c.id), nome=c.nome) for c in compradores]
 
 
+# Tamanho da coluna ``compradores.nome``.
+_TAMANHO_MAXIMO_NOME_COMPRADOR = 150
+
+
+@tratar_erros
+def criar_comprador(usuario_logado: UsuarioAutenticado, cliente_id: str, nome: str) -> CompradorOpcao:
+    """Cadastra um comprador na conta do cliente, na hora de lançar a compra.
+
+    Liberado para todos os perfis: quem lança a compra no caixa é quem fica
+    sabendo do comprador novo. Se o cliente já tem um comprador com esse
+    nome, devolve o existente (reativando, se tinha sido removido).
+
+    Raises:
+        ValueError: Se o nome estiver vazio ou for longo demais, ou se o
+            cliente não for encontrado/estiver inativo.
+    """
+    nome = " ".join(nome.split())
+    if not nome:
+        raise ValueError("Informe o nome do comprador.")
+    if len(nome) > _TAMANHO_MAXIMO_NOME_COMPRADOR:
+        raise ValueError(
+            f"O nome do comprador pode ter no máximo {_TAMANHO_MAXIMO_NOME_COMPRADOR} caracteres."
+        )
+
+    with session_scope() as session:
+        cliente = cliente_repository.buscar_por_id(session, uuid.UUID(cliente_id))
+        if cliente is None or not cliente.ativo:
+            raise ValueError("Cliente não encontrado.")
+
+        comprador, mudou = cliente_repository.adicionar_comprador(session, cliente, nome)
+        if mudou:
+            historico_service.registrar_historico(
+                session,
+                entidade="Cliente",
+                entidade_id=cliente.id,
+                usuario_id=uuid.UUID(usuario_logado.id),
+                acao="novo_comprador",
+                valor_novo=f"comprador={comprador.nome}",
+            )
+        return CompradorOpcao(id=str(comprador.id), nome=comprador.nome)
+
+
 # Tamanho da coluna ``compras.descricao``.
 _TAMANHO_MAXIMO_OBSERVACOES = 255
 
